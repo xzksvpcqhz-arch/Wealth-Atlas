@@ -45,3 +45,10 @@ The implementation reserves the same panel language for empty, loading, import-e
 - File rows use restrained semantic states: cyan for new/update, green for unchanged/success, and amber for protected conflicts or permission attention.
 - A sync never jumps directly from scan to write. The preview is the focus boundary, and the confirmation action is explicit.
 - Mobile collapses the preview into readable file rows and keeps the connection, retry, cancel, confirm, and ZIP actions keyboard reachable.
+
+## FX center
+
+- The FX page is a calculation workbench, not a trading screen: rate history and source metadata stay visually primary.
+- Cyan marks the current conversion path and trend line; muted green indicates a favorable result; amber marks stale, missing, or scenario-risk states.
+- Pair cards, history rows, exposure bars, future-demand calculations, and scenario outputs collapse to one readable column on small screens.
+- Scenario results are always labeled as non-advice and are isolated from IndexedDB writes.

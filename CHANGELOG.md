@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0] - 2026-08-10
+
+- Added the local-first multi-currency FX center for SGD/MYR, USD/SGD, MYR/SGD, and SGD/USD.
+- Added append-only FX history with source, effective date, entered time, default/active state, notes, use counts, filters, trend bars, and delete confirmation.
+- Added immutable FX snapshots for transactions and transfers, including transfer input, actual, and fee-inclusive effective rates.
+- Added currency exposure, future MYR exchange demand, USD investment conversion path, stale/missing-rate alerts, and scenario-only simulation.
+- Extended Excel export with FX history and complete transaction/transfer snapshot fields while preserving Obsidian and local IndexedDB flows.
+
 ## [0.4.0] - 2026-08-10
 
 - Upgraded the basic Obsidian ZIP export into a local-first Vault connection and sync workbench.

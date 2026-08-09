@@ -15,3 +15,7 @@ The homepage must make the user's available discretionary money, future 30-day b
 ## Obsidian sync truth
 
 Obsidian is an explicit, local-first workflow. Wealth Atlas remembers the selected Vault name and directory handle locally, but never reads private files in the background. A sync always moves through scan, preview, confirmation, backup, and write. Markdown outside the `WEALTH_ATLAS_AUTO_START` / `WEALTH_ATLAS_AUTO_END` region belongs to the user and must remain untouched. Permission errors fall back to ZIP downloads, and sync logs store counts and errors rather than private file content.
+
+## Multi-currency truth
+
+v0.5.0 keeps manual FX data local and versioned. New rates append history; they never overwrite prior rates or change a transaction's saved FX snapshot. The FX center exposes direct and reverse SGD/MYR and USD/SGD pairs, transfer effective rates after fees, the USD investment conversion path, currency exposure, future MYR demand, stale-rate warnings, and scenario-only calculations. Real-time FX APIs and automatic exchange execution are out of scope.

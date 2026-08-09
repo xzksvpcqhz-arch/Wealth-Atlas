@@ -6,7 +6,27 @@ export type FxRate = {
   quoteCurrency: CurrencyCode;
   rate: number;
   effectiveDate: string;
+  enteredAt?: string;
+  source?: string;
   note?: string;
+  isDefault?: boolean;
+  active?: boolean;
+  useCount?: number;
+};
+
+export type FxSnapshot = {
+  originalAmount: number;
+  originalCurrency: CurrencyCode;
+  convertedAmount: number;
+  convertedCurrency: CurrencyCode;
+  rateDirection: string;
+  rate: number;
+  rateDate: string;
+  rateSource: string;
+  rateId?: string;
+  fee: number;
+  feeCurrency: CurrencyCode;
+  effectiveRate: number;
 };
 
 export type Account = {
@@ -30,6 +50,7 @@ export type Transaction = {
   convertedAmount?: number;
   convertedCurrency?: CurrencyCode;
   fxRate?: number;
+  fxSnapshot?: FxSnapshot;
 };
 
 export type Transfer = {
@@ -44,6 +65,12 @@ export type Transfer = {
   fee: number;
   feeCurrency: CurrencyCode;
   date: string;
+  inputRate?: number;
+  actualRate?: number;
+  effectiveRate?: number;
+  rateDate?: string;
+  rateSource?: string;
+  fxSnapshot?: FxSnapshot;
 };
 
 export type Goal = {

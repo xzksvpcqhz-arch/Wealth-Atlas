@@ -1,5 +1,5 @@
 import type { ObsidianTemplateKey, WealthData } from "./types";
-import { convert, formatMoney, getBudgetRemaining, getGoalProgress, getRate, getUpcomingPlannedPayments, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "./finance";
+import { convert, formatMoney, getBudgetRemaining, getGoalProgress, getRate, getRateAtDate, getUpcomingPlannedPayments, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "./finance";
 
 const AUTO_START = "<!-- WEALTH_ATLAS_AUTO_START -->";
 const AUTO_END = "<!-- WEALTH_ATLAS_AUTO_END -->";
@@ -142,11 +142,11 @@ export async function exportExcel(data: WealthData) {
   workbook.creator = "Wealth Atlas";
   const transactions = workbook.addWorksheet("Transactions");
   transactions.columns = [
-    { header: "Date", key: "date", width: 14 }, { header: "Type", key: "type", width: 12 }, { header: "Category", key: "category", width: 20 }, { header: "Amount", key: "amount", width: 14 }, { header: "Currency", key: "currency", width: 12 }, { header: "Merchant", key: "merchant", width: 22 }, { header: "Note", key: "note", width: 30 },
+    { header: "Date", key: "date", width: 14 }, { header: "Type", key: "type", width: 12 }, { header: "Category", key: "category", width: 20 }, { header: "Amount", key: "amount", width: 14 }, { header: "Currency", key: "currency", width: 12 }, { header: "Merchant", key: "merchant", width: 22 }, { header: "Note", key: "note", width: 30 }, { header: "Converted Amount", key: "convertedAmount", width: 18 }, { header: "Converted Currency", key: "convertedCurrency", width: 18 }, { header: "FX Rate", key: "fxRate", width: 12 }, { header: "FX Direction", key: "fxDirection", width: 16 }, { header: "FX Date", key: "fxDate", width: 14 }, { header: "FX Source", key: "fxSource", width: 18 }, { header: "FX Fee", key: "fxFee", width: 12 }, { header: "FX Effective Rate", key: "fxEffectiveRate", width: 18 },
   ];
-  data.transactions.forEach((item) => transactions.addRow(item));
+  data.transactions.forEach((item) => transactions.addRow({ ...item, convertedAmount: item.fxSnapshot?.convertedAmount ?? item.convertedAmount, convertedCurrency: item.fxSnapshot?.convertedCurrency ?? item.convertedCurrency, fxRate: item.fxSnapshot?.rate ?? item.fxRate, fxDirection: item.fxSnapshot?.rateDirection, fxDate: item.fxSnapshot?.rateDate, fxSource: item.fxSnapshot?.rateSource, fxFee: item.fxSnapshot?.fee, fxEffectiveRate: item.fxSnapshot?.effectiveRate }));
   const transfers = workbook.addWorksheet("Transfers");
-  transfers.columns = [{ header: "Date", key: "date", width: 14 }, { header: "From", key: "fromCurrency", width: 12 }, { header: "From Amount", key: "fromAmount", width: 16 }, { header: "To", key: "toCurrency", width: 12 }, { header: "To Amount", key: "toAmount", width: 16 }, { header: "Rate", key: "rate", width: 14 }, { header: "Fee", key: "fee", width: 12 }];
+  transfers.columns = [{ header: "Date", key: "date", width: 14 }, { header: "From", key: "fromCurrency", width: 12 }, { header: "From Amount", key: "fromAmount", width: 16 }, { header: "To", key: "toCurrency", width: 12 }, { header: "To Amount", key: "toAmount", width: 16 }, { header: "Rate", key: "rate", width: 14 }, { header: "Input Rate", key: "inputRate", width: 14 }, { header: "Actual Rate", key: "actualRate", width: 14 }, { header: "Effective Rate", key: "effectiveRate", width: 16 }, { header: "Fee", key: "fee", width: 12 }, { header: "Fee Currency", key: "feeCurrency", width: 14 }, { header: "Rate Date", key: "rateDate", width: 14 }, { header: "Rate Source", key: "rateSource", width: 18 }];
   data.transfers.forEach((item) => transfers.addRow(item));
   const goals = workbook.addWorksheet("Goals");
   goals.columns = [{ header: "Goal", key: "name", width: 24 }, { header: "Current", key: "current", width: 16 }, { header: "Target", key: "target", width: 16 }, { header: "Currency", key: "currency", width: 12 }, { header: "Progress", key: "percent", width: 12 }, { header: "Due", key: "due", width: 14 }];
@@ -155,8 +155,8 @@ export async function exportExcel(data: WealthData) {
   annualPlans.columns = [{ header: "Year", key: "year", width: 10 }, { header: "Month", key: "month", width: 10 }, { header: "Plan", key: "name", width: 24 }, { header: "Category", key: "category", width: 18 }, { header: "Amount", key: "amount", width: 14 }, { header: "Currency", key: "currency", width: 12 }, { header: "Status", key: "status", width: 14 }, { header: "Note", key: "note", width: 30 }];
   (data.annualPlans ?? []).forEach((item) => annualPlans.addRow(item));
   const fx = workbook.addWorksheet("FX Rates");
-  fx.columns = [{ header: "Pair", key: "pair", width: 16 }, { header: "Rate", key: "rate", width: 16 }, { header: "Effective Date", key: "date", width: 18 }, { header: "Note", key: "note", width: 30 }];
-  data.fxRates.forEach((item) => fx.addRow({ pair: `${item.baseCurrency}/${item.quoteCurrency}`, rate: item.rate, date: item.effectiveDate, note: item.note }));
+  fx.columns = [{ header: "Base Currency", key: "baseCurrency", width: 16 }, { header: "Target Currency", key: "quoteCurrency", width: 16 }, { header: "Pair", key: "pair", width: 16 }, { header: "Rate", key: "rate", width: 16 }, { header: "Effective Date", key: "date", width: 18 }, { header: "Entered At", key: "enteredAt", width: 26 }, { header: "Source", key: "source", width: 18 }, { header: "Default", key: "isDefault", width: 12 }, { header: "Active", key: "active", width: 12 }, { header: "Use Count", key: "useCount", width: 12 }, { header: "Note", key: "note", width: 30 }];
+  data.fxRates.forEach((item) => fx.addRow({ ...item, pair: `${item.baseCurrency}/${item.quoteCurrency}`, date: item.effectiveDate, note: item.note }));
   const buffer = await workbook.xlsx.writeBuffer();
   downloadBlob(new Blob([buffer]), `wealth-atlas-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
