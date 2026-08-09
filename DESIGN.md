@@ -38,3 +38,10 @@ Wealth Atlas is an operate-mode personal finance console: quiet, precise, local-
 ## States
 
 The implementation reserves the same panel language for empty, loading, import-error, stale-rate, Obsidian-permission, and export-error states so later modules can extend the console without changing its visual grammar.
+
+## Obsidian workbench
+
+- The sync page is an operate-mode workbench: connection status and permission recovery come first, file previews second, and ZIP fallback remains visible without competing with the primary action.
+- File rows use restrained semantic states: cyan for new/update, green for unchanged/success, and amber for protected conflicts or permission attention.
+- A sync never jumps directly from scan to write. The preview is the focus boundary, and the confirmation action is explicit.
+- Mobile collapses the preview into readable file rows and keeps the connection, retry, cancel, confirm, and ZIP actions keyboard reachable.

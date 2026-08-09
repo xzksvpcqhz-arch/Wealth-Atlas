@@ -111,6 +111,30 @@ export type Watchlist = {
   currency: CurrencyCode;
 };
 
+export type ObsidianTemplateKey = "daily" | "monthly" | "yearly" | "goal" | "asset" | "review";
+
+export type ObsidianSettings = {
+  vaultName: string;
+  status: "connected" | "permission-error" | "disconnected";
+  connectedAt?: string;
+  lastScanAt?: string;
+  lastSyncAt?: string;
+  lastError?: string;
+};
+
+export type SyncLog = {
+  id: string;
+  syncedAt: string;
+  vaultName: string;
+  fileCount: number;
+  added: number;
+  updated: number;
+  unchanged: number;
+  skipped: number;
+  failed: number;
+  errorReason?: string;
+};
+
 export type WealthData = {
   accounts: Account[];
   transactions: Transaction[];
@@ -121,6 +145,9 @@ export type WealthData = {
   plannedPayments: PlannedPayment[];
   budgets?: MonthlyBudget[];
   annualPlans?: AnnualPlan[];
+  obsidian?: ObsidianSettings;
+  syncLogs?: SyncLog[];
+  obsidianTemplates?: Partial<Record<ObsidianTemplateKey, string>>;
   watchlists: Watchlist[];
   reportCurrency: CurrencyCode;
 };

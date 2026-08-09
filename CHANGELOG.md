@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0] - 2026-08-10
+
+- Upgraded the basic Obsidian ZIP export into a local-first Vault connection and sync workbench.
+- Added remembered Vault connection state, explicit permission handling, reconnect and disconnect flows, and automatic non-destructive folder/template creation.
+- Added daily, monthly, and yearly Markdown generation with complete frontmatter, cross-links, currency summaries, budgets, watchlists, goals, cashflow forecasts, and review areas.
+- Added sync preview, protected `WEALTH_ATLAS_AUTO_START` / `WEALTH_ATLAS_AUTO_END` regions, conflict warnings, confirmation-only writes, local backups, and retryable sync logs.
+- Added editable daily, monthly, yearly, savings goal, asset, and review templates, plus daily/monthly/yearly/full ZIP fallbacks.
+
 ## [0.3.0] - 2026-08-10
 
 - Added savings goal management with current amount, target amount, status, due date, and monthly / quarterly / yearly / custom cycles.
