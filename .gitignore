@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+data/
+exports/
+private-vault/
+backups/
+work/
+*.xlsx
+*.csv
+*.zip
+.env*
