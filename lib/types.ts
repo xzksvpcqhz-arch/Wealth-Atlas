@@ -54,8 +54,21 @@ export type Goal = {
   currency: CurrencyCode;
   percent: number;
   due: string;
-  cadence: "monthly" | "yearly" | "custom";
+  cadence: "monthly" | "quarterly" | "yearly" | "custom";
   status: "on-track" | "watch" | "paused";
+};
+
+export type AnnualPlan = {
+  id: string;
+  year: number;
+  month: number;
+  name: string;
+  category: string;
+  amount: number;
+  currency: CurrencyCode;
+  status: "planned" | "funded" | "complete";
+  goalId?: string;
+  note?: string;
 };
 
 export type AssetItem = {
@@ -107,6 +120,7 @@ export type WealthData = {
   assets: AssetItem[];
   plannedPayments: PlannedPayment[];
   budgets?: MonthlyBudget[];
+  annualPlans?: AnnualPlan[];
   watchlists: Watchlist[];
   reportCurrency: CurrencyCode;
 };

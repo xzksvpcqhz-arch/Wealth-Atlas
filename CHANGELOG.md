@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] - 2026-08-10
+
+- Added savings goal management with current amount, target amount, status, due date, and monthly / quarterly / yearly / custom cycles.
+- Added goal progress, remaining months, gap, and recommended contribution calculations.
+- Added annual plans with month, amount, status, notes, and optional goal linkage.
+- Added annual plan totals and reserved amount summaries, plus Excel export coverage.
+
 ## [0.2.0] - 2026-08-10
 
 - Added account management with derived balances from opening balances, transactions, and transfers.

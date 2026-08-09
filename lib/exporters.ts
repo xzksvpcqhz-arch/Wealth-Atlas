@@ -56,6 +56,19 @@ export async function exportExcel(data: WealthData) {
   ];
   data.goals.forEach((item) => goals.addRow(item));
 
+  const annualPlans = workbook.addWorksheet("Annual Plans");
+  annualPlans.columns = [
+    { header: "Year", key: "year", width: 10 },
+    { header: "Month", key: "month", width: 10 },
+    { header: "Plan", key: "name", width: 24 },
+    { header: "Category", key: "category", width: 18 },
+    { header: "Amount", key: "amount", width: 14 },
+    { header: "Currency", key: "currency", width: 12 },
+    { header: "Status", key: "status", width: 14 },
+    { header: "Note", key: "note", width: 30 },
+  ];
+  (data.annualPlans ?? []).forEach((item) => annualPlans.addRow(item));
+
   const fx = workbook.addWorksheet("FX Rates");
   fx.columns = [
     { header: "Pair", key: "pair", width: 16 },

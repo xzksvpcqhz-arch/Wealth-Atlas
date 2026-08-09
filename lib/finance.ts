@@ -1,4 +1,4 @@
-import type { CurrencyCode, FxRate, MonthlyBudget, WealthData } from "./types";
+import type { CurrencyCode, FxRate, Goal, MonthlyBudget, WealthData } from "./types";
 
 export const formatMoney = (amount: number, currency: CurrencyCode = "MYR") =>
   new Intl.NumberFormat("en-MY", {
@@ -111,4 +111,38 @@ export function totalIncomeInCurrency(data: WealthData, quote: CurrencyCode) {
 
 export function getDailyCost(purchase: number, current: number, usageDays: number) {
   return usageDays > 0 ? Math.max(0, purchase - current) / usageDays : 0;
+}
+
+export function getGoalGap(goal: Goal) {
+  return Math.max(0, goal.target - goal.current);
+}
+
+export function getGoalProgress(goal: Goal) {
+  return goal.target > 0 ? Math.min(100, Math.max(0, (goal.current / goal.target) * 100)) : 0;
+}
+
+export function getGoalMonthsRemaining(goal: Goal, fromDate = new Date().toISOString().slice(0, 10)) {
+  const from = new Date(`${fromDate.slice(0, 7)}-01T00:00:00Z`);
+  const due = new Date(`${goal.due.slice(0, 7)}-01T00:00:00Z`);
+  const months = (due.getUTCFullYear() - from.getUTCFullYear()) * 12 + due.getUTCMonth() - from.getUTCMonth() + 1;
+  return Math.max(1, months);
+}
+
+export function getGoalPeriodLabel(cadence: Goal["cadence"]) {
+  return cadence === "monthly" ? "每月" : cadence === "quarterly" ? "每季度" : cadence === "yearly" ? "每年" : "自定义周期";
+}
+
+export function getGoalRequiredPerMonth(goal: Goal, fromDate?: string) {
+  return getGoalGap(goal) / getGoalMonthsRemaining(goal, fromDate);
+}
+
+export function getGoalRequiredPerPeriod(goal: Goal, fromDate?: string) {
+  const monthsPerPeriod = goal.cadence === "quarterly" ? 3 : goal.cadence === "yearly" ? 12 : 1;
+  return getGoalRequiredPerMonth(goal, fromDate) * monthsPerPeriod;
+}
+
+export function getAnnualPlanTotal(data: WealthData, year: number, quote: CurrencyCode) {
+  return (data.annualPlans ?? [])
+    .filter((plan) => plan.year === year)
+    .reduce((total, plan) => total + (convert(plan.amount, plan.currency, quote, data.fxRates) ?? 0), 0);
 }
