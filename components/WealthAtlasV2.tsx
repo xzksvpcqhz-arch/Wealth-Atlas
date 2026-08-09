@@ -19,17 +19,20 @@ import {
   ListChecks,
   Money,
   Plus,
+  PencilSimple,
   Receipt,
   Scales,
   ShieldCheck,
   Sparkle,
   Target,
+  Trash,
   Wallet,
   X,
 } from "@phosphor-icons/react";
 import { exportExcel } from "@/lib/exporters";
 import ObsidianWorkbench from "@/components/ObsidianWorkbench";
 import FxCenter from "@/components/FxCenter";
+import AssetEntryModal, { type AssetDraft } from "@/components/AssetEntryModal";
 import {
   calculateFreeToSpend,
   convert,
@@ -53,6 +56,11 @@ import {
   createFxSnapshot,
   getTransferEffectiveRate,
   getCurrencyExposures,
+  getAssetDailyCost,
+  getAssetPurchaseCurrency,
+  getAssetCurrentCurrency,
+  getAssetRealizedValue,
+  getAssetValueChange,
   getLocalDate,
   getUpcomingPlannedPayments,
   totalExpensesInCurrency,
@@ -126,6 +134,10 @@ type BudgetDraft = { month: string; category: string; limit: string; currency: C
 type GoalDraft = { name: string; current: string; target: string; currency: CurrencyCode; due: string; cadence: Goal["cadence"]; status: Goal["status"] };
 type AnnualPlanDraft = { year: string; month: string; name: string; category: string; amount: string; currency: CurrencyCode; status: "planned" | "funded" | "complete"; goalId: string; note: string };
 
+function emptyAssetDraft(): AssetDraft {
+  return { name: "", category: "电脑", purchaseValue: "0", purchaseCurrency: "MYR", purchaseDate: today, currentValue: "0", currentCurrency: "MYR", sellPrice: "", usageDays: "0", status: "active", note: "" };
+}
+
 const navItems: NavItem[] = [
   { label: "首页", icon: House, key: "home" },
   { label: "账户总览", icon: Wallet, key: "accounts" },
@@ -145,6 +157,13 @@ function getAccount(data: WealthData, id: string) {
   return data.accounts.find((account) => account.id === id);
 }
 
+function normalizeAsset(asset: WealthData["assets"][number]) {
+  const currentCurrency = getAssetCurrentCurrency(asset);
+  const purchaseCurrency = getAssetPurchaseCurrency(asset);
+  const category = asset.name === "MacBook" ? "电脑" : asset.name === "相机" ? "相机" : asset.name === "黄金" ? "黄金" : asset.category;
+  return { ...asset, category, purchaseCurrency, purchaseDate: asset.purchaseDate ?? today, currentCurrency, currency: currentCurrency, sellPrice: asset.sellPrice, dailyCost: getAssetDailyCost(asset) };
+}
+
 function GoalEntryModal({ type, onClose, onGoal, onAnnualPlan, data, goalDraft, setGoalDraft, annualPlanDraft, setAnnualPlanDraft }: { type: "goal" | "annual-plan"; onClose: () => void; onGoal: () => void; onAnnualPlan: () => void; data: WealthData; goalDraft: GoalDraft; setGoalDraft: Dispatch<SetStateAction<GoalDraft>>; annualPlanDraft: AnnualPlanDraft; setAnnualPlanDraft: Dispatch<SetStateAction<AnnualPlanDraft>> }) {
   return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="goal-modal-title"><div className="modal-header"><div><div className="panel-kicker">WEALTH ATLAS / PLAN</div><h2 id="goal-modal-title">{type === "goal" ? "新增储蓄目标" : "新增年度计划"}</h2></div><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={19} /></button></div>{type === "goal" ? <div className="form-stack"><label>目标名称<input placeholder="例如：旅行基金" value={goalDraft.name} onChange={(event) => setGoalDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><div className="form-grid"><label>当前金额<input type="number" min="0" step="0.01" value={goalDraft.current} onChange={(event) => setGoalDraft((draft) => ({ ...draft, current: event.target.value }))} /></label><label>目标金额<input type="number" min="0" step="0.01" value={goalDraft.target} onChange={(event) => setGoalDraft((draft) => ({ ...draft, target: event.target.value }))} /></label></div><div className="form-grid"><label>币种<select value={goalDraft.currency} onChange={(event) => setGoalDraft((draft) => ({ ...draft, currency: event.target.value as CurrencyCode }))}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label><label>目标周期<select value={goalDraft.cadence} onChange={(event) => setGoalDraft((draft) => ({ ...draft, cadence: event.target.value as Goal["cadence"] }))}><option value="monthly">每月</option><option value="quarterly">每季度</option><option value="yearly">每年</option><option value="custom">自定义周期</option></select></label></div><div className="form-grid"><label>截止日期<input type="date" value={goalDraft.due} onChange={(event) => setGoalDraft((draft) => ({ ...draft, due: event.target.value }))} /></label><label>状态<select value={goalDraft.status} onChange={(event) => setGoalDraft((draft) => ({ ...draft, status: event.target.value as Goal["status"] }))}><option value="on-track">进行中</option><option value="watch">需要关注</option><option value="paused">已暂停</option></select></label></div><p className="form-help">保存后会按截止日期计算剩余月份和每个目标周期建议金额。</p><button className="primary-button full" onClick={onGoal}>保存储蓄目标</button></div> : <div className="form-stack"><div className="form-grid"><label>年份<input type="number" min="2020" step="1" value={annualPlanDraft.year} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, year: event.target.value }))} /></label><label>月份<select value={annualPlanDraft.month} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, month: event.target.value }))}>{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={String(index + 1)}>{index + 1} 月</option>)}</select></label></div><label>计划名称<input placeholder="例如：保险年缴" value={annualPlanDraft.name} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><div className="form-grid"><label>分类<input placeholder="例如：保险" value={annualPlanDraft.category} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, category: event.target.value }))} /></label><label>金额<input type="number" min="0" step="0.01" value={annualPlanDraft.amount} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, amount: event.target.value }))} /></label></div><div className="form-grid"><label>币种<select value={annualPlanDraft.currency} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, currency: event.target.value as CurrencyCode }))}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label><label>状态<select value={annualPlanDraft.status} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, status: event.target.value as AnnualPlanDraft["status"] }))}><option value="planned">待准备</option><option value="funded">已预留</option><option value="complete">已完成</option></select></label></div><label>关联目标<select value={annualPlanDraft.goalId} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, goalId: event.target.value }))}><option value="">不关联目标</option>{data.goals.map((goal) => <option key={goal.id} value={goal.id}>{goal.name}</option>)}</select></label><label>备注<input placeholder="可选说明" value={annualPlanDraft.note} onChange={(event) => setAnnualPlanDraft((draft) => ({ ...draft, note: event.target.value }))} /></label><button className="primary-button full" onClick={onAnnualPlan}>保存年度计划</button></div>}</div></div>;
 }
@@ -162,9 +181,10 @@ function Stat({ icon: Icon, label, value, detail, tone = "cyan" }: { icon: Eleme
 }
 
 export default function WealthAtlasV2() {
-  const [data, setData] = useState<WealthData>(initialData);
+  const [data, setData] = useState<WealthData>({ ...initialData, assets: initialData.assets.map(normalizeAsset) });
   const [active, setActive] = useState("home");
   const [fxMode, setFxMode] = useState(false);
+  const [assetMode, setAssetMode] = useState(false);
   const [modal, setModal] = useState<ModalType>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -178,10 +198,15 @@ export default function WealthAtlasV2() {
   const [planYear, setPlanYear] = useState(Number(currentMonth.slice(0, 4)));
   const [goalDraft, setGoalDraft] = useState<GoalDraft>({ name: "", current: "0", target: "10000", currency: "MYR", due: `${Number(currentMonth.slice(0, 4))}-12-31`, cadence: "monthly", status: "on-track" });
   const [annualPlanDraft, setAnnualPlanDraft] = useState<AnnualPlanDraft>({ year: String(Number(currentMonth.slice(0, 4))), month: "12", name: "", category: "", amount: "0", currency: "MYR", status: "planned", goalId: "", note: "" });
+  const [assetModal, setAssetModal] = useState(false);
+  const [assetEditingId, setAssetEditingId] = useState<string | null>(null);
+  const [assetDraft, setAssetDraft] = useState<AssetDraft>(emptyAssetDraft);
+  const [assetCategoryFilter, setAssetCategoryFilter] = useState("all");
+  const [assetStatusFilter, setAssetStatusFilter] = useState<"all" | "active" | "unused" | "sold">("all");
 
   useEffect(() => {
     loadWealthData().then((saved) => {
-      if (saved) setData({ ...initialData, ...saved, budgets: saved.budgets ?? initialData.budgets, annualPlans: saved.annualPlans ?? initialData.annualPlans });
+      if (saved) setData({ ...initialData, ...saved, assets: (saved.assets ?? initialData.assets).map(normalizeAsset), budgets: saved.budgets ?? initialData.budgets, annualPlans: saved.annualPlans ?? initialData.annualPlans });
       setLoaded(true);
     });
   }, []);
@@ -189,9 +214,15 @@ export default function WealthAtlasV2() {
   useEffect(() => {
     if (active === "fx") {
       setFxMode(true);
+      setAssetMode(false);
+      setActive("settings");
+    } else if (active === "assets") {
+      setFxMode(false);
+      setAssetMode(true);
       setActive("settings");
     } else if (active !== "settings") {
       setFxMode(false);
+      setAssetMode(false);
     }
   }, [active]);
 
@@ -287,6 +318,37 @@ export default function WealthAtlasV2() {
     showToast("年度计划已保存");
   };
 
+  const openAsset = (asset?: WealthData["assets"][number]) => {
+    if (asset) {
+      setAssetEditingId(asset.id);
+      setAssetDraft({ name: asset.name, category: asset.category, purchaseValue: String(asset.purchaseValue), purchaseCurrency: getAssetPurchaseCurrency(asset), purchaseDate: asset.purchaseDate ?? today, currentValue: String(asset.currentValue), currentCurrency: getAssetCurrentCurrency(asset), sellPrice: asset.sellPrice === undefined ? "" : String(asset.sellPrice), usageDays: String(asset.usageDays), status: asset.status, note: asset.note ?? "" });
+    } else {
+      setAssetEditingId(null);
+      setAssetDraft(emptyAssetDraft());
+    }
+    setAssetModal(true);
+  };
+
+  const saveAsset = () => {
+    const purchaseValue = Number(assetDraft.purchaseValue);
+    const currentValue = Number(assetDraft.currentValue);
+    const usageDays = Number(assetDraft.usageDays);
+    const sellPrice = assetDraft.sellPrice.trim() === "" ? undefined : Number(assetDraft.sellPrice);
+    if (!assetDraft.name.trim() || !assetDraft.category.trim() || !Number.isFinite(purchaseValue) || purchaseValue < 0 || !Number.isFinite(currentValue) || currentValue < 0 || !Number.isFinite(usageDays) || usageDays < 0 || (sellPrice !== undefined && (!Number.isFinite(sellPrice) || sellPrice < 0)) || !assetDraft.purchaseDate) return showToast("请填写资产名称、价格、买入日期和有效使用天数");
+    const asset = { id: assetEditingId ?? makeId("asset"), name: assetDraft.name.trim(), category: assetDraft.category.trim(), purchaseValue, purchaseCurrency: assetDraft.purchaseCurrency, purchaseDate: assetDraft.purchaseDate, currentValue, currentCurrency: assetDraft.currentCurrency, currency: assetDraft.currentCurrency, sellPrice, usageDays, dailyCost: getAssetDailyCost({ purchaseValue, currentValue, sellPrice, usageDays, status: assetDraft.status }), status: assetDraft.status, note: assetDraft.note.trim() || undefined };
+    setData((current) => ({ ...current, assets: assetEditingId ? current.assets.map((item) => item.id === assetEditingId ? asset : item) : [asset, ...current.assets] }));
+    setAssetModal(false);
+    setAssetEditingId(null);
+    setAssetDraft(emptyAssetDraft());
+    showToast(assetEditingId ? "物品资产已更新" : "物品资产已保存");
+  };
+
+  const deleteAsset = (asset: WealthData["assets"][number]) => {
+    if (!window.confirm(`确认删除 ${asset.name} 吗？删除后不会影响交易记录。`)) return;
+    setData((current) => ({ ...current, assets: current.assets.filter((item) => item.id !== asset.id) }));
+    showToast("物品资产已删除");
+  };
+
   const saveFxRate = () => {
     const rate = Number(fxDraft.rate);
     if (!rate || rate <= 0) return showToast("请输入有效汇率");
@@ -342,7 +404,16 @@ export default function WealthAtlasV2() {
     return <main className="main-content module-page goals-page">{renderHeader("GOALS", "储蓄目标与年度计划", { label: "新增目标", onClick: () => setModal("goal"), icon: Plus })}<section className="goals-summary"><div><span>目标当前累计</span><strong>{formatMoney(totalCurrent, reportCurrency)}</strong><small>{data.goals.length} 个储蓄目标</small></div><div><span>目标总额</span><strong>{formatMoney(totalTarget, reportCurrency)}</strong><small>按当前手动汇率换算</small></div><div><span>待完成差额</span><strong>{formatMoney(totalGap, reportCurrency)}</strong><small>距离全部目标</small></div><div><span>整体进度</span><strong>{totalProgress}%</strong><small>当前 / 目标</small></div></section><section className="goals-workspace"><div className="panel goal-focus-panel"><div className="panel-title-row"><div><div className="panel-kicker">SAVINGS MAP</div><h2>目标周期与储蓄节奏</h2></div><Target size={21} className="sparkle" /></div><p className="module-intro">每个目标都会根据截止日期计算剩余月份，并显示下一周期需要准备的金额。</p><div className="period-tabs">{(["all", "monthly", "quarterly", "yearly", "custom"] as const).map((period) => <button key={period} className={goalPeriodFilter === period ? "active" : ""} onClick={() => setGoalPeriodFilter(period)}>{period === "all" ? "全部" : period === "monthly" ? "每月" : period === "quarterly" ? "每季度" : period === "yearly" ? "每年" : "自定义"}</button>)}</div><div className="goal-list">{visibleGoals.length ? visibleGoals.map((goal) => { const progress = getGoalProgress(goal); const gap = getGoalGap(goal); const months = getGoalMonthsRemaining(goal, today); const perMonth = getGoalRequiredPerMonth(goal, today); const perPeriod = getGoalRequiredPerPeriod(goal, today); return <article className="goal-card" key={goal.id}><div className="goal-card-top"><div><strong>{goal.name}</strong><span>{getGoalPeriodLabel(goal.cadence)} · 截止 {formatDate(goal.due)}</span></div><span className={`goal-status ${goal.status}`}>{statusLabels[goal.status]}</span></div><div className="goal-progress-row"><div className="goal-progress"><span style={{ width: `${progress}%` }} /></div><b>{Math.round(progress)}%</b></div><div className="goal-card-meta"><span>已存 <b>{formatMoney(goal.current, goal.currency)}</b></span><span>目标 <b>{formatMoney(goal.target, goal.currency)}</b></span><span>差额 <b>{formatMoney(gap, goal.currency)}</b></span></div><div className="goal-cycle"><div><span>剩余周期</span><strong>{months} 个月</strong></div><div><span>{goal.cadence === "quarterly" ? "每季度建议" : "每月建议"}</span><strong>{formatMoney(goal.cadence === "quarterly" ? perPeriod : perMonth, goal.currency)}</strong></div></div></article>; }) : <div className="empty-state"><Target size={30} /><strong>没有匹配的目标周期</strong><span>切换周期筛选，或新增一个储蓄目标。</span><button className="primary-button compact" onClick={() => setModal("goal")}>新增目标</button></div>}</div></div><div className="panel annual-plan-panel"><div className="panel-title-row"><div><div className="panel-kicker">ANNUAL ROADMAP</div><h2>{planYear} 年度计划</h2></div><button className="secondary-button compact" onClick={() => setModal("annual-plan")}><Plus size={16} /> 新增计划</button></div><div className="year-switcher"><button className="icon-button" onClick={() => setPlanYear((year) => year - 1)} aria-label="上一年">←</button><strong>{planYear}</strong><button className="icon-button" onClick={() => setPlanYear((year) => year + 1)} aria-label="下一年">→</button></div><div className="annual-summary"><div><span>年度总额</span><b>{formatMoney(planTotal, reportCurrency)}</b></div><div><span>已预留</span><b>{formatMoney(fundedPlanTotal, reportCurrency)}</b></div></div><div className="annual-plan-list">{plans.length ? plans.map((plan) => <div className="annual-plan-row" key={plan.id}><div className="annual-month">{String(plan.month).padStart(2, "0")}<small>月</small></div><div><strong>{plan.name}</strong><span>{plan.category}{planGoalName(plan.goalId) ? ` · 关联 ${planGoalName(plan.goalId)}` : ""}</span></div><div className={`plan-status ${plan.status}`}>{planStatusLabels[plan.status]}</div><b>{formatMoney(plan.amount, plan.currency)}</b></div>) : <div className="empty-state"><CalendarDots size={28} /><strong>这一年还没有计划</strong><span>把大额支出或年度储蓄动作放到时间线上。</span><button className="secondary-button compact" onClick={() => setModal("annual-plan")}>新增年度计划</button></div>}</div></div></section></main>;
   };
 
-  const renderSettings = () => fxMode ? <FxCenter data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} /> : <ObsidianWorkbench mode="settings" data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} />;
+  const renderAssets = () => {
+    const categories = Array.from(new Set(data.assets.map((asset) => asset.category)));
+    const visibleAssets = data.assets.filter((asset) => (assetCategoryFilter === "all" || asset.category === assetCategoryFilter) && (assetStatusFilter === "all" || asset.status === assetStatusFilter));
+    const totalCurrent = data.assets.reduce((sum, asset) => sum + (convert(getAssetRealizedValue(asset), getAssetCurrentCurrency(asset), reportCurrency, data.fxRates) ?? 0), 0);
+    const totalPurchase = data.assets.reduce((sum, asset) => sum + (convert(asset.purchaseValue, getAssetPurchaseCurrency(asset), reportCurrency, data.fxRates) ?? 0), 0);
+    const totalDailyCost = data.assets.reduce((sum, asset) => sum + (convert(getAssetDailyCost(asset), getAssetCurrentCurrency(asset), reportCurrency, data.fxRates) ?? 0), 0);
+    return <main className="main-content module-page assets-page">{renderHeader("ASSETS", "物品资产", { label: "新增资产", onClick: () => openAsset(), icon: Plus })}<section className="module-summary asset-summary"><div><span>当前物品价值</span><strong>{formatMoney(totalCurrent, reportCurrency)}</strong><small>{data.assets.length} 项物品资产</small></div><div><span>累计买入价值</span><strong>{formatMoney(totalPurchase, reportCurrency)}</strong><small>保留每项原始买入货币</small></div><div><span>每日成本</span><strong>{formatMoney(totalDailyCost, reportCurrency)}</strong><small>按（买入 − 当前）÷ 使用天数</small></div><div><span>已使用天数</span><strong>{data.assets.reduce((sum, asset) => sum + asset.usageDays, 0).toLocaleString()}</strong><small>跨资产累计</small></div></section><div className="module-toolbar asset-toolbar"><div><div className="panel-kicker">USE VALUE LEDGER</div><h2>买入、使用与当前价值</h2></div><p>日均成本只描述价值消耗，不会改动账户余额、交易或汇率快照。</p></div><div className="asset-filters"><select aria-label="按资产分类筛选" value={assetCategoryFilter} onChange={(event) => setAssetCategoryFilter(event.target.value)}><option value="all">全部分类</option>{categories.map((category) => <option key={category}>{category}</option>)}</select><select aria-label="按资产状态筛选" value={assetStatusFilter} onChange={(event) => setAssetStatusFilter(event.target.value as typeof assetStatusFilter)}><option value="all">全部状态</option><option value="active">使用中</option><option value="unused">闲置</option><option value="sold">已出售</option></select><span>{visibleAssets.length} / {data.assets.length} 项</span></div><section className="asset-management-list">{visibleAssets.length ? visibleAssets.map((asset) => { const currentValue = getAssetRealizedValue(asset); const valueChange = getAssetValueChange(asset); const dailyCost = getAssetDailyCost(asset); return <article className="panel asset-management-row" key={asset.id}><div className={`asset-visual ${asset.category === "黄金" ? "gold" : asset.category === "相机" ? "camera" : ""}`}><Briefcase size={22} /></div><div className="asset-management-main"><div className="asset-row-heading"><div><strong>{asset.name}</strong><span>{asset.category} · {asset.status === "active" ? "使用中" : asset.status === "unused" ? "闲置" : "已出售"}</span></div><div className="asset-row-actions"><button className="icon-button" aria-label={`编辑 ${asset.name}`} onClick={() => openAsset(asset)}><PencilSimple size={16} /></button><button className="icon-button danger-icon" aria-label={`删除 ${asset.name}`} onClick={() => deleteAsset(asset)}><Trash size={16} /></button></div></div><div className="asset-management-metrics"><div><span>买入</span><b>{formatMoney(asset.purchaseValue, getAssetPurchaseCurrency(asset))}</b><small>{asset.purchaseDate ?? "未填写"}</small></div><div><span>{asset.status === "sold" ? "卖出" : "当前价值"}</span><b>{formatMoney(currentValue, getAssetCurrentCurrency(asset))}</b><small className={valueChange >= 0 ? "positive" : "negative"}>{valueChange >= 0 ? "+" : ""}{formatMoney(valueChange, getAssetCurrentCurrency(asset))}</small></div><div><span>日均成本</span><b>{formatMoney(dailyCost, getAssetCurrentCurrency(asset))}</b><small>{asset.usageDays.toLocaleString()} 天使用</small></div></div>{asset.note && <p>{asset.note}</p>}</div></article>; }) : <div className="panel empty-state asset-empty"><Briefcase size={32} /><strong>还没有匹配的物品资产</strong><span>记录一件物品后，系统会计算日均成本和当前价值变化。</span><button className="primary-button compact" onClick={() => openAsset()}>新增第一项资产</button></div>}</section></main>;
+  };
+
+  const renderSettings = () => assetMode ? <>{renderAssets()}{assetModal && <AssetEntryModal draft={assetDraft} setDraft={setAssetDraft} editing={Boolean(assetEditingId)} onClose={() => setAssetModal(false)} onSave={saveAsset} />}</> : fxMode ? <FxCenter data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} /> : <ObsidianWorkbench mode="settings" data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} />;
   const renderObsidian = () => <ObsidianWorkbench mode="sync" data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} />;
   const renderPlaceholder = () => <main className="main-content placeholder-page"><div className="page-header"><div><div className="breadcrumb">WEALTH ATLAS / MODULE</div><h1>{navItems.find((item) => item.key === active)?.label ?? "模块"}</h1></div></div><div className="panel empty-module"><Sparkle size={32} weight="fill" /><h2>这个模块保留在你的产品地图里</h2><p>本次版本先把账户、交易和预算闭环跑通，现有目标、资产、保险、报表和提醒结构仍然保留。</p><button className="primary-button" onClick={() => setActive("home")}>返回首页</button></div></main>;
 

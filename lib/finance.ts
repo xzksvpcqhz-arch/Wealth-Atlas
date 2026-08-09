@@ -181,6 +181,26 @@ export function getDailyCost(purchase: number, current: number, usageDays: numbe
   return usageDays > 0 ? Math.max(0, purchase - current) / usageDays : 0;
 }
 
+export function getAssetPurchaseCurrency(asset: { purchaseCurrency?: CurrencyCode; currency: CurrencyCode }) {
+  return asset.purchaseCurrency ?? asset.currency;
+}
+
+export function getAssetCurrentCurrency(asset: { currentCurrency?: CurrencyCode; currency: CurrencyCode }) {
+  return asset.currentCurrency ?? asset.currency;
+}
+
+export function getAssetRealizedValue(asset: { currentValue: number; sellPrice?: number; status: "active" | "unused" | "sold" }) {
+  return asset.status === "sold" ? asset.sellPrice ?? asset.currentValue : asset.currentValue;
+}
+
+export function getAssetDailyCost(asset: { purchaseValue: number; currentValue: number; sellPrice?: number; usageDays: number; status: "active" | "unused" | "sold" }) {
+  return getDailyCost(asset.purchaseValue, getAssetRealizedValue(asset), asset.usageDays);
+}
+
+export function getAssetValueChange(asset: { purchaseValue: number; currentValue: number; sellPrice?: number; status: "active" | "unused" | "sold" }) {
+  return getAssetRealizedValue(asset) - asset.purchaseValue;
+}
+
 export function getGoalGap(goal: Goal) {
   return Math.max(0, goal.target - goal.current);
 }

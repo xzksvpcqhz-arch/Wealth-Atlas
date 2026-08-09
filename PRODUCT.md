@@ -19,3 +19,7 @@ Obsidian is an explicit, local-first workflow. Wealth Atlas remembers the select
 ## Multi-currency truth
 
 v0.5.0 keeps manual FX data local and versioned. New rates append history; they never overwrite prior rates or change a transaction's saved FX snapshot. The FX center exposes direct and reverse SGD/MYR and USD/SGD pairs, transfer effective rates after fees, the USD investment conversion path, currency exposure, future MYR demand, stale-rate warnings, and scenario-only calculations. Real-time FX APIs and automatic exchange execution are out of scope.
+
+## Asset management truth
+
+v0.6.0 uses the existing local `assets` collection for physical and digital items. Each item preserves purchase currency/date, current valuation currency, optional sale price, usage days, status, and notes. Daily cost is a use-value indicator, not an account transaction, and must never mutate balances, FX snapshots, or private Git-tracked data.

@@ -103,11 +103,16 @@ export type AssetItem = {
   name: string;
   category: string;
   purchaseValue: number;
+  purchaseCurrency?: CurrencyCode;
+  purchaseDate?: string;
   currentValue: number;
+  currentCurrency?: CurrencyCode;
+  sellPrice?: number;
   currency: CurrencyCode;
   dailyCost: number;
   usageDays: number;
   status: "active" | "unused" | "sold";
+  note?: string;
 };
 
 export type PlannedPayment = {

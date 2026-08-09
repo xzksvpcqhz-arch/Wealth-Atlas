@@ -52,3 +52,9 @@ The implementation reserves the same panel language for empty, loading, import-e
 - Cyan marks the current conversion path and trend line; muted green indicates a favorable result; amber marks stale, missing, or scenario-risk states.
 - Pair cards, history rows, exposure bars, future-demand calculations, and scenario outputs collapse to one readable column on small screens.
 - Scenario results are always labeled as non-advice and are isolated from IndexedDB writes.
+
+## Asset management
+
+- The asset ledger is a calm value-use workspace: current value, accumulated purchase value, daily cost, and usage days come before secondary notes.
+- Asset rows use structural data blocks rather than decorative tiles; edit and delete actions stay at the row edge and remain reachable at touch sizes.
+- The homepage metric grid always uses `minmax(0, 1fr)`, visible overflow, and breakable amount text. At 640px and below it becomes a single column so currency values remain readable.

@@ -27,4 +27,8 @@ It also provides currency exposure, the next-30-day MYR gap, the USD → SGD →
 
 ## Data privacy
 
+## v0.6.0 物品资产
+
+物品资产继续使用本地 IndexedDB 的 `assets` 结构，记录名称、分类、买入价格与货币、买入日期、当前价值与货币、卖出价格、使用天数和状态。系统按“（买入价格 − 当前价值或卖出价格）÷ 使用天数”计算日均成本，并支持新增、编辑、删除、分类筛选和状态筛选。
+
 应用数据保存在浏览器 IndexedDB。真实财务数据不应该提交到 Git；导出文件和私人 Vault 已加入 `.gitignore`。

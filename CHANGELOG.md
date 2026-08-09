@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0] - 2026-08-10
+
+- Fixed homepage income, expense, net-worth, and remaining-budget metrics so long currency values wrap fully without horizontal overflow or clipping on desktop and 390px mobile layouts.
+- Added asset management on the existing `assets` data structure with purchase/current currencies, purchase date, optional sale price, usage days, status, notes, category/status filters, edit and delete flows.
+- Added daily cost and value-change calculations, responsive asset summary metrics, and an Assets worksheet in Excel export.
+
 ## [0.5.0] - 2026-08-10
 
 - Added the local-first multi-currency FX center for SGD/MYR, USD/SGD, MYR/SGD, and SGD/USD.
