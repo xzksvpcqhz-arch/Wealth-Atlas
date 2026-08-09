@@ -1,4 +1,4 @@
-import type { CurrencyCode, FxRate, WealthData } from "./types";
+import type { CurrencyCode, FxRate, MonthlyBudget, WealthData } from "./types";
 
 export const formatMoney = (amount: number, currency: CurrencyCode = "MYR") =>
   new Intl.NumberFormat("en-MY", {
@@ -35,17 +35,58 @@ export function getAccountBalance(data: WealthData, accountId: string) {
   if (!account) return 0;
   const income = data.transactions
     .filter((item) => item.accountId === accountId && item.type === "income")
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, item) => sum + (convert(item.amount, item.currency, account.currency, data.fxRates) ?? 0), 0);
   const expenses = data.transactions
     .filter((item) => item.accountId === accountId && item.type === "expense")
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, item) => sum + (convert(item.amount, item.currency, account.currency, data.fxRates) ?? 0), 0);
   const sent = data.transfers
     .filter((item) => item.fromAccountId === accountId)
-    .reduce((sum, item) => sum + item.fromAmount + (item.feeCurrency === account.currency ? item.fee : 0), 0);
+    .reduce((sum, item) => sum + (convert(item.fromAmount, item.fromCurrency, account.currency, data.fxRates) ?? 0) + (convert(item.fee, item.feeCurrency, account.currency, data.fxRates) ?? 0), 0);
   const received = data.transfers
     .filter((item) => item.toAccountId === accountId)
-    .reduce((sum, item) => sum + item.toAmount, 0);
+    .reduce((sum, item) => sum + (convert(item.toAmount, item.toCurrency, account.currency, data.fxRates) ?? 0), 0);
   return account.balance + income - expenses - sent + received;
+}
+
+export function getAccountActivityCount(data: WealthData, accountId: string) {
+  return data.transactions.filter((item) => item.accountId === accountId).length
+    + data.transfers.filter((item) => item.fromAccountId === accountId || item.toAccountId === accountId).length;
+}
+
+export function getMonthTransactions(data: WealthData, month: string) {
+  return data.transactions.filter((item) => item.date.startsWith(month));
+}
+
+export function getBudgetSpent(data: WealthData, budget: MonthlyBudget) {
+  return getMonthTransactions(data, budget.month)
+    .filter((item) => item.type === "expense" && item.category.trim().toLowerCase() === budget.category.trim().toLowerCase())
+    .reduce((sum, item) => sum + (convert(item.amount, item.currency, budget.currency, data.fxRates) ?? 0), 0);
+}
+
+export function getBudgetRemaining(data: WealthData, budget: MonthlyBudget) {
+  return Math.max(0, budget.limit - getBudgetSpent(data, budget));
+}
+
+export function getLiquidBalanceInCurrency(data: WealthData, quote: CurrencyCode) {
+  return data.accounts
+    .filter((account) => account.type === "bank" || account.type === "cash")
+    .reduce((total, account) => total + (convert(getAccountBalance(data, account.id), account.currency, quote, data.fxRates) ?? 0), 0);
+}
+
+export function getUpcomingPlannedPayments(data: WealthData, month: string, fromDate: string) {
+  // A planned transfer moves value between liquid accounts; it should not
+  // reduce the combined amount the user can spend across those accounts.
+  return data.plannedPayments.filter((payment) => payment.due.startsWith(month) && payment.due >= fromDate && payment.category !== "资金转换");
+}
+
+export function calculateFreeToSpend(data: WealthData, month: string, fromDate: string) {
+  const liquidBalance = getLiquidBalanceInCurrency(data, data.reportCurrency);
+  const budgetRemaining = (data.budgets ?? [])
+    .filter((budget) => budget.month === month)
+    .reduce((sum, budget) => sum + (convert(getBudgetRemaining(data, budget), budget.currency, data.reportCurrency, data.fxRates) ?? 0), 0);
+  const plannedCommitments = getUpcomingPlannedPayments(data, month, fromDate)
+    .reduce((sum, payment) => sum + (convert(payment.amount, payment.currency, data.reportCurrency, data.fxRates) ?? 0), 0);
+  return Math.max(0, liquidBalance - budgetRemaining - plannedCommitments);
 }
 
 export function totalInCurrency(data: WealthData, quote: CurrencyCode) {

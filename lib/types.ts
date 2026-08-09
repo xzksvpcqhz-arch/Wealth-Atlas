@@ -80,6 +80,14 @@ export type PlannedPayment = {
   category: string;
 };
 
+export type MonthlyBudget = {
+  id: string;
+  month: string;
+  category: string;
+  limit: number;
+  currency: CurrencyCode;
+};
+
 export type Watchlist = {
   id: string;
   name: string;
@@ -98,6 +106,7 @@ export type WealthData = {
   goals: Goal[];
   assets: AssetItem[];
   plannedPayments: PlannedPayment[];
+  budgets?: MonthlyBudget[];
   watchlists: Watchlist[];
   reportCurrency: CurrencyCode;
 };

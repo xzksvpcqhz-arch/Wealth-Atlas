@@ -1,0 +1,278 @@
+"use client";
+
+import { useEffect, useMemo, useState, type Dispatch, type ElementType, type SetStateAction } from "react";
+import {
+  ArrowsLeftRight,
+  Bank,
+  Bell,
+  Briefcase,
+  CalendarDots,
+  ChartLineUp,
+  ChartPieSlice,
+  Check,
+  Coins,
+  CreditCard,
+  FileXls,
+  GearSix,
+  House,
+  ListChecks,
+  Money,
+  Plus,
+  Receipt,
+  Scales,
+  ShieldCheck,
+  Sparkle,
+  Target,
+  Wallet,
+  X,
+} from "@phosphor-icons/react";
+import { buildDailyMarkdown, exportExcel, exportObsidianPackage } from "@/lib/exporters";
+import {
+  calculateFreeToSpend,
+  convert,
+  formatMoney,
+  getAccountActivityCount,
+  getAccountBalance,
+  getBudgetRemaining,
+  getBudgetSpent,
+  getLiquidBalanceInCurrency,
+  getMonthTransactions,
+  getRate,
+  getUpcomingPlannedPayments,
+  totalExpensesInCurrency,
+  totalIncomeInCurrency,
+  totalInCurrency,
+} from "@/lib/finance";
+import { loadWealthData, saveWealthData } from "@/lib/storage";
+import type { Account, CurrencyCode, MonthlyBudget, WealthData } from "@/lib/types";
+
+const today = new Date().toISOString().slice(0, 10);
+const currentMonth = today.slice(0, 7);
+const currencies: CurrencyCode[] = ["SGD", "MYR", "USD"];
+
+const initialData: WealthData = {
+  reportCurrency: "MYR",
+  accounts: [
+    { id: "sgd-main", name: "新加坡工资账户", type: "bank", currency: "SGD", balance: 0 },
+    { id: "myr-main", name: "马来西亚生活账户", type: "bank", currency: "MYR", balance: 0 },
+    { id: "usd-invest", name: "USD 投资账户", type: "investment", currency: "USD", balance: 5000 },
+  ],
+  transactions: [
+    { id: "salary", type: "income", accountId: "sgd-main", amount: 8600, currency: "SGD", category: "新加坡工资", date: "2026-08-01" },
+    { id: "food-1", type: "expense", accountId: "myr-main", amount: 620, currency: "MYR", category: "外食", merchant: "本月累计", date: today },
+    { id: "rent", type: "expense", accountId: "myr-main", amount: 1600, currency: "MYR", category: "房租", date: "2026-08-02" },
+    { id: "insurance", type: "expense", accountId: "myr-main", amount: 450, currency: "MYR", category: "保险", date: "2026-08-04" },
+  ],
+  transfers: [
+    { id: "transfer-1", fromAccountId: "sgd-main", toAccountId: "myr-main", fromAmount: 2000, fromCurrency: "SGD", toAmount: 6960, toCurrency: "MYR", rate: 3.48, fee: 5, feeCurrency: "SGD", date: "2026-08-02" },
+  ],
+  fxRates: [
+    { id: "sgd-myr", baseCurrency: "SGD", quoteCurrency: "MYR", rate: 3.48, effectiveDate: today, note: "手动输入" },
+    { id: "usd-sgd", baseCurrency: "USD", quoteCurrency: "SGD", rate: 1.34, effectiveDate: today, note: "手动输入" },
+  ],
+  budgets: [
+    { id: "budget-food", month: currentMonth, category: "外食", limit: 800, currency: "MYR" },
+    { id: "budget-shopping", month: currentMonth, category: "购物", limit: 600, currency: "MYR" },
+  ],
+  goals: [
+    { id: "travel", name: "旅行基金", current: 7200, target: 10000, currency: "MYR", percent: 72, due: "2026-12-01", cadence: "monthly", status: "on-track" },
+    { id: "house", name: "房屋首期", current: 38000, target: 100000, currency: "MYR", percent: 38, due: "2030-01-01", cadence: "yearly", status: "watch" },
+    { id: "study", name: "学习基金", current: 4200, target: 5000, currency: "MYR", percent: 84, due: "2026-10-15", cadence: "custom", status: "on-track" },
+  ],
+  assets: [
+    { id: "macbook", name: "MacBook", category: "数码", purchaseValue: 6999, currentValue: 4800, currency: "MYR", dailyCost: 3.42, usageDays: 642, status: "active" },
+    { id: "camera", name: "相机", category: "创作", purchaseValue: 5500, currentValue: 4200, currency: "MYR", dailyCost: 2.74, usageDays: 475, status: "active" },
+    { id: "gold", name: "黄金", category: "贵重资产", purchaseValue: 10000, currentValue: 11200, currency: "MYR", dailyCost: 3.84, usageDays: 312, status: "active" },
+  ],
+  plannedPayments: [
+    { id: "insurance-reserve", name: "保险预留", amount: 450, currency: "MYR", due: `${currentMonth}-18`, cadence: "monthly", category: "保险" },
+    { id: "sgd-transfer", name: "SGD 转 MYR", amount: 2000, currency: "SGD", due: `${currentMonth}-25`, cadence: "monthly", category: "资金转换" },
+  ],
+  watchlists: [
+    { id: "food", name: "外食", spent: 620, limit: 800, average: 710, forecast: 940, currency: "MYR" },
+    { id: "shopping", name: "购物", spent: 340, limit: 600, average: 520, forecast: 480, currency: "MYR" },
+  ],
+};
+
+type ModalType = "transaction" | "transfer" | "fx" | "account" | "budget" | null;
+type NavItem = { label: string; icon: ElementType; key: string };
+type TransactionDraft = { type: "income" | "expense"; accountId: string; amount: string; category: string; merchant: string; date: string; note: string };
+type TransferDraft = { fromAccountId: string; toAccountId: string; amount: string; rate: string; fee: string; date: string };
+type AccountDraft = { name: string; type: Account["type"]; currency: CurrencyCode; balance: string };
+type BudgetDraft = { month: string; category: string; limit: string; currency: CurrencyCode };
+
+const navItems: NavItem[] = [
+  { label: "首页", icon: House, key: "home" },
+  { label: "账户总览", icon: Wallet, key: "accounts" },
+  { label: "收支记录", icon: Receipt, key: "transactions" },
+  { label: "预算管理", icon: Scales, key: "budget" },
+  { label: "资产管理", icon: Briefcase, key: "assets" },
+  { label: "目标与计划", icon: Target, key: "goals" },
+  { label: "保险管理", icon: ShieldCheck, key: "insurance" },
+  { label: "报表中心", icon: ChartLineUp, key: "reports" },
+  { label: "理财师提醒", icon: Bell, key: "insights" },
+];
+
+const accountTypeLabels: Record<Account["type"], string> = { bank: "银行账户", cash: "现金", investment: "投资账户", "credit-card": "信用卡" };
+
+function getAccount(data: WealthData, id: string) {
+  return data.accounts.find((account) => account.id === id);
+}
+
+function formatDate(date: string) {
+  return new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(new Date(`${date}T00:00:00`));
+}
+
+function makeId(prefix: string) {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function Stat({ icon: Icon, label, value, detail, tone = "cyan" }: { icon: ElementType; label: string; value: string; detail: string; tone?: string }) {
+  return <div className="stat-cell"><div className={`stat-icon ${tone}`}><Icon size={18} weight="fill" /></div><div><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-hint">{detail}</div></div></div>;
+}
+
+export default function WealthAtlasV2() {
+  const [data, setData] = useState<WealthData>(initialData);
+  const [active, setActive] = useState("home");
+  const [modal, setModal] = useState<ModalType>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [transactionFilter, setTransactionFilter] = useState<"all" | "income" | "expense">("all");
+  const [fxDraft, setFxDraft] = useState({ pair: "SGD/MYR", rate: "3.48", date: today, note: "" });
+  const [transactionDraft, setTransactionDraft] = useState<TransactionDraft>({ type: "expense", accountId: "myr-main", amount: "", category: "外食", merchant: "", date: today, note: "" });
+  const [transferDraft, setTransferDraft] = useState<TransferDraft>({ fromAccountId: "sgd-main", toAccountId: "myr-main", amount: "", rate: "3.48", fee: "5", date: today });
+  const [accountDraft, setAccountDraft] = useState<AccountDraft>({ name: "", type: "bank", currency: "SGD", balance: "0" });
+  const [budgetDraft, setBudgetDraft] = useState<BudgetDraft>({ month: currentMonth, category: "外食", limit: "800", currency: "MYR" });
+
+  useEffect(() => {
+    loadWealthData().then((saved) => {
+      if (saved) setData({ ...initialData, ...saved, budgets: saved.budgets ?? initialData.budgets });
+      setLoaded(true);
+    });
+  }, []);
+
+  useEffect(() => { if (loaded) void saveWealthData(data); }, [data, loaded]);
+  useEffect(() => { if (!toast) return; const timeout = window.setTimeout(() => setToast(null), 3200); return () => window.clearTimeout(timeout); }, [toast]);
+
+  const reportCurrency = data.reportCurrency;
+  const monthTransactions = useMemo(() => getMonthTransactions(data, currentMonth), [data]);
+  const monthlyIncome = totalIncomeInCurrency({ ...data, transactions: monthTransactions }, reportCurrency);
+  const monthlyExpenses = totalExpensesInCurrency({ ...data, transactions: monthTransactions }, reportCurrency);
+  const liquidBalance = getLiquidBalanceInCurrency(data, reportCurrency);
+  const freeToSpend = calculateFreeToSpend(data, currentMonth, today);
+  const netWorth = totalInCurrency(data, reportCurrency) + data.assets.reduce((sum, asset) => sum + (convert(asset.currentValue, asset.currency, reportCurrency, data.fxRates) ?? 0), 0);
+  const monthlyBudgets = (data.budgets ?? []).filter((budget) => budget.month === currentMonth);
+  const budgetRemaining = monthlyBudgets.reduce((sum, budget) => sum + (convert(getBudgetRemaining(data, budget), budget.currency, reportCurrency, data.fxRates) ?? 0), 0);
+  const upcomingPayments = getUpcomingPlannedPayments(data, currentMonth, today);
+  const upcomingTotal = upcomingPayments.reduce((sum, payment) => sum + (convert(payment.amount, payment.currency, reportCurrency, data.fxRates) ?? 0), 0);
+  const latestSgdMyr = getRate(data.fxRates, "SGD", "MYR") ?? 0;
+  const latestUsdSgd = getRate(data.fxRates, "USD", "SGD") ?? 0;
+
+  const showToast = (message: string) => setToast(message);
+  const openTransaction = () => { setTransactionDraft((draft) => ({ ...draft, accountId: draft.accountId || data.accounts[0]?.id || "" })); setModal("transaction"); };
+
+  const addTransaction = () => {
+    const amount = Number(transactionDraft.amount);
+    const account = getAccount(data, transactionDraft.accountId);
+    if (!account || !amount || amount <= 0 || !transactionDraft.category.trim()) return showToast("请填写账户、金额和分类");
+    setData((current) => ({ ...current, transactions: [{ id: makeId("transaction"), type: transactionDraft.type, accountId: account.id, amount, currency: account.currency, category: transactionDraft.category.trim(), merchant: transactionDraft.merchant.trim() || undefined, date: transactionDraft.date, note: transactionDraft.note.trim() || undefined }, ...current.transactions] }));
+    setModal(null);
+    showToast("交易已保存，账户余额已更新");
+  };
+
+  const addTransfer = () => {
+    const amount = Number(transferDraft.amount);
+    const rate = Number(transferDraft.rate);
+    const fee = Number(transferDraft.fee) || 0;
+    const from = getAccount(data, transferDraft.fromAccountId);
+    const to = getAccount(data, transferDraft.toAccountId);
+    if (!from || !to || from.id === to.id || !amount || amount <= 0 || !rate || rate <= 0 || fee < 0) return showToast("请填写有效的转账账户、金额和汇率");
+    setData((current) => ({ ...current, transfers: [{ id: makeId("transfer"), fromAccountId: from.id, toAccountId: to.id, fromAmount: amount, fromCurrency: from.currency, toAmount: amount * rate, toCurrency: to.currency, rate, fee, feeCurrency: from.currency, date: transferDraft.date }, ...current.transfers] }));
+    setModal(null);
+    showToast(`${from.currency} 转账已保存，两个账户余额已联动`);
+  };
+
+  const addAccount = () => {
+    const balance = Number(accountDraft.balance);
+    if (!accountDraft.name.trim() || !Number.isFinite(balance)) return showToast("请填写账户名称和有效余额");
+    setData((current) => ({ ...current, accounts: [...current.accounts, { id: makeId("account"), name: accountDraft.name.trim(), type: accountDraft.type, currency: accountDraft.currency, balance }] }));
+    setAccountDraft({ name: "", type: "bank", currency: "SGD", balance: "0" });
+    setModal(null);
+    showToast("账户已添加");
+  };
+
+  const addBudget = () => {
+    const limit = Number(budgetDraft.limit);
+    if (!budgetDraft.category.trim() || !budgetDraft.month || !limit || limit <= 0) return showToast("请填写预算月份、分类和限额");
+    setData((current) => ({ ...current, budgets: [...(current.budgets ?? []), { id: makeId("budget"), month: budgetDraft.month, category: budgetDraft.category.trim(), limit, currency: budgetDraft.currency }] }));
+    setModal(null);
+    showToast("月度预算已保存");
+  };
+
+  const saveFxRate = () => {
+    const rate = Number(fxDraft.rate);
+    if (!rate || rate <= 0) return showToast("请输入有效汇率");
+    const [baseCurrency, quoteCurrency] = fxDraft.pair.split("/") as [CurrencyCode, CurrencyCode];
+    setData((current) => ({ ...current, fxRates: [{ id: makeId("fx"), baseCurrency, quoteCurrency, rate, effectiveDate: fxDraft.date, note: fxDraft.note || "手动输入" }, ...current.fxRates] }));
+    setModal(null);
+    showToast(`${fxDraft.pair} 手动汇率已更新`);
+  };
+
+  const syncObsidian = async () => {
+    if ("showDirectoryPicker" in window) {
+      try {
+        const picker = await (window as Window & { showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker?.();
+        if (picker) {
+          const folder = await picker.getDirectoryHandle("财富理财师", { create: true });
+          const daily = await folder.getDirectoryHandle("01-每日", { create: true });
+          const file = await daily.getFileHandle(`${today}.md`, { create: true });
+          const writable = await file.createWritable();
+          await writable.write(buildDailyMarkdown(data, today));
+          await writable.close();
+          return showToast("已写入 Obsidian 每日笔记");
+        }
+      } catch { showToast("文件夹权限未完成，已改为下载 ZIP"); }
+    }
+    await exportObsidianPackage(data);
+    showToast("Obsidian ZIP 已下载");
+  };
+
+  const renderHeader = (eyebrow: string, title: string, action?: { label: string; onClick: () => void; icon?: ElementType }) => <header className="page-header module-header"><div><div className="breadcrumb">WEALTH ATLAS / {eyebrow}</div><h1>{title}</h1></div><div className="header-actions"><div className="month-select"><CalendarDots size={18} /> {currentMonth.replace("-", "年")}月</div>{action && <button className="primary-button compact" onClick={action.onClick}>{action.icon && <action.icon size={17} weight="bold" />}{action.label}</button>}<div className="local-pill"><ShieldCheck size={17} weight="fill" /> 本地数据</div></div></header>;
+
+  const renderHome = () => <main className="main-content">
+    {renderHeader("HOME", "我的财富星图", { label: "记一笔", onClick: openTransaction, icon: Plus })}
+    <section className="hero-grid v2-hero-grid">
+      <div className="panel cashflow-hero">
+        <div className="panel-kicker">本月可自由使用</div>
+        <div className="hero-number">{formatMoney(freeToSpend, reportCurrency)}</div>
+        <div className="hero-support">流动余额 <strong>{formatMoney(liquidBalance, reportCurrency)}</strong></div>
+        <div className="calculation-line"><span>预算剩余</span><b>- {formatMoney(budgetRemaining, reportCurrency)}</b><span>固定付款</span><b>- {formatMoney(upcomingTotal, reportCurrency)}</b></div>
+        <div className="hero-note"><Check size={15} weight="bold" /> 余额来自账户流水与转账的实时合计</div>
+      </div>
+      <div className="panel stats-panel"><Stat icon={Wallet} label="本月收入" value={formatMoney(monthlyIncome, reportCurrency)} detail={`${monthTransactions.filter((item) => item.type === "income").length} 笔已关联账户`} /><Stat icon={Receipt} label="本月支出" value={formatMoney(monthlyExpenses, reportCurrency)} detail={`${monthTransactions.filter((item) => item.type === "expense").length} 笔已关联账户`} tone="amber" /><Stat icon={ChartLineUp} label="净资产" value={formatMoney(netWorth, reportCurrency)} detail="含投资账户与物品资产" tone="violet" /><Stat icon={Scales} label="预算剩余" value={formatMoney(budgetRemaining, reportCurrency)} detail={`${monthlyBudgets.length} 个本月预算`} tone="green" /></div>
+      <div className="panel goals-panel account-snapshot-panel"><div className="panel-title-row"><div><div className="panel-kicker">账户总览</div><h2>钱现在在哪里</h2></div><button className="icon-button" onClick={() => setActive("accounts")} aria-label="查看账户"><ArrowsLeftRight size={18} /></button></div><div className="account-snapshot-list">{data.accounts.slice(0, 4).map((account) => <div className="account-snapshot-row" key={account.id}><div className={`account-type-icon ${account.type}`}><Bank size={17} /></div><div><strong>{account.name}</strong><span>{account.currency} · {getAccountActivityCount(data, account.id)} 笔活动</span></div><b>{formatMoney(getAccountBalance(data, account.id), account.currency)}</b></div>)}</div></div>
+    </section>
+    <section className="summary-strip"><div><span>流动账户余额</span><strong>{formatMoney(liquidBalance, reportCurrency)}</strong><em><Check size={14} /> 实时计算</em></div><div><span>SGD/MYR</span><strong>{latestSgdMyr.toFixed(2)}</strong><em>手动汇率</em></div><div><span>USD/SGD</span><strong>{latestUsdSgd.toFixed(2)}</strong><em>手动汇率</em></div><div><span>下一笔固定付款</span><strong>{upcomingPayments[0] ? formatMoney(upcomingPayments[0].amount, upcomingPayments[0].currency) : "暂无"}</strong><em>{upcomingPayments[0] ? `${upcomingPayments[0].name} · ${formatDate(upcomingPayments[0].due)}` : "本月已安排"}</em></div></section>
+    <section className="lower-grid"><div className="panel assets-panel"><div className="panel-title-row"><div><div className="panel-kicker">本月活动</div><h2>最近记录</h2></div><button className="text-button" onClick={() => setActive("transactions")}>查看全部 <ArrowsLeftRight size={16} /></button></div><div className="activity-list">{monthTransactions.slice(0, 5).map((item) => <div className="activity-row" key={item.id}><div className={`activity-icon ${item.type}`}><Receipt size={17} /></div><div><strong>{item.merchant || item.category}</strong><span>{item.category} · {getAccount(data, item.accountId)?.name || "未关联"} · {formatDate(item.date)}</span></div><b className={item.type === "income" ? "positive" : "negative"}>{item.type === "income" ? "+" : "-"}{formatMoney(item.amount, item.currency)}</b></div>)}</div></div><div className="panel insight-panel"><div className="panel-title-row"><div><div className="panel-kicker">今日观察</div><h2>预算与汇率</h2></div><Sparkle size={21} className="sparkle" weight="fill" /></div><div className="insight-list"><div className="insight-row"><div className="insight-icon safe"><Check size={17} weight="bold" /></div><div><strong>可自由使用金额已接入真实余额</strong><span>账户、交易、转账和本月预算会共同影响结果</span></div></div><div className="insight-row"><div className="insight-icon rate"><ArrowsLeftRight size={17} weight="bold" /></div><div><strong>SGD/MYR {latestSgdMyr.toFixed(2)} · USD/SGD {latestUsdSgd.toFixed(2)}</strong><span>可从快捷操作继续记录手动汇率</span></div></div><div className="insight-row"><div className="insight-icon food"><ChartPieSlice size={17} weight="fill" /></div><div><strong>本月还有 {formatMoney(budgetRemaining, reportCurrency)} 预算空间</strong><span>下一笔固定付款预留 {formatMoney(upcomingTotal, reportCurrency)}</span></div></div></div></div></section>
+    <section className="lower-grid bottom-grid"><div className="panel watchlist-panel"><div className="panel-title-row"><div><div className="panel-kicker">保存的结构</div><h2>目标与资产仍在这里</h2></div><Target size={19} /></div><div className="preserved-grid"><div><strong>{data.goals.length}</strong><span>储蓄目标</span></div><div><strong>{data.assets.length}</strong><span>物品资产</span></div><div><strong>{data.watchlists.length}</strong><span>关注项</span></div></div></div><div className="panel actions-panel"><div className="panel-title-row"><div><div className="panel-kicker">快捷操作</div><h2>继续记录</h2></div></div><div className="action-grid"><button className="action-card primary" onClick={openTransaction}><Receipt size={22} /><span>记录收支</span><small>收入或支出</small></button><button className="action-card" onClick={() => setModal("transfer")}><ArrowsLeftRight size={22} /><span>账户转账</span><small>跨币种与账户</small></button><button className="action-card" onClick={() => setModal("fx")}><Coins size={22} /><span>更新汇率</span><small>保留手动报价</small></button><button className="action-card" onClick={() => void exportExcel(data)}><FileXls size={22} /><span>导出 Excel</span><small>完整工作簿</small></button></div></div></section>
+  </main>;
+
+  const renderAccounts = () => <main className="main-content module-page">{renderHeader("ACCOUNTS", "账户管理", { label: "新增账户", onClick: () => setModal("account"), icon: Plus })}<section className="module-summary"><div><span>可用流动余额</span><strong>{formatMoney(liquidBalance, reportCurrency)}</strong><small>只计入银行与现金账户</small></div><div><span>全部账户净值</span><strong>{formatMoney(totalInCurrency(data, reportCurrency), reportCurrency)}</strong><small>包含投资账户</small></div><div><span>账户数量</span><strong>{data.accounts.length}</strong><small>每笔记录都必须绑定账户</small></div></section><div className="module-toolbar"><div><div className="panel-kicker">BALANCE LEDGER</div><h2>余额由流水推导</h2></div><p>开户余额 + 收入 - 支出 - 转出 + 转入。转账不会凭空改变净资产。</p></div><section className="account-grid">{data.accounts.map((account) => { const balance = getAccountBalance(data, account.id); return <article className="panel account-card" key={account.id}><div className="account-card-top"><div className={`account-type-icon ${account.type}`}><Bank size={20} /></div><span className="currency-badge">{account.currency}</span></div><h3>{account.name}</h3><div className="account-balance">{formatMoney(balance, account.currency)}</div><div className="account-meta"><span>{accountTypeLabels[account.type]}</span><span>{getAccountActivityCount(data, account.id)} 笔活动</span></div><div className="account-card-foot"><span>开户余额 {formatMoney(account.balance, account.currency)}</span><button className="text-button" onClick={() => { setActive("transactions"); setTransactionFilter("all"); }}>查看活动</button></div></article>; })}</section></main>;
+
+  const records = [...data.transactions.map((item) => ({ kind: item.type, id: item.id, date: item.date, title: item.merchant || item.category, subtitle: `${item.category} · ${getAccount(data, item.accountId)?.name || "未关联账户"}`, amount: item.amount, currency: item.currency })), ...data.transfers.map((item) => ({ kind: "transfer" as const, id: item.id, date: item.date, title: `${getAccount(data, item.fromAccountId)?.name || item.fromCurrency} → ${getAccount(data, item.toAccountId)?.name || item.toCurrency}`, subtitle: `汇率 ${item.rate.toFixed(4)} · 手续费 ${formatMoney(item.fee, item.feeCurrency)}`, amount: item.fromAmount, currency: item.fromCurrency }))].filter((item) => transactionFilter === "all" || item.kind === transactionFilter).sort((a, b) => b.date.localeCompare(a.date));
+
+  const renderTransactions = () => <main className="main-content module-page">{renderHeader("TRANSACTIONS", "收支与转账", { label: "记录收支", onClick: openTransaction, icon: Plus })}<div className="module-toolbar transaction-toolbar"><div><div className="panel-kicker">ACTIVITY LOG</div><h2>{records.length} 笔记录</h2></div><button className="secondary-button" onClick={() => setModal("transfer")}><ArrowsLeftRight size={17} /> 记录转账</button></div><div className="filter-tabs">{(["all", "income", "expense"] as const).map((filter) => <button key={filter} className={transactionFilter === filter ? "active" : ""} onClick={() => setTransactionFilter(filter)}>{filter === "all" ? "全部" : filter === "income" ? "收入" : "支出"}<span>{filter === "all" ? data.transactions.length + data.transfers.length : data.transactions.filter((item) => item.type === filter).length}</span></button>)}</div><section className="panel record-panel"><div className="record-head"><span>日期与分类</span><span>账户 / 说明</span><span>金额</span></div>{records.length ? records.map((record) => <div className="record-row" key={`${record.kind}-${record.id}`}><div className={`record-icon ${record.kind}`}><Receipt size={17} /></div><div><strong>{record.title}</strong><span>{formatDate(record.date)} · {record.kind === "transfer" ? "转账" : record.kind === "income" ? "收入" : "支出"}</span></div><div className="record-subtitle">{record.subtitle}</div><b className={record.kind === "income" ? "positive" : record.kind === "expense" ? "negative" : "transfer"}>{record.kind === "income" ? "+" : record.kind === "expense" ? "-" : "↔ "}{formatMoney(record.amount, record.currency)}</b></div>) : <div className="empty-state"><ListChecks size={30} /><strong>还没有匹配记录</strong><span>从“记录收支”开始，所有记录都会绑定到对应账户。</span><button className="primary-button compact" onClick={openTransaction}>新增第一笔</button></div>}</section></main>;
+
+  const renderBudget = () => <main className="main-content module-page">{renderHeader("BUDGET", "月度预算", { label: "新增预算", onClick: () => setModal("budget"), icon: Plus })}<section className="budget-hero-grid"><div className="panel budget-free-panel"><div className="panel-kicker">本月可自由使用</div><strong>{formatMoney(freeToSpend, reportCurrency)}</strong><p>从流动余额开始，扣除本月每个预算的剩余额度，再扣除今天之后的固定付款。</p><div className="budget-formula"><span>流动余额<b>{formatMoney(liquidBalance, reportCurrency)}</b></span><span>预算剩余<b>- {formatMoney(budgetRemaining, reportCurrency)}</b></span><span>固定付款<b>- {formatMoney(upcomingTotal, reportCurrency)}</b></span></div></div><div className="panel budget-side-panel"><div className="panel-kicker">本月节奏</div><div className="budget-side-row"><span>已用预算</span><strong>{formatMoney(Math.max(0, monthlyBudgets.reduce((sum, budget) => sum + (convert(getBudgetSpent(data, budget), budget.currency, reportCurrency, data.fxRates) ?? 0), 0)), reportCurrency)}</strong></div><div className="budget-side-row"><span>收入 - 支出</span><strong>{formatMoney(monthlyIncome - monthlyExpenses, reportCurrency)}</strong></div><div className="budget-side-row"><span>本月记录</span><strong>{monthTransactions.length} 笔</strong></div></div></section><div className="module-toolbar"><div><div className="panel-kicker">{currentMonth} · MONTHLY PLAN</div><h2>分类预算</h2></div><p>预算只统计同月份、同分类的支出，并按手动汇率换算到报告币种。</p></div><section className="budget-list">{monthlyBudgets.length ? monthlyBudgets.map((budget) => { const spent = getBudgetSpent(data, budget); const remaining = getBudgetRemaining(data, budget); const percent = Math.min(100, budget.limit ? (spent / budget.limit) * 100 : 0); return <article className="panel budget-row" key={budget.id}><div className="budget-category"><div className="budget-dot" /><div><strong>{budget.category}</strong><span>{budget.currency} · {budget.month}</span></div></div><div className="budget-progress"><div><span style={{ width: `${percent}%` }} /></div><small>{formatMoney(spent, budget.currency)} / {formatMoney(budget.limit, budget.currency)}</small></div><div className={`budget-remaining ${remaining <= 0 ? "danger" : ""}`}><span>剩余</span><strong>{formatMoney(remaining, budget.currency)}</strong></div></article>; }) : <div className="empty-state panel"><ChartPieSlice size={30} /><strong>还没有本月预算</strong><span>添加一个分类限额，让可自由使用金额开始变得可解释。</span><button className="primary-button compact" onClick={() => setModal("budget")}>新增预算</button></div>}</section>{upcomingPayments.length > 0 && <section className="panel commitments-panel"><div className="panel-title-row"><div><div className="panel-kicker">UPCOMING COMMITMENTS</div><h2>本月固定付款</h2></div><CalendarDots size={19} /></div>{upcomingPayments.map((payment) => <div className="commitment-row" key={payment.id}><div><strong>{payment.name}</strong><span>{payment.category} · {formatDate(payment.due)}</span></div><b>{formatMoney(payment.amount, payment.currency)}</b></div>)}</section>}</main>;
+
+  const renderPlaceholder = () => <main className="main-content placeholder-page"><div className="page-header"><div><div className="breadcrumb">WEALTH ATLAS / MODULE</div><h1>{navItems.find((item) => item.key === active)?.label ?? "模块"}</h1></div></div><div className="panel empty-module"><Sparkle size={32} weight="fill" /><h2>这个模块保留在你的产品地图里</h2><p>本次版本先把账户、交易和预算闭环跑通，现有目标、资产、保险、报表和提醒结构仍然保留。</p><button className="primary-button" onClick={() => setActive("home")}>返回首页</button></div></main>;
+
+  return <div className="app-shell"><div className="starfield" /><aside className="sidebar"><div className="brand"><div className="brand-mark"><Sparkle size={20} weight="fill" /></div><div><strong>我的财富星图</strong><span>WEALTH ATLAS</span></div></div><nav>{navItems.map(({ label, icon: Icon, key }) => <button key={key} className={active === key ? "active" : ""} onClick={() => setActive(key)}><Icon size={20} weight={active === key ? "fill" : "regular"} /><span>{label}</span></button>)}</nav><div className="sidebar-bottom"><button className="side-action" onClick={openTransaction}><Plus size={18} weight="bold" /> 记一笔</button><button className="side-action secondary" onClick={() => setModal("transfer")}><ArrowsLeftRight size={18} /> 记转账</button><button className="side-action secondary" onClick={syncObsidian}><ShieldCheck size={18} /> 同步 Obsidian</button><button className="side-action secondary" onClick={() => void exportExcel(data)}><FileXls size={18} /> 导出 Excel</button><button className="settings-button"><GearSix size={18} /> 设置</button></div></aside>{active === "home" ? renderHome() : active === "accounts" ? renderAccounts() : active === "transactions" ? renderTransactions() : active === "budget" ? renderBudget() : renderPlaceholder()}{modal && <EntryModal type={modal} onClose={() => setModal(null)} onTransaction={addTransaction} onTransfer={addTransfer} onAccount={addAccount} onBudget={addBudget} onFx={saveFxRate} data={data} transactionDraft={transactionDraft} setTransactionDraft={setTransactionDraft} transferDraft={transferDraft} setTransferDraft={setTransferDraft} accountDraft={accountDraft} setAccountDraft={setAccountDraft} budgetDraft={budgetDraft} setBudgetDraft={setBudgetDraft} fxDraft={fxDraft} setFxDraft={setFxDraft} />}{toast && <div className="toast"><Check size={17} weight="bold" /> {toast}<button onClick={() => setToast(null)} aria-label="关闭提示"><X size={15} /></button></div>}</div>;
+}
+
+function EntryModal({ type, onClose, onTransaction, onTransfer, onAccount, onBudget, onFx, data, transactionDraft, setTransactionDraft, transferDraft, setTransferDraft, accountDraft, setAccountDraft, budgetDraft, setBudgetDraft, fxDraft, setFxDraft }: { type: Exclude<ModalType, null>; onClose: () => void; onTransaction: () => void; onTransfer: () => void; onAccount: () => void; onBudget: () => void; onFx: () => void; data: WealthData; transactionDraft: TransactionDraft; setTransactionDraft: Dispatch<SetStateAction<TransactionDraft>>; transferDraft: TransferDraft; setTransferDraft: Dispatch<SetStateAction<TransferDraft>>; accountDraft: AccountDraft; setAccountDraft: Dispatch<SetStateAction<AccountDraft>>; budgetDraft: BudgetDraft; setBudgetDraft: Dispatch<SetStateAction<BudgetDraft>>; fxDraft: { pair: string; rate: string; date: string; note: string }; setFxDraft: Dispatch<SetStateAction<{ pair: string; rate: string; date: string; note: string }>> }) {
+  const titles: Record<Exclude<ModalType, null>, string> = { transaction: "记录一笔收支", transfer: "记录账户转账", account: "新增账户", budget: "新增月度预算", fx: "更新手动汇率" };
+  const from = data.accounts.find((account) => account.id === transferDraft.fromAccountId);
+  const to = data.accounts.find((account) => account.id === transferDraft.toAccountId);
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="entry-modal-title"><div className="modal-header"><div><div className="panel-kicker">WEALTH ATLAS / ACTION</div><h2 id="entry-modal-title">{titles[type]}</h2></div><button className="icon-button" onClick={onClose} aria-label="关闭"><X size={19} /></button></div>{type === "transaction" && <div className="form-stack"><div className="segmented"><button className={transactionDraft.type === "expense" ? "selected" : ""} onClick={() => setTransactionDraft((draft) => ({ ...draft, type: "expense" }))}>支出</button><button className={transactionDraft.type === "income" ? "selected" : ""} onClick={() => setTransactionDraft((draft) => ({ ...draft, type: "income" }))}>收入</button></div><label>关联账户<select value={transactionDraft.accountId} onChange={(event) => setTransactionDraft((draft) => ({ ...draft, accountId: event.target.value }))}>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label><label>金额<input type="number" min="0" step="0.01" placeholder="0.00" value={transactionDraft.amount} onChange={(event) => setTransactionDraft((draft) => ({ ...draft, amount: event.target.value }))} /></label><div className="form-grid"><label>分类<input value={transactionDraft.category} onChange={(event) => setTransactionDraft((draft) => ({ ...draft, category: event.target.value }))} /></label><label>日期<input type="date" value={transactionDraft.date} onChange={(event) => setTransactionDraft((draft) => ({ ...draft, date: event.target.value }))} /></label></div><label>商户或备注<input placeholder="例如：晚餐、Grab、软件订阅" value={transactionDraft.merchant} onChange={(event) => setTransactionDraft((draft) => ({ ...draft, merchant: event.target.value }))} /></label><button className="primary-button full" onClick={onTransaction}>保存收支</button></div>}{type === "transfer" && <div className="form-stack"><div className="form-grid"><label>转出账户<select value={transferDraft.fromAccountId} onChange={(event) => setTransferDraft((draft) => ({ ...draft, fromAccountId: event.target.value }))}>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label><label>转入账户<select value={transferDraft.toAccountId} onChange={(event) => setTransferDraft((draft) => ({ ...draft, toAccountId: event.target.value }))}>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label></div><div className="transfer-pair"><span>{from?.currency || "SGD"}</span><ArrowsLeftRight size={18} /><span>{to?.currency || "MYR"}</span></div><label>转出金额<input type="number" min="0" step="0.01" placeholder="2,000" value={transferDraft.amount} onChange={(event) => setTransferDraft((draft) => ({ ...draft, amount: event.target.value }))} /></label><label>手动汇率（1 {from?.currency || "SGD"} = {to?.currency || "MYR"}）<input type="number" min="0" step="0.0001" value={transferDraft.rate} onChange={(event) => setTransferDraft((draft) => ({ ...draft, rate: event.target.value }))} /></label><label>手续费（{from?.currency || "SGD"}）<input type="number" min="0" step="0.01" value={transferDraft.fee} onChange={(event) => setTransferDraft((draft) => ({ ...draft, fee: event.target.value }))} /></label><label>日期<input type="date" value={transferDraft.date} onChange={(event) => setTransferDraft((draft) => ({ ...draft, date: event.target.value }))} /></label><div className="conversion-preview">预计到账 <strong>{to?.currency || "MYR"} {((Number(transferDraft.amount) || 0) * (Number(transferDraft.rate) || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div><button className="primary-button full" onClick={onTransfer}>保存转账</button></div>}{type === "account" && <div className="form-stack"><label>账户名称<input placeholder="例如：日常现金" value={accountDraft.name} onChange={(event) => setAccountDraft((draft) => ({ ...draft, name: event.target.value }))} /></label><div className="form-grid"><label>类型<select value={accountDraft.type} onChange={(event) => setAccountDraft((draft) => ({ ...draft, type: event.target.value as Account["type"] }))}><option value="bank">银行账户</option><option value="cash">现金</option><option value="investment">投资账户</option><option value="credit-card">信用卡</option></select></label><label>币种<select value={accountDraft.currency} onChange={(event) => setAccountDraft((draft) => ({ ...draft, currency: event.target.value as CurrencyCode }))}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label></div><label>开户余额<input type="number" step="0.01" value={accountDraft.balance} onChange={(event) => setAccountDraft((draft) => ({ ...draft, balance: event.target.value }))} /></label><p className="form-help">以后新增的收支和转账可以直接选择这个账户，余额会自动联动。</p><button className="primary-button full" onClick={onAccount}>保存账户</button></div>}{type === "budget" && <div className="form-stack"><div className="form-grid"><label>月份<input type="month" value={budgetDraft.month} onChange={(event) => setBudgetDraft((draft) => ({ ...draft, month: event.target.value }))} /></label><label>币种<select value={budgetDraft.currency} onChange={(event) => setBudgetDraft((draft) => ({ ...draft, currency: event.target.value as CurrencyCode }))}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label></div><label>分类<input placeholder="例如：外食" value={budgetDraft.category} onChange={(event) => setBudgetDraft((draft) => ({ ...draft, category: event.target.value }))} /></label><label>月度限额<input type="number" min="0" step="0.01" value={budgetDraft.limit} onChange={(event) => setBudgetDraft((draft) => ({ ...draft, limit: event.target.value }))} /></label><p className="form-help">同月份、同分类的支出会从限额中扣除，其他币种会按当前手动汇率换算。</p><button className="primary-button full" onClick={onBudget}>保存预算</button></div>}{type === "fx" && <div className="form-stack"><div className="form-grid"><label>汇率方向<select value={fxDraft.pair} onChange={(event) => setFxDraft((draft) => ({ ...draft, pair: event.target.value }))}><option>SGD/MYR</option><option>USD/SGD</option></select></label><label>汇率<input type="number" min="0" step="0.0001" value={fxDraft.rate} onChange={(event) => setFxDraft((draft) => ({ ...draft, rate: event.target.value }))} /></label></div><label>生效日期<input type="date" value={fxDraft.date} onChange={(event) => setFxDraft((draft) => ({ ...draft, date: event.target.value }))} /></label><label>备注<input placeholder="例如：银行实际到账汇率" value={fxDraft.note} onChange={(event) => setFxDraft((draft) => ({ ...draft, note: event.target.value }))} /></label><button className="primary-button full" onClick={onFx}>保存手动汇率</button></div>}</div></div>;
+}
