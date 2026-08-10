@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.0] - 2026-08-10
+
+- Added persisted left-navigation active state with visible keyboard/focus treatment, `aria-current`, and mobile navigation alignment.
+- Moved the six primary quick-capture actions to the top of Home and removed the duplicate lower action area.
+- Enhanced accounts with editable names and metadata, parent/group/institution fields, net-worth inclusion, per-currency group totals, inactive/deleted states, and recovery.
+- Added first-class income/expense categories with add, edit, deactivate, restore, and transaction-form selection; historical transaction labels remain intact.
+- Added category-aware monthly budgets with raw-currency matching, edit/deactivate/delete/recovery controls, and additive `categoryId`, `period`, and `budgetAmount` fields.
+- Enhanced savings goals with weekly/monthly/quarterly/yearly/custom/once cycles, start/end dates, per-cycle amounts, priority, automatic-plan preference, and reversible lifecycle states.
+- Added schema 10 additive migration with IndexedDB pre-migration snapshot, category conversion, budget currency notices, account normalization, and goal-cycle defaults.
+- Updated Excel Accounts export with group, institution, parent account, current balance, activity count, net-worth inclusion, and status fields.
+
 ## [1.0.0] - 2026-08-10
 
 - Completed the stable Wealth Atlas release line from v0.7.0 through v0.12.0.

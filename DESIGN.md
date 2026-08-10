@@ -96,3 +96,12 @@ The implementation reserves the same panel language for empty, loading, import-e
 - Every dense surface is checked for visible amount text, min-width constraints, breakable currencies, and document-level overflow at desktop, tablet, and 390px mobile sizes.
 - The design system stays deep night blue, silver-white, star-light cyan, muted green, and amber. Purple AI gradients and cyberpunk neon are not part of the release.
 - Empty, offline, permission, export failure, sync conflict, and success states use the same restrained operational language and remain keyboard reachable.
+
+## v1.1.0 operating surface
+
+- The left rail and mobile navigation use a visible active background, cyan edge/indicator, bright icon and text, `aria-current`, and a focus ring. Active section state survives refresh as a non-sensitive UI preference.
+- The homepage begins with a compact quick-capture toolbar for transaction, SGD → MYR transfer, FX update, account, investment, and Excel actions. It uses a desktop row, a three-column tablet rhythm, and two columns on narrow phones without horizontal overflow.
+- Account cards group by account group and show raw currency balances before the report-currency equivalent. Edit, deactivate, recovery, institution, parent-account, and net-worth controls stay beside the account record rather than inside a decorative dashboard card.
+- Category and budget controls use the same calm form grammar. Category colors are low-saturation semantic accents; inactive items remain legible in history but are not selectable for new records. Budget rows keep raw currency visible and never hide cross-currency differences behind one total.
+- Goal cycle controls use a restrained period filter and readable status chips. Weekly, monthly, quarterly, yearly, custom, and one-time cycles share one layout; start/end dates and per-cycle amounts are explicit.
+- Migration notices use the existing amber attention surface. Recovery lists use the same border, padding, and keyboard focus language as the transaction Recycle Bin.

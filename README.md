@@ -83,3 +83,13 @@ The final data migration is additive and reversible in intent: schema version 9 
 - Forecast horizons, planned-payment calendar, Watchlist metrics, debt scenarios, flow/decomposition analysis, reviews, Excel/PDF/PNG exports, PWA shell, CSV review, Obsidian sync, and mobile shortcuts are available.
 - Desktop, tablet, and 390px mobile layout checks pass without document-level horizontal overflow.
 - Real-device validation remains necessary for native folder permissions, installed PWA behavior, downloaded file opening, and the user’s own Obsidian Vault.
+
+## v1.1.0 navigation, accounts, categories, budgets and goal cycles
+
+v1.1.0 keeps the v1.0.0 local-first data model and adds an operation-first home toolbar plus a persisted, keyboard-visible navigation state. The active section is stored as UI preference only and restores after refresh; it does not contain private financial data.
+
+Accounts now support rename/edit without changing IDs or history, institution, group, parent account, net-worth inclusion, active/inactive/deleted status, per-currency group totals, report-currency equivalents, and local account recovery. Inactive accounts leave the homepage flow while their linked transactions and transfers remain auditable.
+
+Transactions use local income/expense categories with add, edit, deactivate, restore, and searchable keyboard-selectable form choices. Monthly budgets carry `categoryId`, `currency`, `period`, and `budgetAmount`; spend is matched only when category, raw currency, and month all match. Budgets and goal cycles can be edited, deactivated, restored, and kept out of active projections without deleting history.
+
+The schema 10 migration is additive. It creates category records from existing transaction strings, adds missing budget currency using the report currency with a migration notice, adds goal cycle status/dates, normalizes account status, and stores a pre-migration snapshot in IndexedDB. It never overwrites transaction records, rates, Obsidian notes, or personal files. Run `npm.cmd run test` (PowerShell) and `npm.cmd run build` to verify the release.

@@ -1,5 +1,5 @@
 import type { ObsidianTemplateKey, WealthData } from "./types";
-import { convert, formatMoney, getAssetCostPerUse, getAssetCurrentCurrency, getAssetDailyCost, getAssetEndDate, getAssetPurchaseCurrency, getAssetRealizedValue, getAssetUsageDays, getAssetUsageStartDate, getBudgetRemaining, getCashFlowForecast, getGoalProgress, getRate, getRateAtDate, getUpcomingPlannedPayments, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "./finance";
+import { convert, formatMoney, getAccountActivityCount, getAccountBalance, getAssetCostPerUse, getAssetCurrentCurrency, getAssetDailyCost, getAssetEndDate, getAssetPurchaseCurrency, getAssetRealizedValue, getAssetUsageDays, getAssetUsageStartDate, getBudgetRemaining, getCashFlowForecast, getGoalProgress, getRate, getRateAtDate, getUpcomingPlannedPayments, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "./finance";
 
 const AUTO_START = "<!-- WEALTH_ATLAS_AUTO_START -->";
 const AUTO_END = "<!-- WEALTH_ATLAS_AUTO_END -->";
@@ -186,7 +186,7 @@ export async function exportExcel(data: WealthData) {
     sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D2A3D" } };
     sheet.views = [{ state: "frozen", ySplit: 1 }];
   };
-  addExportSheet("Accounts", [{ header: "ID", key: "id", width: 24 }, { header: "Name", key: "name", width: 24 }, { header: "Type", key: "type", width: 16 }, { header: "Currency", key: "currency", width: 14 }, { header: "Opening Balance", key: "openingBalance", width: 18 }, { header: "Balance", key: "balance", width: 16 }], data.accounts);
+  addExportSheet("Accounts", [{ header: "ID", key: "id", width: 24 }, { header: "Name", key: "name", width: 24 }, { header: "Type", key: "type", width: 16 }, { header: "Group", key: "accountGroup", width: 18 }, { header: "Institution", key: "institution", width: 20 }, { header: "Parent Account ID", key: "parentAccountId", width: 24 }, { header: "Currency", key: "currency", width: 14 }, { header: "Opening Balance", key: "openingBalance", width: 18 }, { header: "Current Balance", key: "currentBalance", width: 18 }, { header: "Activity Count", key: "activityCount", width: 16 }, { header: "Include In Net Worth", key: "includeInNetWorth", width: 20 }, { header: "Status", key: "status", width: 14 }], data.accounts.map((item) => ({ ...item, openingBalance: item.balance, currentBalance: getAccountBalance(data, item.id), activityCount: getAccountActivityCount(data, item.id) })));
   addExportSheet("Monthly Summary", [{ header: "Month", key: "month", width: 14 }, { header: "Income", key: "income", width: 16 }, { header: "Expenses", key: "expenses", width: 16 }, { header: "Savings", key: "savings", width: 16 }, { header: "Savings Rate", key: "savingsRate", width: 16 }], Array.from({ length: 12 }, (_, index) => {
     const month = `${new Date().getFullYear()}-${String(index + 1).padStart(2, "0")}`;
     const totals = reportTotals(data, month);

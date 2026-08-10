@@ -126,18 +126,23 @@ export function getMonthTransactions(data: WealthData, month: string) {
 }
 
 export function getBudgetSpent(data: WealthData, budget: MonthlyBudget) {
-  return getMonthTransactions(data, budget.month)
-    .filter((item) => item.type === "expense" && item.category.trim().toLowerCase() === budget.category.trim().toLowerCase())
+  const period = budget.period ?? budget.month;
+  return getMonthTransactions(data, period)
+    .filter((item) => {
+      if (item.type !== "expense" || item.currency !== budget.currency) return false;
+      if (budget.categoryId) return item.categoryId ? item.categoryId === budget.categoryId : item.category.trim().toLowerCase() === budget.category.trim().toLowerCase();
+      return item.category.trim().toLowerCase() === budget.category.trim().toLowerCase();
+    })
     .reduce((sum, item) => sum + transactionValue(data, item, budget.currency), 0);
 }
 
 export function getBudgetRemaining(data: WealthData, budget: MonthlyBudget) {
-  return Math.max(0, budget.limit - getBudgetSpent(data, budget));
+  return Math.max(0, (budget.budgetAmount ?? budget.limit) - getBudgetSpent(data, budget));
 }
 
 export function getLiquidBalanceInCurrency(data: WealthData, quote: CurrencyCode) {
   return data.accounts
-    .filter((account) => account.type === "bank" || account.type === "cash")
+    .filter((account) => (account.type === "bank" || account.type === "cash") && account.status !== "inactive" && account.status !== "deleted")
     .reduce((total, account) => total + (convert(getAccountBalance(data, account.id), account.currency, quote, data.fxRates) ?? 0), 0);
 }
 
@@ -150,7 +155,7 @@ export function getUpcomingPlannedPayments(data: WealthData, month: string, from
 export function calculateFreeToSpend(data: WealthData, month: string, fromDate: string) {
   const liquidBalance = getLiquidBalanceInCurrency(data, data.reportCurrency);
   const budgetRemaining = (data.budgets ?? [])
-    .filter((budget) => budget.month === month)
+    .filter((budget) => (budget.period ?? budget.month) === month && budget.active !== false && budget.status !== "inactive" && budget.status !== "deleted" && !budget.deleted)
     .reduce((sum, budget) => sum + (convert(getBudgetRemaining(data, budget), budget.currency, data.reportCurrency, data.fxRates) ?? 0), 0);
   const plannedCommitments = getUpcomingPlannedPayments(data, month, fromDate)
     .reduce((sum, payment) => sum + (convert(payment.amount, payment.currency, data.reportCurrency, data.fxRates) ?? 0), 0);
@@ -363,14 +368,16 @@ export function getGoalProgress(goal: Goal) {
 }
 
 export function getGoalMonthsRemaining(goal: Goal, fromDate = getLocalDate()) {
-  const from = new Date(`${fromDate.slice(0, 7)}-01T00:00:00Z`);
-  const due = new Date(`${goal.due.slice(0, 7)}-01T00:00:00Z`);
+  const start = goal.startDate && goal.startDate > fromDate ? goal.startDate : fromDate;
+  const from = new Date(`${start.slice(0, 7)}-01T00:00:00Z`);
+  const dueDate = goal.endDate ?? goal.due;
+  const due = new Date(`${dueDate.slice(0, 7)}-01T00:00:00Z`);
   const months = (due.getUTCFullYear() - from.getUTCFullYear()) * 12 + due.getUTCMonth() - from.getUTCMonth() + 1;
   return Math.max(1, months);
 }
 
 export function getGoalPeriodLabel(cadence: Goal["cadence"]) {
-  return cadence === "monthly" ? "每月" : cadence === "quarterly" ? "每季度" : cadence === "yearly" ? "每年" : "自定义周期";
+  return cadence === "weekly" ? "每周" : cadence === "monthly" ? "每月" : cadence === "quarterly" ? "每季度" : cadence === "yearly" ? "每年" : cadence === "once" ? "一次性" : "自定义周期";
 }
 
 export function getGoalRequiredPerMonth(goal: Goal, fromDate?: string) {
@@ -378,6 +385,9 @@ export function getGoalRequiredPerMonth(goal: Goal, fromDate?: string) {
 }
 
 export function getGoalRequiredPerPeriod(goal: Goal, fromDate?: string) {
+  if (goal.periodAmount !== undefined) return Math.max(0, goal.periodAmount);
+  if (goal.cadence === "once") return getGoalGap(goal);
+  if (goal.cadence === "weekly") return getGoalRequiredPerMonth(goal, fromDate) / 4.345;
   const monthsPerPeriod = goal.cadence === "quarterly" ? 3 : goal.cadence === "yearly" ? 12 : 1;
   return getGoalRequiredPerMonth(goal, fromDate) * monthsPerPeriod;
 }

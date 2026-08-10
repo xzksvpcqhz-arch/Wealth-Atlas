@@ -1,35 +1,74 @@
-import type { WealthData } from "./types";
+import type { Account, TransactionCategory, WealthData } from "./types";
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
-/**
- * Snapshot migrations are additive only. Missing collections receive empty defaults;
- * existing personal records are copied through unchanged so rollback is possible.
- */
+const defaultCategories: TransactionCategory[] = [
+  ...["新加坡工资", "奖金", "自由职业收入", "股息", "利息", "其他收入"].map((name) => ({ id: `income:${name}`, name, kind: "income" as const, color: "#7fc9a3", active: true })),
+  ...["房租", "食物", "外食", "交通", "保险", "娱乐", "购物", "旅行", "家庭支援", "投资", "贷款", "税务", "其他支出"].map((name) => ({ id: `expense:${name}`, name, kind: "expense" as const, color: "#d7aa6f", active: true })),
+];
+
+function categoryId(kind: TransactionCategory["kind"], name: string) {
+  return `${kind}:${name.trim()}`;
+}
+
+function normalizeCategories(input: WealthData) {
+  const categories = [...(input.categories ?? [])];
+  const ensure = (name: string, kind: TransactionCategory["kind"]) => {
+    const id = categoryId(kind, name);
+    if (!categories.some((item) => item.id === id || (item.kind === kind && item.name === name))) {
+      categories.push({ id, name, kind, color: kind === "income" ? "#7fc9a3" : "#d7aa6f", active: true });
+    }
+  };
+  defaultCategories.forEach((item) => ensure(item.name, item.kind));
+  input.transactions.forEach((item) => ensure(item.category, item.type));
+  return categories;
+}
+
+function normalizeAccounts(accounts: WealthData["accounts"]): Account[] {
+  return accounts.map((account) => ({
+    ...account,
+    includeInNetWorth: account.includeInNetWorth !== false,
+    status: account.status ?? "active",
+  }));
+}
+
+/** Additive, reversible v1.1 migration. The original snapshot is retained in IndexedDB. */
 export function migrateWealthData(input: WealthData): WealthData {
   const from = input.schemaVersion ?? 7;
-  if (from >= CURRENT_SCHEMA_VERSION) {
+  const categories = normalizeCategories(input);
+  const notices = [...(input.migrationNotices ?? [])];
+  const categoryByName = new Map(categories.map((item) => [`${item.kind}:${item.name}`, item]));
+  const transactions = input.transactions.map((item) => ({
+    ...item,
+    categoryId: item.categoryId ?? categoryByName.get(`${item.type}:${item.category}`)?.id ?? categoryId(item.type, item.category),
+  }));
+  const budgets = (input.budgets ?? []).map((budget) => {
+    const currency = budget.currency ?? input.reportCurrency;
+    if (!budget.currency) notices.push(`预算“${budget.category}”缺少币种，已按报告币种 ${input.reportCurrency} 迁移。`);
+    const category = categoryByName.get(`expense:${budget.category}`);
     return {
-      ...input,
-      budgets: input.budgets ?? [],
-      annualPlans: input.annualPlans ?? [],
-      watchlists: input.watchlists ?? [],
-      plannedPayments: input.plannedPayments ?? [],
-      cashFlowSettings: input.cashFlowSettings ?? { safetyBalance: 0, currency: input.reportCurrency },
-      investments: input.investments ?? [],
-      investmentTransactions: input.investmentTransactions ?? [],
-      liabilities: input.liabilities ?? [],
-      netWorthHistory: input.netWorthHistory ?? [],
-      subscriptions: input.subscriptions ?? [],
-      reviews: input.reviews ?? [],
-      importReviews: input.importReviews ?? [],
-      externalIntegrations: input.externalIntegrations ?? { bankSyncEnabled: false, liveFxEnabled: false },
+      ...budget,
+      currency,
+      categoryId: budget.categoryId ?? category?.id,
+      period: budget.period ?? budget.month,
+      budgetAmount: budget.budgetAmount ?? budget.limit,
+      active: budget.active !== false,
+      status: budget.status ?? "active",
     };
-  }
-
-  return {
+  });
+  const goals = input.goals.map((goal) => ({
+    ...goal,
+    startDate: goal.startDate ?? goal.due,
+    endDate: goal.endDate ?? goal.due,
+    active: goal.active !== false && !goal.deleted,
+  }));
+  const base: WealthData = {
     ...input,
-    budgets: input.budgets ?? [],
+    accounts: normalizeAccounts(input.accounts),
+    categories,
+    transactions,
+    budgets,
+    goals,
     annualPlans: input.annualPlans ?? [],
     watchlists: input.watchlists ?? [],
     plannedPayments: input.plannedPayments ?? [],
@@ -43,6 +82,13 @@ export function migrateWealthData(input: WealthData): WealthData {
     importReviews: input.importReviews ?? [],
     externalIntegrations: input.externalIntegrations ?? { bankSyncEnabled: false, liveFxEnabled: false },
     schemaVersion: CURRENT_SCHEMA_VERSION,
+    migrationNotices: notices,
+  };
+  if (from >= CURRENT_SCHEMA_VERSION) return base;
+  const snapshot = JSON.parse(JSON.stringify(input)) as WealthData;
+  return {
+    ...base,
+    migrationBackups: [...(input.migrationBackups ?? []), { id: `migration-${Date.now()}`, from, to: CURRENT_SCHEMA_VERSION, createdAt: new Date().toISOString(), snapshot }],
     migrationHistory: [...(input.migrationHistory ?? []), { from, to: CURRENT_SCHEMA_VERSION, appliedAt: new Date().toISOString() }],
   };
 }

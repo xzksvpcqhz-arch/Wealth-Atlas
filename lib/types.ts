@@ -35,6 +35,24 @@ export type Account = {
   type: "bank" | "cash" | "investment" | "credit-card";
   currency: CurrencyCode;
   balance: number;
+  parentAccountId?: string;
+  accountGroup?: string;
+  institution?: string;
+  includeInNetWorth?: boolean;
+  status?: "active" | "inactive" | "deleted";
+  deactivatedAt?: string;
+  deletedAt?: string;
+};
+
+export type TransactionCategory = {
+  id: string;
+  name: string;
+  kind: "income" | "expense";
+  icon?: string;
+  color?: string;
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type Transaction = {
@@ -44,6 +62,7 @@ export type Transaction = {
   amount: number;
   currency: CurrencyCode;
   category: string;
+  categoryId?: string;
   merchant?: string;
   date: string;
   note?: string;
@@ -85,8 +104,16 @@ export type Goal = {
   currency: CurrencyCode;
   percent: number;
   due: string;
-  cadence: "monthly" | "quarterly" | "yearly" | "custom";
+  cadence: "weekly" | "monthly" | "quarterly" | "yearly" | "custom" | "once";
   status: "on-track" | "watch" | "paused";
+  startDate?: string;
+  endDate?: string;
+  periodAmount?: number;
+  priority?: "high" | "medium" | "low";
+  isAutomatic?: boolean;
+  active?: boolean;
+  deleted?: boolean;
+  deletedAt?: string;
 };
 
 export type AnnualPlan = {
@@ -147,6 +174,13 @@ export type MonthlyBudget = {
   category: string;
   limit: number;
   currency: CurrencyCode;
+  categoryId?: string;
+  period?: string;
+  budgetAmount?: number;
+  active?: boolean;
+  deleted?: boolean;
+  deletedAt?: string;
+  status?: "active" | "inactive" | "deleted";
 };
 
 export type Watchlist = {
@@ -296,6 +330,7 @@ export type WealthData = {
   assets: AssetItem[];
   plannedPayments: PlannedPayment[];
   budgets?: MonthlyBudget[];
+  categories?: TransactionCategory[];
   annualPlans?: AnnualPlan[];
   obsidian?: ObsidianSettings;
   syncLogs?: SyncLog[];
@@ -305,6 +340,8 @@ export type WealthData = {
   reportCurrency: CurrencyCode;
   schemaVersion?: number;
   migrationHistory?: Array<{ from: number; to: number; appliedAt: string }>;
+  migrationBackups?: Array<{ id: string; from: number; to: number; createdAt: string; snapshot: unknown }>;
+  migrationNotices?: string[];
   cashFlowSettings?: CashFlowSettings;
   investments?: Investment[];
   investmentTransactions?: InvestmentTransaction[];

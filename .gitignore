@@ -10,3 +10,4 @@ work/
 *.csv
 *.zip
 .env*
+*.tsbuildinfo

@@ -55,3 +55,15 @@ External integrations are capability boundaries, not hidden background behavior.
 ## v1.0.0 stable truth
 
 The stable product is local-first and recovery-oriented. All derived reports, forecasts, scenarios, charts, and exposure views are read models over the local snapshot. A release must preserve existing user records across migrations and rollbacks, keep historical FX snapshots immutable, protect Obsidian hand-written regions, and make download, permission, offline, empty, and error states visible.
+
+## v1.1.0 enhancement truth
+
+Navigation is an operational state, not decoration: the current section has a visible treatment, `aria-current="page"`, keyboard focus, and refresh persistence. The home quick-capture toolbar is the first action surface after the header and has no duplicate lower action panel.
+
+Accounts are stable identities. Renaming an account changes its label and related read models while retaining the same ID, linked transactions, transfers, FX snapshots, Obsidian references, and export rows. Account groups may show raw per-currency totals alongside a report-currency equivalent. Deactivation and deletion are reversible local status changes; linked history is never silently removed.
+
+Transaction categories are first-class records. Existing string categories are migrated to stable category IDs, but the original category label remains on each transaction for audit compatibility. Deactivated categories remain visible on historical rows and are unavailable for new records. Budgets match only the same category identity, raw currency, and period, so MYR, SGD, and USD budgets never mix.
+
+Goal cycles are explicit and support weekly, monthly, quarterly, yearly, custom, and once cadences with start/end dates, amount per cycle, priority, automatic-plan preference, and status. Stopping a cycle changes future planning only; saved contributions and historical records remain intact.
+
+Schema 10 migration creates an IndexedDB snapshot before changing v1.0 data. The migration is additive, records notices for assumptions such as missing budget currency, and does not delete user data. Git history and the v1.0.0 tag remain unchanged.
