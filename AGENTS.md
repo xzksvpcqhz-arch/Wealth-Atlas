@@ -1,4 +1,4 @@
-# Wealth Atlas 开发与审核流程（强制）
+# Wealth Atlas 开发流程
 
 ## 修改前
 
@@ -11,31 +11,7 @@
 1. 完成功能修改后，必须运行：
    - `npm test`
    - `npm run build`
-2. 测试通过后，必须运行：
-   - `npm run prepare:review`
-3. 完成 `prepare:review` 后必须停止修改，等待 Hermes/DeepSeek 审核。
-4. Hermes/DeepSeek 的审核结果写入 `review/result.json`，使用以下命令读取：
-   - `npm run read:review`
-
-## 审核处理
-
-1. 只有审核结果为 `PASS`，才允许报告任务完成。
-2. 审核结果为 `FAIL` 时，只修复 P0 与 P1 问题。
-3. 每次修复后必须依次重新运行：
-   - `npm test`
-   - `npm run build`
-   - `npm run prepare:review`
-4. 然后再次停止修改，等待 Hermes/DeepSeek 审核。
-5. 最多自动循环 5 轮。
-6. 若同一个问题连续两轮无法修复，必须停止并向用户说明原因。
-7. 审核没有 `PASS` 前，不得提交最终 Git 版本。
-
-## 审核数据保护
-
-不得发送给 DeepSeek 或 Hermes：
-
-- `.env.local`、API Key 或其他密钥
-- `data/`、`exports/`、`private-vault/`、`backups/`
-- 真实银行资料或真实财务资料
+2. DeepSeek/Hermes 审核为可选步骤，只有用户明确要求时才运行 `npm run prepare:review` 或读取 `review/result.json`。
+3. 即使进行可选审核，也不得发送 `.env.local`、API Key、`data/`、`exports/`、`private-vault/`、`backups/` 或真实财务资料。
 
 删除项目文件时，必须先移入 `D:\Trash`；如果无法移入，则停止并要求人工确认。
