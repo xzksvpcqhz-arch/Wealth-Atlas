@@ -52,3 +52,9 @@ The new alerts layer is derived locally and reports cash-flow safety shortfalls,
 The reports workspace exports an Excel workbook with Transactions, Transfers, Monthly Summary, Annual Summary, Goals, Accounts, Investments, Investment Transactions, Asset Items, Liabilities, Net Worth History, Subscriptions, FX Rates, Watchlists, Cash Flow Forecast, Settings, and preserved Annual Plans. Transaction and transfer rows retain original amounts, converted values, FX direction/rate/date/source, fees, effective rates, notes, and soft-delete state.
 
 Monthly, annual, net-worth, investment, asset, FX, and cash-flow PDF downloads are available alongside PNG chart downloads for income/expense, savings, net worth, assets, currency, FX, investment, Watchlist, and cash flow views. Exports are generated from the current local snapshot and never write back to IndexedDB.
+
+## v0.10.0 analysis and reviews
+
+The analysis workspace compares three debt strategies: paying an extra MYR 300 each month, paying an extra MYR 600, or prioritizing an emergency reserve. It shows payoff month, total interest, term length, and the simulated result without mutating the liability.
+
+It also presents a readable SGD-to-MYR-to-USD flow map, separates cash, savings, investment, FX, liabilities, physical assets, and other net-worth movement, and stores monthly review notes locally for good decisions, overspending, largest expense, goals, investment/FX changes, and next-month actions.

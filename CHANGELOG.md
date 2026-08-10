@@ -15,6 +15,13 @@
 - Added downloadable PNG chart artifacts for income/expense, savings, net worth, assets, currency, FX, investment, Watchlist, and cash flow.
 - Added export inventory, loading-through-toast success/error feedback, and mobile-friendly compact export controls.
 
+## [0.10.0] - 2026-08-10
+
+- Added debt repayment simulations for extra MYR 300, extra MYR 600, and emergency-reserve-first scenarios.
+- Added a compact cash-flow map and net-worth decomposition for cash, savings, investments, FX, physical assets, liabilities, and other movement.
+- Added local monthly financial reviews with the requested good, overspend, largest expense, goal, investment/FX, and next-month plan fields.
+- Kept simulations and reviews local-only; simulated values never alter real liabilities, accounts, or transactions.
+
 ## [0.7.0] - 2026-08-10
 
 - Added soft deletion for income, expense, and transfer records with edit, detail, restore, local Recycle Bin, undo toast, and second confirmation before permanent deletion.

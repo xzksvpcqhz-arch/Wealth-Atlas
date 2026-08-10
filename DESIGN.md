@@ -75,3 +75,8 @@ The implementation reserves the same panel language for empty, loading, import-e
 
 - The export surface is grouped by artifact: one primary Excel action, a compact PDF report row, and a compact PNG chart row. This keeps the high-value action visible without turning the page into a wall of cards.
 - Export success and failure use the existing toast language. Report inventory chips make the workbook schema inspectable before downloading.
+
+## Analysis and review
+
+- Analysis is intentionally analytical rather than decorative: scenario comparison, flow branches, and decomposition values use the same restrained panel grammar and make the non-advice boundary visible.
+- Reviews use a quiet writing surface after the numeric facts. Saved notes remain readable as short dated entries and do not compete with the debt simulator.
