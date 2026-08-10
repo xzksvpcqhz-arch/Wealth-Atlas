@@ -29,6 +29,13 @@
 - Added mobile quick shortcuts for today’s spending, free-to-spend, savings goals, FX pairs, and 30-day cash flow.
 - Preserved local IndexedDB as the source of truth and kept offline/weak-network behavior visible.
 
+## [0.12.0] - 2026-08-10
+
+- Added explicit optional BankSyncAdapter and FxRateAdapter interfaces with both providers disabled by default.
+- Added permission guidance, manual-rate priority messaging, and no-provider/no-upload behavior.
+- Added CSV duplicate count, review history, explicit apply, and soft-delete undo for imported transactions.
+- Added a small install icon asset without adding any external service or personal data.
+
 ## [0.7.0] - 2026-08-10
 
 - Added soft deletion for income, expense, and transfer records with edit, detail, restore, local Recycle Bin, undo toast, and second confirmation before permanent deletion.

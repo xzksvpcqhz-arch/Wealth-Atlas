@@ -64,3 +64,9 @@ It also presents a readable SGD-to-MYR-to-USD flow map, separates cash, savings,
 Wealth Atlas now includes a web app manifest and a small service worker shell for installable desktop/mobile use and offline access to the recent app shell. Online/offline state is shown in the integrations page; IndexedDB remains the source of truth and no private data is cached into Git.
 
 Quick capture keeps record income/expense, SGD transfer, manual FX update, account balance, purchase, investment, and Excel export close to the operator. The home page adds mobile shortcuts for today’s spending, free-to-spend, goal progress, FX pairs, and the next 30-day balance.
+
+## v0.12.0 optional integrations
+
+The integration page now documents the optional BankSyncAdapter and FxRateAdapter contracts while keeping both disabled by default. Permission explanations are shown before any future connection, manual rates remain primary, and no external provider is contacted by this build.
+
+CSV import is a local review workflow: parse, duplicate warning, pending review, explicit apply, and soft-delete undo. Applied imports retain their generated transaction IDs so the import can be reversed without permanently removing the user’s local records.

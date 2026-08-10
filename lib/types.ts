@@ -254,6 +254,7 @@ export type ImportReview = {
   importedAt: string;
   status: "pending" | "applied" | "undone";
   appliedTransactionIds?: string[];
+  duplicateCount?: number;
   rows: Array<Pick<Transaction, "type" | "accountId" | "amount" | "currency" | "category" | "merchant" | "date" | "note">>;
 };
 
@@ -312,4 +313,9 @@ export type WealthData = {
   subscriptions?: Subscription[];
   reviews?: FinancialReview[];
   importReviews?: ImportReview[];
+  externalIntegrations?: {
+    bankSyncEnabled: boolean;
+    liveFxEnabled: boolean;
+    providerName?: string;
+  };
 };

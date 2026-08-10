@@ -85,3 +85,8 @@ The implementation reserves the same panel language for empty, loading, import-e
 
 - The installable shell reuses the dark night-blue canvas and does not add a bright app-store visual layer. Online/offline status is a small operational signal, not a decorative badge.
 - Mobile shortcuts use two-column touch targets at 620px and below. Amounts remain breakable, buttons remain reachable above the browser toolbar, and reduced-motion rules continue to apply.
+
+## Optional integrations
+
+- Integration status is shown as three operational states: online/offline, bank adapter disabled, and live FX adapter disabled. Permission guidance sits next to the capability instead of being hidden in settings.
+- CSV review history uses the same calm list treatment as sync logs. Duplicate counts are visible, and undo remains a secondary action after apply.

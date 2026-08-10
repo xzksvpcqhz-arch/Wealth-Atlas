@@ -23,6 +23,7 @@ export function migrateWealthData(input: WealthData): WealthData {
       subscriptions: input.subscriptions ?? [],
       reviews: input.reviews ?? [],
       importReviews: input.importReviews ?? [],
+      externalIntegrations: input.externalIntegrations ?? { bankSyncEnabled: false, liveFxEnabled: false },
     };
   }
 
@@ -40,6 +41,7 @@ export function migrateWealthData(input: WealthData): WealthData {
     subscriptions: input.subscriptions ?? [],
     reviews: input.reviews ?? [],
     importReviews: input.importReviews ?? [],
+    externalIntegrations: input.externalIntegrations ?? { bankSyncEnabled: false, liveFxEnabled: false },
     schemaVersion: CURRENT_SCHEMA_VERSION,
     migrationHistory: [...(input.migrationHistory ?? []), { from, to: CURRENT_SCHEMA_VERSION, appliedAt: new Date().toISOString() }],
   };

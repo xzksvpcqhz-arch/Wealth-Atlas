@@ -47,3 +47,7 @@ Debt scenarios are calculations, not recommendations and never write to liabilit
 ## v0.11.0 mobile truth
 
 The PWA is an installable shell around the local-first app, not a cloud sync channel. Offline status is explicit, recent local data remains in IndexedDB, and any offline capture is a local pending action until the browser can persist it. Quick actions must be reachable by touch and keyboard without horizontal scrolling.
+
+## v0.12.0 integration truth
+
+External integrations are capability boundaries, not hidden background behavior. Bank and live-FX adapters are opt-in, permission-gated, disconnectable, and must import into review before formal data. CSV and Excel remain valid local import/export paths; duplicate detection and undo are required.
