@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0] - 2026-08-10
+
+- Added a local future cash-flow workspace with 7, 30, 60, and 90-day forecasts, month-end projection, safety balance, and free-to-spend calculations.
+- Added planned payment calendar entries for one-time, monthly, and yearly income, expenses, savings, investments, and transfers.
+- Added Watchlists with category, merchant, tags, account, currency, and item-type filters plus budget, warning, trailing-average, spend-rate, and month-end metrics.
+- Added derived finance alerts for forecast shortfalls, upcoming fixed payments, Watchlist attention, and stale FX rates.
+- Preserved deleted-record exclusions, historical FX snapshots, local IndexedDB persistence, and the dark celestial responsive design.
+
 ## [0.7.0] - 2026-08-10
 
 - Added soft deletion for income, expense, and transfer records with edit, detail, restore, local Recycle Bin, undo toast, and second confirmation before permanent deletion.

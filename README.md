@@ -38,3 +38,11 @@ It also provides currency exposure, the next-30-day MYR gap, the USD → SGD →
 Income, expense, and transfer rows now have edit, detail, and delete actions. Deletes are soft deletes (`deleted` and `deletedAt`), so balances, budgets, income/expense totals, and FX usage exclude them while the local Recycle Bin keeps them available for restore. Permanent deletion requires a second confirmation.
 
 Asset usage is now date-driven. Choose purchase date or a custom usage start date; active items calculate through today, sold items stop at the sale date, and invalid future dates show a warning without producing `NaN` or `Infinity`. Daily cost and optional cost-per-use are calculated fields. Legacy assets are migrated in place and their old manual usage days are retained in a local migration backup.
+
+## v0.8.0 cash flow and watchlists
+
+The operations workspace now projects 7, 30, 60, and 90-day balances from current local balances, recurring planned payments, savings, investments, and transfers. It separates current balance, projected balance, safety balance, and free-to-spend amount, and keeps a readable future payment calendar.
+
+Planned payments support one-time, monthly, and yearly cadence, account and currency context, fixed-payment and annual-reserve flags, income/expense/saving/investment direction, and an explicit next date. Watchlists can track category, merchant, tags, account, currency, and item type, with month-to-date spend, 12-month average, spend rate, month-end forecast, warning state, and over-budget state.
+
+The new alerts layer is derived locally and reports cash-flow safety shortfalls, upcoming fixed payments, Watchlist attention, and stale FX rates. It does not call external services or mutate historical financial data.

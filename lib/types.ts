@@ -131,8 +131,14 @@ export type PlannedPayment = {
   amount: number;
   currency: CurrencyCode;
   due: string;
-  cadence: "monthly" | "yearly";
+  cadence: "once" | "monthly" | "yearly";
   category: string;
+  accountId?: string;
+  direction?: "income" | "expense" | "transfer" | "saving" | "investment";
+  targetCurrency?: CurrencyCode;
+  isAutomatic?: boolean;
+  isFixed?: boolean;
+  isAnnualReserve?: boolean;
 };
 
 export type MonthlyBudget = {
@@ -148,8 +154,111 @@ export type Watchlist = {
   name: string;
   spent: number;
   limit: number;
+  warningAmount?: number;
   average: number;
   forecast: number;
+  currency: CurrencyCode;
+  category?: string;
+  merchant?: string;
+  tags?: string[];
+  accountId?: string;
+  itemType?: string;
+};
+
+export type Investment = {
+  id: string;
+  name: string;
+  accountId?: string;
+  assetType: string;
+  quantity?: number;
+  currency: CurrencyCode;
+  costBasis: number;
+  currentValue: number;
+  valuationDate: string;
+  feeTotal?: number;
+  note?: string;
+};
+
+export type InvestmentTransaction = {
+  id: string;
+  investmentId: string;
+  type: "buy" | "sell" | "dividend" | "fee";
+  date: string;
+  amount: number;
+  currency: CurrencyCode;
+  quantity?: number;
+  price?: number;
+  fee?: number;
+  note?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+};
+
+export type Liability = {
+  id: string;
+  name: string;
+  type: "loan" | "credit-card" | "other";
+  principal: number;
+  remainingPrincipal: number;
+  interestRate: number;
+  minimumPayment: number;
+  extraPayment?: number;
+  currency: CurrencyCode;
+  dueDate?: string;
+  termMonths?: number;
+  note?: string;
+  status: "active" | "paid";
+};
+
+export type NetWorthSnapshot = {
+  id: string;
+  date: string;
+  currency: CurrencyCode;
+  value: number;
+  cash: number;
+  investments: number;
+  assets: number;
+  liabilities: number;
+  note?: string;
+};
+
+export type Subscription = {
+  id: string;
+  name: string;
+  amount: number;
+  currency: CurrencyCode;
+  cadence: "monthly" | "yearly";
+  nextDate: string;
+  accountId?: string;
+  category: string;
+  active: boolean;
+};
+
+export type FinancialReview = {
+  id: string;
+  period: string;
+  good?: string;
+  overspend?: string;
+  largestExpense?: string;
+  goals?: string;
+  investment?: string;
+  fx?: string;
+  nextPlan?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ImportReview = {
+  id: string;
+  fileName: string;
+  importedAt: string;
+  status: "pending" | "applied" | "undone";
+  appliedTransactionIds?: string[];
+  rows: Array<Pick<Transaction, "type" | "accountId" | "amount" | "currency" | "category" | "merchant" | "date" | "note">>;
+};
+
+export type CashFlowSettings = {
+  safetyBalance: number;
   currency: CurrencyCode;
 };
 
@@ -193,4 +302,14 @@ export type WealthData = {
   assetMigrationBackups?: Array<{ assetId: string; backedUpAt: string; usageDays: number; purchaseDate?: string }>;
   watchlists: Watchlist[];
   reportCurrency: CurrencyCode;
+  schemaVersion?: number;
+  migrationHistory?: Array<{ from: number; to: number; appliedAt: string }>;
+  cashFlowSettings?: CashFlowSettings;
+  investments?: Investment[];
+  investmentTransactions?: InvestmentTransaction[];
+  liabilities?: Liability[];
+  netWorthHistory?: NetWorthSnapshot[];
+  subscriptions?: Subscription[];
+  reviews?: FinancialReview[];
+  importReviews?: ImportReview[];
 };

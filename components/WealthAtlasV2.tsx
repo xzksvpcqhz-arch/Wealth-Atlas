@@ -18,6 +18,7 @@ import {
   GearSix,
   House,
   ListChecks,
+  MagnifyingGlass,
   Money,
   Plus,
   PencilSimple,
@@ -34,6 +35,7 @@ import { exportExcel } from "@/lib/exporters";
 import ObsidianWorkbench from "@/components/ObsidianWorkbench";
 import FxCenter from "@/components/FxCenter";
 import AssetEntryModal, { type AssetDraft } from "@/components/AssetEntryModal";
+import AdvancedWorkbench from "@/components/AdvancedWorkbench";
 import {
   calculateFreeToSpend,
   convert,
@@ -71,6 +73,7 @@ import {
   totalInCurrency,
 } from "@/lib/finance";
 import { loadWealthData, saveWealthData } from "@/lib/storage";
+import { migrateWealthData } from "@/lib/migrations";
 import type { Account, CurrencyCode, Goal, MonthlyBudget, Transaction, Transfer, WealthData } from "@/lib/types";
 
 const today = getLocalDate();
@@ -150,6 +153,8 @@ const navItems: NavItem[] = [
   { label: "预算管理", icon: Scales, key: "budget" },
   { label: "资产管理", icon: Briefcase, key: "assets" },
   { label: "目标与计划", icon: Target, key: "goals" },
+  { label: "未来现金流", icon: CalendarDots, key: "cashflow" },
+  { label: "Watchlist", icon: MagnifyingGlass, key: "watchlists" },
   { label: "保险管理", icon: ShieldCheck, key: "insurance" },
   { label: "报表中心", icon: ChartLineUp, key: "reports" },
   { label: "理财师提醒", icon: Bell, key: "insights" },
@@ -217,7 +222,7 @@ function Stat({ icon: Icon, label, value, detail, tone = "cyan" }: { icon: Eleme
 }
 
 export default function WealthAtlasV2() {
-  const [data, setData] = useState<WealthData>({ ...initialData, assets: normalizeAssets(initialData.assets).normalized });
+  const [data, setData] = useState<WealthData>(() => migrateWealthData({ ...initialData, assets: normalizeAssets(initialData.assets).normalized }));
   const [active, setActive] = useState("home");
   const [fxMode, setFxMode] = useState(false);
   const [assetMode, setAssetMode] = useState(false);
@@ -251,8 +256,9 @@ export default function WealthAtlasV2() {
   useEffect(() => {
     loadWealthData().then((saved) => {
       if (saved) {
-        const assetMigration = normalizeAssets(saved.assets ?? initialData.assets);
-        setData({ ...initialData, ...saved, assets: assetMigration.normalized, assetMigrationBackups: [...(saved.assetMigrationBackups ?? []), ...assetMigration.backups.filter((backup) => !(saved.assetMigrationBackups ?? []).some((item) => item.assetId === backup.assetId))], budgets: saved.budgets ?? initialData.budgets, annualPlans: saved.annualPlans ?? initialData.annualPlans });
+        const migratedData = migrateWealthData({ ...initialData, ...saved, assets: saved.assets ?? initialData.assets });
+        const assetMigration = normalizeAssets(migratedData.assets);
+        setData({ ...migratedData, assets: assetMigration.normalized, assetMigrationBackups: [...(migratedData.assetMigrationBackups ?? []), ...assetMigration.backups.filter((backup) => !(migratedData.assetMigrationBackups ?? []).some((item) => item.assetId === backup.assetId))] });
         if (assetMigration.migrated > 0) setMigrationNotice(`已迁移 ${assetMigration.migrated} 项旧物品资产资料。${assetMigration.recalculated > 0 ? ` ${assetMigration.recalculated} 项已按使用起算日期重新计算天数，旧值仍保存在本地备份字段中。` : ""}`);
       }
       setLoaded(true);
@@ -530,7 +536,7 @@ export default function WealthAtlasV2() {
   const renderObsidian = () => <ObsidianWorkbench mode="sync" data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} />;
   const renderPlaceholder = () => <main className="main-content placeholder-page"><div className="page-header"><div><div className="breadcrumb">WEALTH ATLAS / MODULE</div><h1>{navItems.find((item) => item.key === active)?.label ?? "模块"}</h1></div></div><div className="panel empty-module"><Sparkle size={32} weight="fill" /><h2>这个模块保留在你的产品地图里</h2><p>本次版本先把账户、交易和预算闭环跑通，现有目标、资产、保险、报表和提醒结构仍然保留。</p><button className="primary-button" onClick={() => setActive("home")}>返回首页</button></div></main>;
 
-  return <div className="app-shell"><div className="starfield" /><aside className="sidebar"><div className="brand"><div className="brand-mark"><Sparkle size={20} weight="fill" /></div><div><strong>我的财富星图</strong><span>WEALTH ATLAS</span></div></div><nav>{navItems.map(({ label, icon: Icon, key }) => <button key={key} className={active === key ? "active" : ""} onClick={() => setActive(key)}><Icon size={20} weight={active === key ? "fill" : "regular"} /><span>{label}</span></button>)}</nav><div className="sidebar-bottom"><button className="side-action" onClick={openTransaction}><Plus size={18} weight="bold" /> 记一笔</button><button className="side-action secondary" onClick={() => openTransfer()}><ArrowsLeftRight size={18} /> 记转账</button><button className="side-action secondary" onClick={() => setActive("obsidian")}><ShieldCheck size={18} /> 同步 Obsidian</button><button className="side-action secondary" onClick={() => void exportExcel(data)}><FileXls size={18} /> 导出 Excel</button><button className="settings-button" onClick={() => setActive("settings")}><GearSix size={18} /> 设置</button></div></aside>{active === "home" ? renderHome() : active === "accounts" ? renderAccounts() : active === "transactions" ? renderTransactions() : active === "budget" ? renderBudget() : active === "goals" ? renderGoals() : active === "trash" ? renderTrash() : active === "obsidian" ? renderObsidian() : active === "settings" ? renderSettings() : renderPlaceholder()}{modal && <EntryModal type={modal} onClose={() => { setModal(null); setTransactionEditingId(null); setTransferEditingId(null); }} onTransaction={addTransaction} onTransfer={addTransfer} onAccount={addAccount} onBudget={addBudget} onGoal={addGoal} onAnnualPlan={addAnnualPlan} onFx={saveFxRate} data={data} transactionDraft={transactionDraft} setTransactionDraft={setTransactionDraft} transferDraft={transferDraft} setTransferDraft={setTransferDraft} accountDraft={accountDraft} setAccountDraft={setAccountDraft} budgetDraft={budgetDraft} setBudgetDraft={setBudgetDraft} goalDraft={goalDraft} setGoalDraft={setGoalDraft} annualPlanDraft={annualPlanDraft} setAnnualPlanDraft={setAnnualPlanDraft} fxDraft={fxDraft} setFxDraft={setFxDraft} editingTransaction={Boolean(transactionEditingId)} editingTransfer={Boolean(transferEditingId)} />}{recordDetails && <RecordDetailsModal data={data} details={recordDetails} onClose={() => setRecordDetails(null)} />}{deleteTarget && <DeleteConfirmModal target={deleteTarget} data={data} onCancel={() => setDeleteTarget(null)} onConfirm={softDeleteRecord} />}{permanentTarget && <PermanentDeleteModal target={permanentTarget} data={data} onCancel={() => setPermanentTarget(null)} onConfirm={permanentlyDeleteRecord} />}{toast && <div className="toast"><Check size={17} weight="bold" /> <span>{toast}</span>{toastAction && <button className="toast-action" onClick={() => { toastAction(); setToast(null); setToastAction(null); }}>撤销删除</button>}<button onClick={() => { setToast(null); setToastAction(null); }} aria-label="关闭提示"><X size={15} /></button></div>}</div>;
+  return <div className="app-shell"><div className="starfield" /><aside className="sidebar"><div className="brand"><div className="brand-mark"><Sparkle size={20} weight="fill" /></div><div><strong>我的财富星图</strong><span>WEALTH ATLAS</span></div></div><nav>{navItems.map(({ label, icon: Icon, key }) => <button key={key} className={active === key ? "active" : ""} onClick={() => setActive(key)}><Icon size={20} weight={active === key ? "fill" : "regular"} /><span>{label}</span></button>)}</nav><div className="sidebar-bottom"><button className="side-action" onClick={openTransaction}><Plus size={18} weight="bold" /> 记一笔</button><button className="side-action secondary" onClick={() => openTransfer()}><ArrowsLeftRight size={18} /> 记转账</button><button className="side-action secondary" onClick={() => setActive("obsidian")}><ShieldCheck size={18} /> 同步 Obsidian</button><button className="side-action secondary" onClick={() => void exportExcel(data)}><FileXls size={18} /> 导出 Excel</button><button className="settings-button" onClick={() => setActive("settings")}><GearSix size={18} /> 设置</button></div></aside>{active === "home" ? renderHome() : active === "accounts" ? renderAccounts() : active === "transactions" ? renderTransactions() : active === "budget" ? renderBudget() : active === "goals" ? renderGoals() : active === "cashflow" ? <AdvancedWorkbench page="cashflow" data={data} setData={setData} onToast={showToast} onNavigate={setActive} /> : active === "watchlists" ? <AdvancedWorkbench page="watchlists" data={data} setData={setData} onToast={showToast} onNavigate={setActive} /> : active === "reports" ? renderPlaceholder() : active === "insights" ? renderPlaceholder() : active === "insurance" ? renderPlaceholder() : active === "trash" ? renderTrash() : active === "obsidian" ? renderObsidian() : active === "settings" ? renderSettings() : renderPlaceholder()}{modal && <EntryModal type={modal} onClose={() => { setModal(null); setTransactionEditingId(null); setTransferEditingId(null); }} onTransaction={addTransaction} onTransfer={addTransfer} onAccount={addAccount} onBudget={addBudget} onGoal={addGoal} onAnnualPlan={addAnnualPlan} onFx={saveFxRate} data={data} transactionDraft={transactionDraft} setTransactionDraft={setTransactionDraft} transferDraft={transferDraft} setTransferDraft={setTransferDraft} accountDraft={accountDraft} setAccountDraft={setAccountDraft} budgetDraft={budgetDraft} setBudgetDraft={setBudgetDraft} goalDraft={goalDraft} setGoalDraft={setGoalDraft} annualPlanDraft={annualPlanDraft} setAnnualPlanDraft={setAnnualPlanDraft} fxDraft={fxDraft} setFxDraft={setFxDraft} editingTransaction={Boolean(transactionEditingId)} editingTransfer={Boolean(transferEditingId)} />}{recordDetails && <RecordDetailsModal data={data} details={recordDetails} onClose={() => setRecordDetails(null)} />}{deleteTarget && <DeleteConfirmModal target={deleteTarget} data={data} onCancel={() => setDeleteTarget(null)} onConfirm={softDeleteRecord} />}{permanentTarget && <PermanentDeleteModal target={permanentTarget} data={data} onCancel={() => setPermanentTarget(null)} onConfirm={permanentlyDeleteRecord} />}{toast && <div className="toast"><Check size={17} weight="bold" /> <span>{toast}</span>{toastAction && <button className="toast-action" onClick={() => { toastAction(); setToast(null); setToastAction(null); }}>撤销删除</button>}<button onClick={() => { setToast(null); setToastAction(null); }} aria-label="关闭提示"><X size={15} /></button></div>}</div>;
 }
 
 function EntryModal({ type, onClose, onTransaction, onTransfer, onAccount, onBudget, onGoal, onAnnualPlan, onFx, data, transactionDraft, setTransactionDraft, transferDraft, setTransferDraft, accountDraft, setAccountDraft, budgetDraft, setBudgetDraft, goalDraft, setGoalDraft, annualPlanDraft, setAnnualPlanDraft, fxDraft, setFxDraft, editingTransaction, editingTransfer }: { type: Exclude<ModalType, null>; onClose: () => void; onTransaction: () => void; onTransfer: () => void; onAccount: () => void; onBudget: () => void; onGoal: () => void; onAnnualPlan: () => void; onFx: () => void; data: WealthData; transactionDraft: TransactionDraft; setTransactionDraft: Dispatch<SetStateAction<TransactionDraft>>; transferDraft: TransferDraft; setTransferDraft: Dispatch<SetStateAction<TransferDraft>>; accountDraft: AccountDraft; setAccountDraft: Dispatch<SetStateAction<AccountDraft>>; budgetDraft: BudgetDraft; setBudgetDraft: Dispatch<SetStateAction<BudgetDraft>>; goalDraft: GoalDraft; setGoalDraft: Dispatch<SetStateAction<GoalDraft>>; annualPlanDraft: AnnualPlanDraft; setAnnualPlanDraft: Dispatch<SetStateAction<AnnualPlanDraft>>; fxDraft: { pair: string; rate: string; date: string; note: string }; setFxDraft: Dispatch<SetStateAction<{ pair: string; rate: string; date: string; note: string }>>; editingTransaction: boolean; editingTransfer: boolean }) {

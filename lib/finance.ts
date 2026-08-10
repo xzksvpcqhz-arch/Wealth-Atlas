@@ -1,4 +1,4 @@
-import type { CurrencyCode, FxRate, FxSnapshot, Goal, MonthlyBudget, WealthData } from "./types";
+import type { CurrencyCode, FxRate, FxSnapshot, Goal, MonthlyBudget, PlannedPayment, Watchlist, WealthData } from "./types";
 
 export function getLocalDate(date = new Date()) {
   const year = date.getFullYear();
@@ -155,6 +155,135 @@ export function calculateFreeToSpend(data: WealthData, month: string, fromDate: 
   const plannedCommitments = getUpcomingPlannedPayments(data, month, fromDate)
     .reduce((sum, payment) => sum + (convert(payment.amount, payment.currency, data.reportCurrency, data.fxRates) ?? 0), 0);
   return Math.max(0, liquidBalance - budgetRemaining - plannedCommitments);
+}
+
+export type CashFlowOccurrence = {
+  id: string;
+  date: string;
+  name: string;
+  amount: number;
+  currency: CurrencyCode;
+  kind: "income" | "expense" | "transfer" | "saving" | "investment";
+  fixed: boolean;
+  annualReserve: boolean;
+};
+
+export type CashFlowForecast = {
+  horizon: number;
+  fromDate: string;
+  toDate: string;
+  currency: CurrencyCode;
+  startBalance: number;
+  projectedIncome: number;
+  fixedExpenses: number;
+  projectedExpenses: number;
+  plannedSavings: number;
+  plannedInvestments: number;
+  plannedTransfers: number;
+  endBalance: number;
+  safetyBalance: number;
+  freeToSpend: number;
+  occurrences: Array<CashFlowOccurrence & { convertedAmount: number }>;
+};
+
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function addMonths(date: string, months: number) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCMonth(value.getUTCMonth() + months);
+  return value.toISOString().slice(0, 10);
+}
+
+function paymentKind(payment: PlannedPayment): CashFlowOccurrence["kind"] {
+  if (payment.direction) return payment.direction;
+  const label = `${payment.category} ${payment.name}`.toLowerCase();
+  if (label.includes("薪") || label.includes("收入") || label.includes("salary")) return "income";
+  if (label.includes("投资") || label.includes("invest")) return "investment";
+  if (label.includes("储蓄") || label.includes("目标") || label.includes("saving")) return "saving";
+  if (label.includes("转") || label.includes("换汇") || label.includes("transfer")) return "transfer";
+  return "expense";
+}
+
+function paymentOccurrences(payment: PlannedPayment, fromDate: string, toDate: string) {
+  const rows: CashFlowOccurrence[] = [];
+  let cursor = payment.due;
+  let guard = 0;
+  while (cursor <= toDate && guard < 240) {
+    if (cursor >= fromDate) rows.push({ id: `${payment.id}-${cursor}`, date: cursor, name: payment.name, amount: payment.amount, currency: payment.currency, kind: paymentKind(payment), fixed: payment.isFixed ?? paymentKind(payment) === "expense", annualReserve: payment.isAnnualReserve ?? false });
+    if (payment.cadence === "once") break;
+    cursor = payment.cadence === "yearly" ? addMonths(cursor, 12) : addMonths(cursor, 1);
+    guard += 1;
+  }
+  return rows;
+}
+
+export function getCashFlowOccurrences(data: WealthData, fromDate = getLocalDate(), horizon = 90) {
+  const toDate = addDays(fromDate, horizon);
+  return data.plannedPayments.flatMap((payment) => paymentOccurrences(payment, fromDate, toDate)).concat(
+    (data.subscriptions ?? []).filter((subscription) => subscription.active).flatMap((subscription) => paymentOccurrences({ id: subscription.id, name: subscription.name, amount: subscription.amount, currency: subscription.currency, due: subscription.nextDate, cadence: subscription.cadence, category: subscription.category, accountId: subscription.accountId, direction: "expense", isFixed: true }, fromDate, toDate)),
+  ).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function getCashFlowForecast(data: WealthData, horizon = 30, fromDate = getLocalDate()): CashFlowForecast {
+  const currency = data.reportCurrency;
+  const occurrences = getCashFlowOccurrences(data, fromDate, horizon).map((item) => ({ ...item, convertedAmount: convert(item.amount, item.currency, currency, data.fxRates) ?? 0 }));
+  const projectedIncome = occurrences.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.convertedAmount, 0);
+  const projectedExpenses = occurrences.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.convertedAmount, 0);
+  const fixedExpenses = occurrences.filter((item) => item.kind === "expense" && item.fixed).reduce((sum, item) => sum + item.convertedAmount, 0);
+  const plannedSavings = occurrences.filter((item) => item.kind === "saving").reduce((sum, item) => sum + item.convertedAmount, 0);
+  const plannedInvestments = occurrences.filter((item) => item.kind === "investment").reduce((sum, item) => sum + item.convertedAmount, 0);
+  const plannedTransfers = occurrences.filter((item) => item.kind === "transfer").reduce((sum, item) => sum + item.convertedAmount, 0);
+  const startBalance = getLiquidBalanceInCurrency(data, currency);
+  const endBalance = startBalance + projectedIncome - projectedExpenses - plannedSavings - plannedInvestments;
+  const safetyBalance = convert(data.cashFlowSettings?.safetyBalance ?? 0, data.cashFlowSettings?.currency ?? currency, currency, data.fxRates) ?? 0;
+  return { horizon, fromDate, toDate: addDays(fromDate, horizon), currency, startBalance, projectedIncome, fixedExpenses, projectedExpenses, plannedSavings, plannedInvestments, plannedTransfers, endBalance, safetyBalance, freeToSpend: Math.max(0, endBalance - safetyBalance), occurrences };
+}
+
+export function getCashFlowForecastSet(data: WealthData, fromDate = getLocalDate()) {
+  const monthEnd = new Date(`${fromDate.slice(0, 7)}-01T00:00:00Z`);
+  monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
+  monthEnd.setUTCDate(0);
+  const monthEndDate = monthEnd.toISOString().slice(0, 10);
+  const monthDays = Math.max(0, Math.floor((new Date(`${monthEndDate}T00:00:00Z`).getTime() - new Date(`${fromDate}T00:00:00Z`).getTime()) / 86400000));
+  return { 7: getCashFlowForecast(data, 7, fromDate), 30: getCashFlowForecast(data, 30, fromDate), 60: getCashFlowForecast(data, 60, fromDate), 90: getCashFlowForecast(data, 90, fromDate), monthEnd: getCashFlowForecast(data, monthDays, fromDate) };
+}
+
+export type WatchlistMetrics = Watchlist & { monthSpent: number; warning: boolean; overBudget: boolean; average12Months: number; spendRate: number; forecastAtMonthEnd: number };
+
+function watchlistMatches(item: WealthData["transactions"][number], watchlist: Watchlist) {
+  if (watchlist.category && item.category.toLowerCase() !== watchlist.category.toLowerCase()) return false;
+  if (watchlist.merchant && !(item.merchant ?? "").toLowerCase().includes(watchlist.merchant.toLowerCase())) return false;
+  if (watchlist.accountId && item.accountId !== watchlist.accountId) return false;
+  if (watchlist.currency && item.currency !== watchlist.currency) return false;
+  return true;
+}
+
+export function getWatchlistMetrics(data: WealthData, watchlist: Watchlist, month = getLocalDate().slice(0, 7), today = getLocalDate()): WatchlistMetrics {
+  const current = data.transactions.filter((item) => !item.deleted && item.type === "expense" && item.date.startsWith(month) && watchlistMatches(item, watchlist)).reduce((sum, item) => sum + (convert(item.amount, item.currency, watchlist.currency, data.fxRates) ?? 0), 0);
+  const monthStart = new Date(`${month}-01T00:00:00Z`);
+  const history = Array.from({ length: 12 }, (_, index) => { const date = new Date(monthStart); date.setUTCMonth(date.getUTCMonth() - index); return date.toISOString().slice(0, 7); });
+  const historyTotal = data.transactions.filter((item) => !item.deleted && item.type === "expense" && history.includes(item.date.slice(0, 7)) && watchlistMatches(item, watchlist)).reduce((sum, item) => sum + (convert(item.amount, item.currency, watchlist.currency, data.fxRates) ?? 0), 0);
+  const elapsed = Math.max(1, Number(today.slice(8, 10)));
+  const daysInMonth = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  const spendRate = current / elapsed;
+  const forecastAtMonthEnd = spendRate * daysInMonth;
+  const warningAmount = watchlist.warningAmount ?? watchlist.limit * 0.8;
+  return { ...watchlist, monthSpent: current, warning: current >= warningAmount || forecastAtMonthEnd >= warningAmount, overBudget: current > watchlist.limit || forecastAtMonthEnd > watchlist.limit, average12Months: historyTotal / 12, spendRate, forecastAtMonthEnd };
+}
+
+export function getFinanceAlerts(data: WealthData, fromDate = getLocalDate()) {
+  const forecast = getCashFlowForecast(data, 30, fromDate);
+  const alerts: Array<{ id: string; level: "attention" | "risk" | "info"; title: string; detail: string }> = [];
+  if (forecast.endBalance < forecast.safetyBalance) alerts.push({ id: "cashflow-safety", level: "risk", title: "预计现金流低于安全余额", detail: `未来 30 天预计余额 ${formatMoney(forecast.endBalance, forecast.currency)}，安全余额为 ${formatMoney(forecast.safetyBalance, forecast.currency)}。` });
+  data.plannedPayments.filter((item) => item.due >= fromDate && item.due <= addDays(fromDate, 7)).forEach((item) => alerts.push({ id: `payment-${item.id}`, level: "attention", title: "固定付款即将发生", detail: `${item.name} 将于 ${item.due} 支出 ${formatMoney(item.amount, item.currency)}。` }));
+  data.watchlists.map((item) => getWatchlistMetrics(data, item, fromDate.slice(0, 7), fromDate)).filter((item) => item.warning).forEach((item) => alerts.push({ id: `watch-${item.id}`, level: item.overBudget ? "risk" : "attention", title: `Watchlist ${item.name} 接近警戒`, detail: `本月 ${formatMoney(item.monthSpent, item.currency)}，预计月底 ${formatMoney(item.forecastAtMonthEnd, item.currency)}。` }));
+  const stale = data.fxRates.some((rate) => (getRateAgeDays(rate, fromDate) ?? 0) > 30);
+  if (stale) alerts.push({ id: "fx-stale", level: "attention", title: "汇率超过 30 天未更新", detail: "请在汇率中心录入新的手动汇率，历史交易快照不会改变。" });
+  return alerts;
 }
 
 export function totalInCurrency(data: WealthData, quote: CurrencyCode) {

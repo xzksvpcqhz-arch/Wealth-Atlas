@@ -64,3 +64,9 @@ The implementation reserves the same panel language for empty, loading, import-e
 - Delete is a protected workflow: the confirmation surface shows date, amount, category, account, and the effect on balances and budgets. The toast offers a visible restore action, while the Recycle Bin owns recovery and the second confirmation for permanent removal.
 - Asset forms keep the purchase and current-value fields in the existing two-column rhythm, then isolate the date-driven usage calculation in a read-only calculation panel. Long modal forms scroll inside the panel and keep the save action reachable.
 - Future usage dates use the attention amber state and zero-value fallback. Green is reserved for a valid calculated result, and no calculation displays `NaN` or `Infinity`.
+
+## Cash flow and Watchlist workbench
+
+- Forecast cards use the existing panel grammar and prioritize the four distinct values: current, projected, safety, and free-to-spend. The calendar is a restrained list rather than a decorative month grid so dates, accounts, currencies, and amounts remain scannable.
+- Watchlists use cyan for a normal tracking state, muted green for safe headroom, and amber for warning or over-budget states. Filters and status chips remain readable on narrow screens.
+- Forecast and Watchlist forms collapse to one column below 620px, keep all amount text breakable, and preserve keyboard focus order and reduced-motion behavior.

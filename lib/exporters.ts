@@ -1,5 +1,5 @@
 import type { ObsidianTemplateKey, WealthData } from "./types";
-import { convert, formatMoney, getAssetCostPerUse, getAssetCurrentCurrency, getAssetDailyCost, getAssetEndDate, getAssetPurchaseCurrency, getAssetRealizedValue, getAssetUsageDays, getAssetUsageStartDate, getBudgetRemaining, getGoalProgress, getRate, getRateAtDate, getUpcomingPlannedPayments, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "./finance";
+import { convert, formatMoney, getAssetCostPerUse, getAssetCurrentCurrency, getAssetDailyCost, getAssetEndDate, getAssetPurchaseCurrency, getAssetRealizedValue, getAssetUsageDays, getAssetUsageStartDate, getBudgetRemaining, getCashFlowForecast, getGoalProgress, getRate, getRateAtDate, getUpcomingPlannedPayments, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "./finance";
 
 const AUTO_START = "<!-- WEALTH_ATLAS_AUTO_START -->";
 const AUTO_END = "<!-- WEALTH_ATLAS_AUTO_END -->";
@@ -180,6 +180,61 @@ export async function exportExcel(data: WealthData) {
   data.fxRates.forEach((item) => fx.addRow({ ...item, pair: `${item.baseCurrency}/${item.quoteCurrency}`, date: item.effectiveDate, note: item.note }));
   const buffer = await workbook.xlsx.writeBuffer();
   downloadBlob(new Blob([buffer]), `wealth-atlas-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+function pdfEscape(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+function buildPdf(lines: string[]) {
+  const content = [`BT`, `/F1 14 Tf`, `50 780 Td`, ...lines.flatMap((line, index) => [`(${pdfEscape(line)}) Tj`, index < lines.length - 1 ? "0 -20 Td" : ""]), `ET`].join("\n");
+  const objects = [`<< /Type /Catalog /Pages 2 0 R >>`, `<< /Type /Pages /Kids [3 0 R] /Count 1 >>`, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => { offsets[index + 1] = pdf.length; pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n `).join("\n")}\ntrailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new Blob([pdf], { type: "application/pdf" });
+}
+
+export async function exportPdfReport(data: WealthData, report: "monthly" | "annual" | "net-worth" | "investment" | "asset" | "fx" | "cashflow") {
+  const forecast = getCashFlowForecast(data, 30);
+  const lines = [
+    `Wealth Atlas ${report} report`,
+    `Generated: ${new Date().toISOString()}`,
+    `Report currency: ${data.reportCurrency}`,
+    `Current accounts: ${formatMoney(totalInCurrency(data, data.reportCurrency), data.reportCurrency)}`,
+    `30-day projected balance: ${formatMoney(forecast.endBalance, forecast.currency)}`,
+    `Safety balance: ${formatMoney(forecast.safetyBalance, forecast.currency)}`,
+    `Free to spend: ${formatMoney(forecast.freeToSpend, forecast.currency)}`,
+    `Transactions: ${data.transactions.filter((item) => !item.deleted).length}`,
+    `Investments: ${(data.investments ?? []).length}`,
+    `Liabilities: ${(data.liabilities ?? []).length}`,
+  ];
+  downloadBlob(buildPdf(lines), `wealth-atlas-${report}-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+export async function exportChartPng(data: WealthData, chart: "cashflow" | "net-worth" | "currency" | "income-expense" | "savings" | "assets" | "fx" | "investment" | "watchlist") {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1400;
+  canvas.height = 820;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("浏览器不支持 PNG 图表导出");
+  context.fillStyle = "#06101d";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#eef6ff";
+  context.font = "bold 34px system-ui";
+  context.fillText(`Wealth Atlas / ${chart}`, 70, 86);
+  context.font = "18px system-ui";
+  context.fillStyle = "#8292ab";
+  context.fillText(`Generated ${new Date().toISOString().slice(0, 10)} · ${data.reportCurrency}`, 70, 122);
+  const forecast = getCashFlowForecast(data, 30);
+  const values = chart === "cashflow" ? [forecast.startBalance, forecast.endBalance, forecast.safetyBalance, forecast.freeToSpend] : chart === "net-worth" ? [totalInCurrency(data, data.reportCurrency), ...(data.netWorthHistory ?? []).slice(-3).map((item) => item.value)] : chart === "currency" ? ["MYR", "SGD", "USD"].map((currency) => data.accounts.filter((account) => account.currency === currency).reduce((sum, account) => sum + account.balance, 0)) : [data.transactions.filter((item) => !item.deleted && item.type === "income").reduce((sum, item) => sum + item.amount, 0), data.transactions.filter((item) => !item.deleted && item.type === "expense").reduce((sum, item) => sum + item.amount, 0), data.assets.reduce((sum, item) => sum + item.currentValue, 0)];
+  const numericValues = values.map((value) => typeof value === "number" ? value : 0);
+  const max = Math.max(1, ...numericValues);
+  numericValues.forEach((value, index) => { const x = 100 + index * 300; const height = Math.max(8, (value / max) * 500); context.fillStyle = index % 2 ? "#3cd9f5" : "#8fe1b4"; context.fillRect(x, 680 - height, 150, height); context.fillStyle = "#eef6ff"; context.font = "18px system-ui"; context.fillText(formatMoney(value, data.reportCurrency), x, 720); });
+  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("无法生成 PNG")), "image/png"));
+  downloadBlob(blob, `wealth-atlas-${chart}-${new Date().toISOString().slice(0, 10)}.png`);
 }
 
 export type ObsidianZipScope = "daily" | "monthly" | "yearly" | "full";

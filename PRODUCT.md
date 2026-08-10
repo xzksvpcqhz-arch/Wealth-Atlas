@@ -29,3 +29,9 @@ v0.6.0 uses the existing local `assets` collection for physical and digital item
 Transactions and transfers are never removed by the normal delete action. They carry `deleted` and `deletedAt`, disappear from all financial calculations, remain in the local Recycle Bin, and can be restored. Permanent deletion is an explicit second step. A transfer remains one linked record so restoring or deleting it reverses both account-side effects together.
 
 Asset usage is derived from `usageStartMode`, `usageStartDate`, status, and optional `saleDate`. `usageDays` is a retained calculated snapshot, while `legacyUsageDays` and `assetMigrationBackups` preserve old manual values during migration. A future start date produces zero days and a visible warning; daily cost never emits `NaN` or `Infinity`.
+
+## v0.8.0 cash flow and watchlist truth
+
+Future cash flow is a decision aid derived from the current non-deleted ledger and explicitly planned payments. The forecast must show current balance, projected balance, safety balance, and free-to-spend as distinct values. Recurring payments are previewed on a calendar before they affect a forecast; no forecast creates transactions automatically.
+
+Watchlists are local rules over existing transactions. They can filter by category, merchant, tag, account, currency, or item type and show current-month spend, warning amount, budget, trailing twelve-month average, spend rate, and projected month-end spend. Alerts are descriptive and never place, transfer, or exchange funds automatically.
