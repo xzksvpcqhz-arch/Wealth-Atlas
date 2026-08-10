@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   ArrowClockwise,
   ArrowRight,
@@ -56,6 +56,10 @@ function rateDelta(current: number | null, previous: number | undefined) {
   return ((current - previous) / previous) * 100;
 }
 
+function FxDeleteConfirmModal({ rate, onCancel, onConfirm, isProcessing }: { rate: FxRate; onCancel: () => void; onConfirm: () => void; isProcessing: boolean }) {
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (!isProcessing && event.currentTarget === event.target) onCancel(); }}><div className="modal confirm-modal danger-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="fx-delete-title"><div className="modal-header"><div><div className="panel-kicker">FX HISTORY</div><h2 id="fx-delete-title">确认删除汇率记录</h2></div><button type="button" className="icon-button" onClick={onCancel} disabled={isProcessing} aria-label="关闭汇率删除确认"><X size={19} /></button></div><p className="confirm-lead">{rate.baseCurrency}/{rate.quoteCurrency} · {formatRate(rate.rate)}</p><div className="confirm-record-summary"><div><span>生效日期</span><strong>{rate.effectiveDate}</strong></div><div><span>来源</span><strong>{rate.source ?? "手动输入"}</strong></div></div><div className="confirm-warning"><ShieldCheck size={18} /><span>历史汇率不会被其他记录覆盖；删除后这条汇率历史会从本地记录移除，相关历史快照仍保留在交易和转账中。</span></div><div className="confirm-actions"><button type="button" className="secondary-button" onClick={onCancel} disabled={isProcessing}>取消</button><button type="button" className="danger-button" onClick={onConfirm} disabled={isProcessing}>{isProcessing ? "处理中…" : "确认删除"}</button></div></div></div>;
+}
+
 export default function FxCenter({ data, setData, onToast, onNavigate }: { data: WealthData; setData: Dispatch<SetStateAction<WealthData>>; onToast: (message: string) => void; onNavigate: (page: "home" | "fx") => void }) {
   const [selectedPair, setSelectedPair] = useState<Pair>("SGD/MYR");
   const [dateFilter, setDateFilter] = useState("");
@@ -63,6 +67,9 @@ export default function FxCenter({ data, setData, onToast, onNavigate }: { data:
   const [form, setForm] = useState({ rate: "3.48", effectiveDate: today(), source: "手动输入", note: "", isDefault: true });
   const [simulation, setSimulation] = useState({ currentRate: "3.48", simulatedRate: "3.55", monthlySgd: "2000", usdAmount: "5000", months: "12" });
   const [simulated, setSimulated] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<FxRate | null>(null);
+  const [deleteInFlight, setDeleteInFlight] = useState(false);
+  const deleteInFlightRef = useRef(false);
 
   const [baseCurrency, quoteCurrency] = splitPair(selectedPair);
   const pairHistory = useMemo(() => data.fxRates.filter((rate) => rate.baseCurrency === baseCurrency && rate.quoteCurrency === quoteCurrency).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate) || (b.enteredAt ?? "").localeCompare(a.enteredAt ?? "")), [baseCurrency, data.fxRates, quoteCurrency]);
@@ -102,9 +109,24 @@ export default function FxCenter({ data, setData, onToast, onNavigate }: { data:
   const deactivateRate = (rate: FxRate) => setData((currentData) => ({ ...currentData, fxRates: currentData.fxRates.map((item) => item.id === rate.id ? { ...item, active: item.active === false } : item) }));
 
   const deleteRate = (rate: FxRate) => {
-    if (!window.confirm(`确认删除 ${rate.baseCurrency}/${rate.quoteCurrency} ${rate.rate} 的历史记录吗？`)) return;
-    setData((currentData) => ({ ...currentData, fxRates: currentData.fxRates.filter((item) => item.id !== rate.id) }));
-    onToast("历史汇率记录已删除");
+    if (!deleteInFlightRef.current) setDeleteTarget(rate);
+  };
+
+  const confirmDeleteRate = () => {
+    const target = deleteTarget;
+    if (!target || deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
+    setDeleteInFlight(true);
+    try {
+      setData((currentData) => ({ ...currentData, fxRates: currentData.fxRates.filter((item) => item.id !== target.id) }));
+      setDeleteTarget(null);
+      onToast("历史汇率记录已删除");
+    } catch {
+      onToast("删除失败，原始汇率记录未改变");
+    } finally {
+      deleteInFlightRef.current = false;
+      setDeleteInFlight(false);
+    }
   };
 
   const renderPairCards = () => <div className="fx-pair-grid">{pairs.map((pair) => { const [base, quote] = splitPair(pair); const record = getRateRecord(data.fxRates, base, quote); const value = getRate(data.fxRates, base, quote); const age = getRateAgeDays(record); return <button className={`fx-pair-card ${selectedPair === pair ? "active" : ""}`} key={pair} onClick={() => { setSelectedPair(pair); setEditingId(null); }}><span>{pair}</span><strong>{formatRate(value)}</strong><small>{record ? `${record.effectiveDate} · ${age === null ? "" : `${age} 天前`}` : "缺少汇率"}</small></button>; })}</div>;
@@ -119,5 +141,5 @@ export default function FxCenter({ data, setData, onToast, onNavigate }: { data:
 
   const renderSimulator = () => <section className="panel simulator-panel"><div className="panel-title-row"><div><div className="panel-kicker">SCENARIO LAB</div><h2>汇率情境模拟器</h2></div><ChartLineUp size={20} /></div><div className="simulator-grid"><label>当前 SGD/MYR<input type="number" step="0.0001" value={simulation.currentRate} onChange={(event) => setSimulation((current) => ({ ...current, currentRate: event.target.value }))} /></label><label>模拟 SGD/MYR<input type="number" step="0.0001" value={simulation.simulatedRate} onChange={(event) => setSimulation((current) => ({ ...current, simulatedRate: event.target.value }))} /></label><label>每月转账 SGD<input type="number" step="1" value={simulation.monthlySgd} onChange={(event) => setSimulation((current) => ({ ...current, monthlySgd: event.target.value }))} /></label><label>USD 投资金额<input type="number" step="1" value={simulation.usdAmount} onChange={(event) => setSimulation((current) => ({ ...current, usdAmount: event.target.value }))} /></label><label>模拟期间（月）<input type="number" min="1" step="1" value={simulation.months} onChange={(event) => setSimulation((current) => ({ ...current, months: event.target.value }))} /></label><button className="primary-button" onClick={() => setSimulated(true)}><ChartLineUp size={17} /> 运行模拟</button></div>{simulationResult && <div className="simulation-result"><div><span>每月 MYR 变化</span><strong className={simulationResult.monthlyMyrDelta >= 0 ? "positive" : "negative"}>{simulationResult.monthlyMyrDelta >= 0 ? "+" : ""}{formatMoney(simulationResult.monthlyMyrDelta, "MYR")}</strong></div><div><span>{simulation.months} 个月累计</span><strong className={simulationResult.periodMyrDelta >= 0 ? "positive" : "negative"}>{simulationResult.periodMyrDelta >= 0 ? "+" : ""}{formatMoney(simulationResult.periodMyrDelta, "MYR")}</strong></div><div><span>USD 投资 SGD 变化</span><strong className={simulationResult.investmentSgdDelta >= 0 ? "positive" : "negative"}>{simulationResult.investmentSgdDelta >= 0 ? "+" : ""}{formatMoney(simulationResult.investmentSgdDelta, "SGD")}</strong></div></div>}<p className="simulation-disclaimer">这是情境模拟，不是投资建议。不会修改真实汇率、账户或历史记录。</p></section>;
 
-  return <main className="main-content module-page fx-page"><header className="page-header module-header"><div><div className="breadcrumb">WEALTH ATLAS / FX CENTER</div><h1>多币种与汇率中心</h1></div><div className="header-actions"><button className="secondary-button compact" onClick={() => onNavigate("home")}><ArrowRight size={16} /> 返回首页</button><div className="local-pill"><ShieldCheck size={17} weight="fill" /> 手动汇率</div></div></header>{alerts.length > 0 && <section className="fx-alert-list">{alerts.map((alert, index) => <div className="fx-alert" key={`${alert.title}-${index}`}><WarningCircle size={18} /><div><strong>{alert.title}</strong><span>{alert.body}</span></div></div>)}</section>}<section className="fx-current-section"><div className="section-heading"><div><div className="panel-kicker">CURRENT RATES</div><h2>当前汇率</h2></div><span>只使用本地手动记录，不接入实时 API</span></div>{renderPairCards()}</section><section className="fx-main-grid"><div>{renderHistory()}{renderExposure()}{renderFutureAndInvestment()}{renderSimulator()}</div><div>{renderRateForm()}</div></section></main>;
+  return <><main className="main-content module-page fx-page"><header className="page-header module-header"><div><div className="breadcrumb">WEALTH ATLAS / FX CENTER</div><h1>多币种与汇率中心</h1></div><div className="header-actions"><button className="secondary-button compact" onClick={() => onNavigate("home")}><ArrowRight size={16} /> 返回首页</button><div className="local-pill"><ShieldCheck size={17} weight="fill" /> 手动汇率</div></div></header>{alerts.length > 0 && <section className="fx-alert-list">{alerts.map((alert, index) => <div className="fx-alert" key={`${alert.title}-${index}`}><WarningCircle size={18} /><div><strong>{alert.title}</strong><span>{alert.body}</span></div></div>)}</section>}<section className="fx-current-section"><div className="section-heading"><div><div className="panel-kicker">CURRENT RATES</div><h2>当前汇率</h2></div><span>只使用本地手动记录，不接入实时 API</span></div>{renderPairCards()}</section><section className="fx-main-grid"><div>{renderHistory()}{renderExposure()}{renderFutureAndInvestment()}{renderSimulator()}</div><div>{renderRateForm()}</div></section></main>{deleteTarget && <FxDeleteConfirmModal rate={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDeleteRate} isProcessing={deleteInFlight} />}</>
 }
