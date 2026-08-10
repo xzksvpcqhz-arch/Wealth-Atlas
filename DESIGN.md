@@ -80,3 +80,8 @@ The implementation reserves the same panel language for empty, loading, import-e
 
 - Analysis is intentionally analytical rather than decorative: scenario comparison, flow branches, and decomposition values use the same restrained panel grammar and make the non-advice boundary visible.
 - Reviews use a quiet writing surface after the numeric facts. Saved notes remain readable as short dated entries and do not compete with the debt simulator.
+
+## PWA and mobile capture
+
+- The installable shell reuses the dark night-blue canvas and does not add a bright app-store visual layer. Online/offline status is a small operational signal, not a decorative badge.
+- Mobile shortcuts use two-column touch targets at 620px and below. Amounts remain breakable, buttons remain reachable above the browser toolbar, and reduced-motion rules continue to apply.

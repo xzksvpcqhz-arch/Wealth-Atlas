@@ -43,3 +43,7 @@ Reports are an audit surface over the local snapshot. Excel must preserve source
 ## v0.10.0 analysis truth
 
 Debt scenarios are calculations, not recommendations and never write to liabilities or accounts. The flow view explains existing categories of money movement, while net-worth decomposition distinguishes observed cash, investment, physical asset, liability, savings, FX, and other components; unavailable decomposition inputs remain explicit rather than being invented.
+
+## v0.11.0 mobile truth
+
+The PWA is an installable shell around the local-first app, not a cloud sync channel. Offline status is explicit, recent local data remains in IndexedDB, and any offline capture is a local pending action until the browser can persist it. Quick actions must be reachable by touch and keyboard without horizontal scrolling.

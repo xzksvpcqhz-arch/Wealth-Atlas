@@ -1,0 +1,11 @@
+{
+  "name": "Wealth Atlas",
+  "short_name": "Wealth Atlas",
+  "description": "本地优先的个人财富管理控制台",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#040b15",
+  "theme_color": "#06101d",
+  "lang": "zh-CN",
+  "icons": []
+}

@@ -22,6 +22,13 @@
 - Added local monthly financial reviews with the requested good, overspend, largest expense, goal, investment/FX, and next-month plan fields.
 - Kept simulations and reviews local-only; simulated values never alter real liabilities, accounts, or transactions.
 
+## [0.11.0] - 2026-08-10
+
+- Added a PWA manifest and offline service-worker shell with explicit online/offline status and install action.
+- Added global service-worker registration so the app can be installed without first opening a settings page.
+- Added mobile quick shortcuts for today’s spending, free-to-spend, savings goals, FX pairs, and 30-day cash flow.
+- Preserved local IndexedDB as the source of truth and kept offline/weak-network behavior visible.
+
 ## [0.7.0] - 2026-08-10
 
 - Added soft deletion for income, expense, and transfer records with edit, detail, restore, local Recycle Bin, undo toast, and second confirmation before permanent deletion.

@@ -58,3 +58,9 @@ Monthly, annual, net-worth, investment, asset, FX, and cash-flow PDF downloads a
 The analysis workspace compares three debt strategies: paying an extra MYR 300 each month, paying an extra MYR 600, or prioritizing an emergency reserve. It shows payoff month, total interest, term length, and the simulated result without mutating the liability.
 
 It also presents a readable SGD-to-MYR-to-USD flow map, separates cash, savings, investment, FX, liabilities, physical assets, and other net-worth movement, and stores monthly review notes locally for good decisions, overspending, largest expense, goals, investment/FX changes, and next-month actions.
+
+## v0.11.0 PWA and quick capture
+
+Wealth Atlas now includes a web app manifest and a small service worker shell for installable desktop/mobile use and offline access to the recent app shell. Online/offline state is shown in the integrations page; IndexedDB remains the source of truth and no private data is cached into Git.
+
+Quick capture keeps record income/expense, SGD transfer, manual FX update, account balance, purchase, investment, and Excel export close to the operator. The home page adds mobile shortcuts for today’s spending, free-to-spend, goal progress, FX pairs, and the next 30-day balance.
