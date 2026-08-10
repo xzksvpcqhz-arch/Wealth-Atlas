@@ -8,6 +8,13 @@
 - Added derived finance alerts for forecast shortfalls, upcoming fixed payments, Watchlist attention, and stale FX rates.
 - Preserved deleted-record exclusions, historical FX snapshots, local IndexedDB persistence, and the dark celestial responsive design.
 
+## [0.9.0] - 2026-08-10
+
+- Expanded Excel export with monthly and annual summaries, accounts, investments, investment transactions, liabilities, net-worth history, subscriptions, Watchlists, cash-flow forecasts, Settings, and complete FX snapshot fields.
+- Added downloadable monthly, annual, net-worth, investment, asset, FX, and cash-flow PDF reports.
+- Added downloadable PNG chart artifacts for income/expense, savings, net worth, assets, currency, FX, investment, Watchlist, and cash flow.
+- Added export inventory, loading-through-toast success/error feedback, and mobile-friendly compact export controls.
+
 ## [0.7.0] - 2026-08-10
 
 - Added soft deletion for income, expense, and transfer records with edit, detail, restore, local Recycle Bin, undo toast, and second confirmation before permanent deletion.

@@ -70,3 +70,8 @@ The implementation reserves the same panel language for empty, loading, import-e
 - Forecast cards use the existing panel grammar and prioritize the four distinct values: current, projected, safety, and free-to-spend. The calendar is a restrained list rather than a decorative month grid so dates, accounts, currencies, and amounts remain scannable.
 - Watchlists use cyan for a normal tracking state, muted green for safe headroom, and amber for warning or over-budget states. Filters and status chips remain readable on narrow screens.
 - Forecast and Watchlist forms collapse to one column below 620px, keep all amount text breakable, and preserve keyboard focus order and reduced-motion behavior.
+
+## Reports and exports
+
+- The export surface is grouped by artifact: one primary Excel action, a compact PDF report row, and a compact PNG chart row. This keeps the high-value action visible without turning the page into a wall of cards.
+- Export success and failure use the existing toast language. Report inventory chips make the workbook schema inspectable before downloading.

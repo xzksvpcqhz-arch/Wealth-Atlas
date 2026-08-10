@@ -178,6 +178,38 @@ export async function exportExcel(data: WealthData) {
   const fx = workbook.addWorksheet("FX Rates");
   fx.columns = [{ header: "Base Currency", key: "baseCurrency", width: 16 }, { header: "Target Currency", key: "quoteCurrency", width: 16 }, { header: "Pair", key: "pair", width: 16 }, { header: "Rate", key: "rate", width: 16 }, { header: "Effective Date", key: "date", width: 18 }, { header: "Entered At", key: "enteredAt", width: 26 }, { header: "Source", key: "source", width: 18 }, { header: "Default", key: "isDefault", width: 12 }, { header: "Active", key: "active", width: 12 }, { header: "Use Count", key: "useCount", width: 12 }, { header: "Note", key: "note", width: 30 }];
   data.fxRates.forEach((item) => fx.addRow({ ...item, pair: `${item.baseCurrency}/${item.quoteCurrency}`, date: item.effectiveDate, note: item.note }));
+  const addExportSheet = (name: string, columns: Array<{ header: string; key: string; width: number }>, rows: Array<unknown>) => {
+    const sheet = workbook.addWorksheet(name);
+    sheet.columns = columns;
+    rows.forEach((row) => sheet.addRow(row));
+    sheet.getRow(1).font = { bold: true, color: { argb: "FFEAF6FF" } };
+    sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D2A3D" } };
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+  };
+  addExportSheet("Accounts", [{ header: "ID", key: "id", width: 24 }, { header: "Name", key: "name", width: 24 }, { header: "Type", key: "type", width: 16 }, { header: "Currency", key: "currency", width: 14 }, { header: "Opening Balance", key: "openingBalance", width: 18 }, { header: "Balance", key: "balance", width: 16 }], data.accounts);
+  addExportSheet("Monthly Summary", [{ header: "Month", key: "month", width: 14 }, { header: "Income", key: "income", width: 16 }, { header: "Expenses", key: "expenses", width: 16 }, { header: "Savings", key: "savings", width: 16 }, { header: "Savings Rate", key: "savingsRate", width: 16 }], Array.from({ length: 12 }, (_, index) => {
+    const month = `${new Date().getFullYear()}-${String(index + 1).padStart(2, "0")}`;
+    const totals = reportTotals(data, month);
+    return { month, income: totals.income, expenses: totals.expenses, savings: totals.savings, savingsRate: totals.rate };
+  }));
+  addExportSheet("Annual Summary", [{ header: "Year", key: "year", width: 12 }, { header: "Income", key: "income", width: 18 }, { header: "Expenses", key: "expenses", width: 18 }, { header: "Savings", key: "savings", width: 18 }, { header: "Savings Rate", key: "savingsRate", width: 16 }], [String(new Date().getFullYear()), ...Array.from(new Set(data.transactions.map((item) => item.date.slice(0, 4)))).filter((year) => year !== String(new Date().getFullYear()))].sort().map((year) => {
+    const totals = reportTotals(data, year);
+    return { year, income: totals.income, expenses: totals.expenses, savings: totals.savings, savingsRate: totals.rate };
+  }));
+  addExportSheet("Investments", [{ header: "ID", key: "id", width: 24 }, { header: "Name", key: "name", width: 24 }, { header: "Currency", key: "currency", width: 14 }, { header: "Value", key: "value", width: 16 }, { header: "Valuation Date", key: "valuationDate", width: 18 }, { header: "Account ID", key: "accountId", width: 24 }], data.investments ?? []);
+  addExportSheet("Investment Transactions", [{ header: "ID", key: "id", width: 24 }, { header: "Investment ID", key: "investmentId", width: 24 }, { header: "Date", key: "date", width: 14 }, { header: "Type", key: "type", width: 14 }, { header: "Amount", key: "amount", width: 16 }, { header: "Currency", key: "currency", width: 14 }, { header: "Fee", key: "fee", width: 14 }], data.investmentTransactions ?? []);
+  addExportSheet("Liabilities", [{ header: "ID", key: "id", width: 24 }, { header: "Name", key: "name", width: 24 }, { header: "Currency", key: "currency", width: 14 }, { header: "Principal", key: "principal", width: 16 }, { header: "Remaining", key: "remaining", width: 16 }, { header: "Interest Rate", key: "interestRate", width: 16 }, { header: "Minimum Payment", key: "minimumPayment", width: 18 }, { header: "Due Date", key: "dueDate", width: 16 }], data.liabilities ?? []);
+  addExportSheet("Net Worth History", [{ header: "Date", key: "date", width: 16 }, { header: "Value", key: "value", width: 18 }, { header: "Currency", key: "currency", width: 14 }, { header: "Cash", key: "cash", width: 16 }, { header: "Investments", key: "investments", width: 18 }, { header: "Assets", key: "assets", width: 16 }, { header: "Liabilities", key: "liabilities", width: 18 }], data.netWorthHistory ?? []);
+  addExportSheet("Subscriptions", [{ header: "ID", key: "id", width: 24 }, { header: "Name", key: "name", width: 24 }, { header: "Amount", key: "amount", width: 16 }, { header: "Currency", key: "currency", width: 14 }, { header: "Cadence", key: "cadence", width: 14 }, { header: "Next Date", key: "nextDate", width: 16 }, { header: "Active", key: "active", width: 12 }], data.subscriptions ?? []);
+  addExportSheet("Watchlists", [{ header: "ID", key: "id", width: 24 }, { header: "Name", key: "name", width: 24 }, { header: "Currency", key: "currency", width: 14 }, { header: "Budget", key: "limit", width: 16 }, { header: "Warning Amount", key: "warningAmount", width: 18 }, { header: "Spent", key: "spent", width: 16 }, { header: "Average", key: "average", width: 16 }, { header: "Forecast", key: "forecast", width: 16 }, { header: "Category", key: "category", width: 18 }, { header: "Merchant", key: "merchant", width: 20 }], data.watchlists);
+  const forecast = getCashFlowForecast(data, 90);
+  addExportSheet("Cash Flow Forecast", [{ header: "Horizon", key: "horizon", width: 14 }, { header: "Start Balance", key: "startBalance", width: 18 }, { header: "Projected Income", key: "projectedIncome", width: 18 }, { header: "Projected Expenses", key: "projectedExpenses", width: 20 }, { header: "Projected Savings", key: "projectedSavings", width: 20 }, { header: "Projected Investments", key: "projectedInvestments", width: 22 }, { header: "End Balance", key: "endBalance", width: 18 }, { header: "Safety Balance", key: "safetyBalance", width: 18 }, { header: "Free To Spend", key: "freeToSpend", width: 18 }], [7, 30, 60, 90].map((horizon) => {
+    const item = horizon === 90 ? forecast : getCashFlowForecast(data, horizon);
+    return { horizon: `${horizon} days`, startBalance: item.startBalance, projectedIncome: item.projectedIncome, projectedExpenses: item.projectedExpenses, projectedSavings: item.plannedSavings, projectedInvestments: item.plannedInvestments, endBalance: item.endBalance, safetyBalance: item.safetyBalance, freeToSpend: item.freeToSpend };
+  }));
+  addExportSheet("Settings", [{ header: "Key", key: "key", width: 28 }, { header: "Value", key: "value", width: 42 }], [
+    { key: "Report Currency", value: data.reportCurrency }, { key: "Schema Version", value: data.schemaVersion ?? "legacy" }, { key: "Cash Flow Safety Balance", value: data.cashFlowSettings?.safetyBalance ?? 0 },
+  ]);
   const buffer = await workbook.xlsx.writeBuffer();
   downloadBlob(new Blob([buffer]), `wealth-atlas-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

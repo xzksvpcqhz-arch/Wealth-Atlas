@@ -35,3 +35,7 @@ Asset usage is derived from `usageStartMode`, `usageStartDate`, status, and opti
 Future cash flow is a decision aid derived from the current non-deleted ledger and explicitly planned payments. The forecast must show current balance, projected balance, safety balance, and free-to-spend as distinct values. Recurring payments are previewed on a calendar before they affect a forecast; no forecast creates transactions automatically.
 
 Watchlists are local rules over existing transactions. They can filter by category, merchant, tag, account, currency, or item type and show current-month spend, warning amount, budget, trailing twelve-month average, spend rate, and projected month-end spend. Alerts are descriptive and never place, transfer, or exchange funds automatically.
+
+## v0.9.0 reporting truth
+
+Reports are an audit surface over the local snapshot. Excel must preserve source fields and historical FX snapshots; PDF and PNG downloads are derived artifacts only. Export actions need visible success and failure feedback, work without network access, and must never change accounts, transactions, balances, budgets, or saved rates.

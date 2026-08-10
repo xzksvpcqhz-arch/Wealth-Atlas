@@ -46,3 +46,9 @@ The operations workspace now projects 7, 30, 60, and 90-day balances from curren
 Planned payments support one-time, monthly, and yearly cadence, account and currency context, fixed-payment and annual-reserve flags, income/expense/saving/investment direction, and an explicit next date. Watchlists can track category, merchant, tags, account, currency, and item type, with month-to-date spend, 12-month average, spend rate, month-end forecast, warning state, and over-budget state.
 
 The new alerts layer is derived locally and reports cash-flow safety shortfalls, upcoming fixed payments, Watchlist attention, and stale FX rates. It does not call external services or mutate historical financial data.
+
+## v0.9.0 reports and exports
+
+The reports workspace exports an Excel workbook with Transactions, Transfers, Monthly Summary, Annual Summary, Goals, Accounts, Investments, Investment Transactions, Asset Items, Liabilities, Net Worth History, Subscriptions, FX Rates, Watchlists, Cash Flow Forecast, Settings, and preserved Annual Plans. Transaction and transfer rows retain original amounts, converted values, FX direction/rate/date/source, fees, effective rates, notes, and soft-delete state.
+
+Monthly, annual, net-worth, investment, asset, FX, and cash-flow PDF downloads are available alongside PNG chart downloads for income/expense, savings, net worth, assets, currency, FX, investment, Watchlist, and cash flow views. Exports are generated from the current local snapshot and never write back to IndexedDB.
