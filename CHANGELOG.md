@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0] - 2026-08-10
+
+- Added soft deletion for income, expense, and transfer records with edit, detail, restore, local Recycle Bin, undo toast, and second confirmation before permanent deletion.
+- Deleted records are excluded from account balances, budgets, income/expense totals, and FX usage while preserving the original record locally.
+- Added configurable asset usage start mode, custom usage start date, sale date, automatic usage days, daily cost, optional cost-per-use, future-date warnings, and migration backups for legacy manual usage days.
+- Updated Obsidian asset notes and sync plans with usage start metadata and automatic calculations.
+- Updated the Excel `Asset Items` sheet with usage start/end dates, calculated usage days, daily cost, and cost per use.
+
 ## [0.6.0] - 2026-08-10
 
 - Fixed homepage income, expense, net-worth, and remaining-budget metrics so long currency values wrap fully without horizontal overflow or clipping on desktop and 390px mobile layouts.

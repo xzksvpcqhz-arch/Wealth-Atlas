@@ -32,3 +32,9 @@ It also provides currency exposure, the next-30-day MYR gap, the USD → SGD →
 物品资产继续使用本地 IndexedDB 的 `assets` 结构，记录名称、分类、买入价格与货币、买入日期、当前价值与货币、卖出价格、使用天数和状态。系统按“（买入价格 − 当前价值或卖出价格）÷ 使用天数”计算日均成本，并支持新增、编辑、删除、分类筛选和状态筛选。
 
 应用数据保存在浏览器 IndexedDB。真实财务数据不应该提交到 Git；导出文件和私人 Vault 已加入 `.gitignore`。
+
+## v0.7.0 recovery and asset usage
+
+Income, expense, and transfer rows now have edit, detail, and delete actions. Deletes are soft deletes (`deleted` and `deletedAt`), so balances, budgets, income/expense totals, and FX usage exclude them while the local Recycle Bin keeps them available for restore. Permanent deletion requires a second confirmation.
+
+Asset usage is now date-driven. Choose purchase date or a custom usage start date; active items calculate through today, sold items stop at the sale date, and invalid future dates show a warning without producing `NaN` or `Infinity`. Daily cost and optional cost-per-use are calculated fields. Legacy assets are migrated in place and their old manual usage days are retained in a local migration backup.

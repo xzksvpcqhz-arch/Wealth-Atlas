@@ -23,3 +23,9 @@ v0.5.0 keeps manual FX data local and versioned. New rates append history; they 
 ## Asset management truth
 
 v0.6.0 uses the existing local `assets` collection for physical and digital items. Each item preserves purchase currency/date, current valuation currency, optional sale price, usage days, status, and notes. Daily cost is a use-value indicator, not an account transaction, and must never mutate balances, FX snapshots, or private Git-tracked data.
+
+## v0.7.0 recovery and asset calculation truth
+
+Transactions and transfers are never removed by the normal delete action. They carry `deleted` and `deletedAt`, disappear from all financial calculations, remain in the local Recycle Bin, and can be restored. Permanent deletion is an explicit second step. A transfer remains one linked record so restoring or deleting it reverses both account-side effects together.
+
+Asset usage is derived from `usageStartMode`, `usageStartDate`, status, and optional `saleDate`. `usageDays` is a retained calculated snapshot, while `legacyUsageDays` and `assetMigrationBackups` preserve old manual values during migration. A future start date produces zero days and a visible warning; daily cost never emits `NaN` or `Infinity`.

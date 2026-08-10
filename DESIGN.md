@@ -58,3 +58,9 @@ The implementation reserves the same panel language for empty, loading, import-e
 - The asset ledger is a calm value-use workspace: current value, accumulated purchase value, daily cost, and usage days come before secondary notes.
 - Asset rows use structural data blocks rather than decorative tiles; edit and delete actions stay at the row edge and remain reachable at touch sizes.
 - The homepage metric grid always uses `minmax(0, 1fr)`, visible overflow, and breakable amount text. At 640px and below it becomes a single column so currency values remain readable.
+
+## Recovery and asset usage
+
+- Delete is a protected workflow: the confirmation surface shows date, amount, category, account, and the effect on balances and budgets. The toast offers a visible restore action, while the Recycle Bin owns recovery and the second confirmation for permanent removal.
+- Asset forms keep the purchase and current-value fields in the existing two-column rhythm, then isolate the date-driven usage calculation in a read-only calculation panel. Long modal forms scroll inside the panel and keep the save action reachable.
+- Future usage dates use the attention amber state and zero-value fallback. Green is reserved for a valid calculated result, and no calculation displays `NaN` or `Infinity`.

@@ -51,6 +51,8 @@ export type Transaction = {
   convertedCurrency?: CurrencyCode;
   fxRate?: number;
   fxSnapshot?: FxSnapshot;
+  deleted?: boolean;
+  deletedAt?: string;
 };
 
 export type Transfer = {
@@ -71,6 +73,8 @@ export type Transfer = {
   rateDate?: string;
   rateSource?: string;
   fxSnapshot?: FxSnapshot;
+  deleted?: boolean;
+  deletedAt?: string;
 };
 
 export type Goal = {
@@ -108,9 +112,15 @@ export type AssetItem = {
   currentValue: number;
   currentCurrency?: CurrencyCode;
   sellPrice?: number;
+  saleDate?: string;
   currency: CurrencyCode;
   dailyCost: number;
   usageDays: number;
+  usageStartMode?: "purchaseDate" | "customDate";
+  usageStartDate?: string;
+  legacyUsageDays?: number;
+  useCount?: number;
+  costPerUse?: number;
   status: "active" | "unused" | "sold";
   note?: string;
 };
@@ -180,6 +190,7 @@ export type WealthData = {
   obsidian?: ObsidianSettings;
   syncLogs?: SyncLog[];
   obsidianTemplates?: Partial<Record<ObsidianTemplateKey, string>>;
+  assetMigrationBackups?: Array<{ assetId: string; backedUpAt: string; usageDays: number; purchaseDate?: string }>;
   watchlists: Watchlist[];
   reportCurrency: CurrencyCode;
 };

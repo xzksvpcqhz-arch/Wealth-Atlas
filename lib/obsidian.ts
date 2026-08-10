@@ -1,4 +1,4 @@
-import { buildDailyMarkdown, buildMonthlyMarkdown, buildYearlyMarkdown, getDefaultObsidianTemplates } from "./exporters";
+import { buildAssetMarkdown, buildDailyMarkdown, buildMonthlyMarkdown, buildYearlyMarkdown, getDefaultObsidianTemplates } from "./exporters";
 import type { WealthData } from "./types";
 
 export const OBSIDIAN_ROOT = "财富理财师";
@@ -28,7 +28,7 @@ export type VaultDirectoryHandle = {
   requestPermission?: (options?: { mode?: "read" | "readwrite" }) => Promise<"granted" | "prompt" | "denied">;
 };
 
-export type SyncFileKind = "daily" | "monthly" | "yearly";
+export type SyncFileKind = "daily" | "monthly" | "yearly" | "asset";
 export type SyncFileStatus = "new" | "update" | "unchanged" | "conflict";
 
 export type SyncFilePlan = {
@@ -39,6 +39,7 @@ export type SyncFilePlan = {
   summary: string;
   content: string;
   existingContent?: string;
+  assetId?: string;
 };
 
 export type SyncResult = {
@@ -137,42 +138,46 @@ export function mergeAutoRegion(existing: string, generated: string) {
   return existing.slice(0, existing.indexOf(AUTO_START)) + generatedRegion + existing.slice(existing.indexOf(AUTO_END) + AUTO_END.length);
 }
 
-function generatedFile(kind: SyncFileKind, data: WealthData, date: string) {
+function generatedFile(kind: SyncFileKind, data: WealthData, date: string, assetId?: string) {
   const month = date.slice(0, 7);
   const year = Number(date.slice(0, 4));
   if (kind === "daily") return buildDailyMarkdown(data, date);
   if (kind === "monthly") return buildMonthlyMarkdown(data, month);
+  if (kind === "asset") return assetId ? buildAssetMarkdown(data, assetId) : "";
   return buildYearlyMarkdown(data, year);
 }
 
-function planPath(kind: SyncFileKind, date: string) {
+function planPath(kind: SyncFileKind, date: string, assetId?: string) {
   const year = date.slice(0, 4);
   if (kind === "daily") return `01-每日/${year}/${date}.md`;
   if (kind === "monthly") return `02-每月/${year}/${date.slice(0, 7)}.md`;
+  if (kind === "asset") return `06-物品资产/${assetId ?? "asset"}.md`;
   return `03-每年/${year}.md`;
 }
 
 export async function buildSyncPlan(vault: VaultDirectoryHandle, data: WealthData, date = new Date().toISOString().slice(0, 10)): Promise<SyncFilePlan[]> {
-  const files: Array<{ kind: SyncFileKind; label: string }> = [
+  const files: Array<{ kind: SyncFileKind; label: string; assetId?: string }> = [
     { kind: "daily", label: "每日笔记" },
     { kind: "monthly", label: "每月笔记" },
     { kind: "yearly", label: "每年笔记" },
   ];
+  data.assets.forEach((asset) => files.push({ kind: "asset", label: `物品资产：${asset.name}`, assetId: asset.id }));
   const plans: SyncFilePlan[] = [];
   for (const file of files) {
-    const path = planPath(file.kind, date);
-    const content = generatedFile(file.kind, data, date);
+    const assetId = file.assetId;
+    const path = planPath(file.kind, date, assetId);
+    const content = generatedFile(file.kind, data, date, assetId);
     const existingContent = await readTextFile(vault, path);
     if (existingContent === null) {
-      plans.push({ kind: file.kind, path, label: file.label, status: "new", summary: "将创建新的 Markdown 文件", content });
+      plans.push({ kind: file.kind, path, label: file.label, assetId, status: "new", summary: "将创建新的 Markdown 文件", content });
       continue;
     }
     if (!hasAutoRegion(existingContent)) {
-      plans.push({ kind: file.kind, path, label: file.label, status: "conflict", summary: "文件没有自动区域，已保护并跳过写入", content, existingContent });
+      plans.push({ kind: file.kind, path, label: file.label, assetId, status: "conflict", summary: "文件没有自动区域，已保护并跳过写入", content, existingContent });
       continue;
     }
     const merged = mergeAutoRegion(existingContent, content) ?? existingContent;
-    plans.push({ kind: file.kind, path, label: file.label, status: merged === existingContent ? "unchanged" : "update", summary: merged === existingContent ? "自动内容没有变化" : "只更新自动区域，保留手写内容", content: merged, existingContent });
+    plans.push({ kind: file.kind, path, label: file.label, assetId, status: merged === existingContent ? "unchanged" : "update", summary: merged === existingContent ? "自动内容没有变化" : "只更新自动区域，保留手写内容", content: merged, existingContent });
   }
   return plans;
 }

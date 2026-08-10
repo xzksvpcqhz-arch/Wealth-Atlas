@@ -61,8 +61,8 @@ export function getRateAgeDays(rate: FxRate | null, fromDate = getLocalDate()) {
 }
 
 export function getFxUsageCount(data: WealthData, rateId: string) {
-  const transactionUses = data.transactions.filter((item) => item.fxSnapshot?.rateId === rateId).length;
-  const transferUses = data.transfers.filter((item) => item.fxSnapshot?.rateId === rateId).length;
+  const transactionUses = data.transactions.filter((item) => !item.deleted && item.fxSnapshot?.rateId === rateId).length;
+  const transferUses = data.transfers.filter((item) => !item.deleted && item.fxSnapshot?.rateId === rateId).length;
   return transactionUses + transferUses;
 }
 
@@ -102,27 +102,27 @@ export function getAccountBalance(data: WealthData, accountId: string) {
   const account = data.accounts.find((item) => item.id === accountId);
   if (!account) return 0;
   const income = data.transactions
-    .filter((item) => item.accountId === accountId && item.type === "income")
+    .filter((item) => !item.deleted && item.accountId === accountId && item.type === "income")
     .reduce((sum, item) => sum + transactionValue(data, item, account.currency), 0);
   const expenses = data.transactions
-    .filter((item) => item.accountId === accountId && item.type === "expense")
+    .filter((item) => !item.deleted && item.accountId === accountId && item.type === "expense")
     .reduce((sum, item) => sum + transactionValue(data, item, account.currency), 0);
   const sent = data.transfers
-    .filter((item) => item.fromAccountId === accountId)
+    .filter((item) => !item.deleted && item.fromAccountId === accountId)
     .reduce((sum, item) => sum + transferValue(data, item.fromAmount, item.fromCurrency, account.currency, item.fxSnapshot) + (item.feeCurrency === item.fromCurrency ? item.fee : (convert(item.fee, item.feeCurrency, account.currency, data.fxRates) ?? 0)), 0);
   const received = data.transfers
-    .filter((item) => item.toAccountId === accountId)
+    .filter((item) => !item.deleted && item.toAccountId === accountId)
     .reduce((sum, item) => sum + transferValue(data, item.toAmount, item.toCurrency, account.currency, item.fxSnapshot), 0);
   return account.balance + income - expenses - sent + received;
 }
 
 export function getAccountActivityCount(data: WealthData, accountId: string) {
-  return data.transactions.filter((item) => item.accountId === accountId).length
-    + data.transfers.filter((item) => item.fromAccountId === accountId || item.toAccountId === accountId).length;
+  return data.transactions.filter((item) => !item.deleted && item.accountId === accountId).length
+    + data.transfers.filter((item) => !item.deleted && (item.fromAccountId === accountId || item.toAccountId === accountId)).length;
 }
 
 export function getMonthTransactions(data: WealthData, month: string) {
-  return data.transactions.filter((item) => item.date.startsWith(month));
+  return data.transactions.filter((item) => !item.deleted && item.date.startsWith(month));
 }
 
 export function getBudgetSpent(data: WealthData, budget: MonthlyBudget) {
@@ -167,13 +167,13 @@ export function totalInCurrency(data: WealthData, quote: CurrencyCode) {
 
 export function totalExpensesInCurrency(data: WealthData, quote: CurrencyCode) {
   return data.transactions
-    .filter((item) => item.type === "expense")
+    .filter((item) => !item.deleted && item.type === "expense")
     .reduce((total, item) => total + transactionValue(data, item, quote), 0);
 }
 
 export function totalIncomeInCurrency(data: WealthData, quote: CurrencyCode) {
   return data.transactions
-    .filter((item) => item.type === "income")
+    .filter((item) => !item.deleted && item.type === "income")
     .reduce((total, item) => total + transactionValue(data, item, quote), 0);
 }
 
@@ -193,8 +193,32 @@ export function getAssetRealizedValue(asset: { currentValue: number; sellPrice?:
   return asset.status === "sold" ? asset.sellPrice ?? asset.currentValue : asset.currentValue;
 }
 
-export function getAssetDailyCost(asset: { purchaseValue: number; currentValue: number; sellPrice?: number; usageDays: number; status: "active" | "unused" | "sold" }) {
-  return getDailyCost(asset.purchaseValue, getAssetRealizedValue(asset), asset.usageDays);
+export function getAssetUsageStartDate(asset: { purchaseDate?: string; usageStartMode?: "purchaseDate" | "customDate"; usageStartDate?: string }) {
+  return asset.usageStartMode === "customDate" ? asset.usageStartDate : asset.purchaseDate;
+}
+
+export function getAssetEndDate(asset: { status: "active" | "unused" | "sold"; saleDate?: string }, today = getLocalDate()) {
+  return asset.status === "sold" ? asset.saleDate ?? today : today;
+}
+
+export function getAssetUsageDays(asset: { purchaseDate?: string; usageStartMode?: "purchaseDate" | "customDate"; usageStartDate?: string; status: "active" | "unused" | "sold"; saleDate?: string; usageDays?: number }, today = getLocalDate()) {
+  const startDate = getAssetUsageStartDate(asset);
+  if (!startDate) return Math.max(0, asset.usageDays ?? 0);
+  const endDate = getAssetEndDate(asset, today);
+  if (startDate > endDate) return 0;
+  const start = new Date(`${startDate}T00:00:00Z`).getTime();
+  const end = new Date(`${endDate}T00:00:00Z`).getTime();
+  return Math.max(0, Math.floor((end - start) / 86400000) + 1);
+}
+
+export function getAssetDailyCost(asset: { purchaseValue: number; currentValue: number; sellPrice?: number; usageDays?: number; purchaseDate?: string; usageStartMode?: "purchaseDate" | "customDate"; usageStartDate?: string; saleDate?: string; status: "active" | "unused" | "sold" }, today = getLocalDate()) {
+  return getDailyCost(asset.purchaseValue, getAssetRealizedValue(asset), getAssetUsageDays(asset, today));
+}
+
+export function getAssetCostPerUse(asset: { purchaseValue: number; currentValue: number; sellPrice?: number; usageDays?: number; useCount?: number; purchaseDate?: string; usageStartMode?: "purchaseDate" | "customDate"; usageStartDate?: string; saleDate?: string; status: "active" | "unused" | "sold" }, today = getLocalDate()) {
+  const useCount = asset.useCount ?? 0;
+  const usageDays = getAssetUsageDays(asset, today);
+  return useCount > 0 && usageDays > 0 ? Math.max(0, asset.purchaseValue - getAssetRealizedValue(asset)) / useCount : null;
 }
 
 export function getAssetValueChange(asset: { purchaseValue: number; currentValue: number; sellPrice?: number; status: "active" | "unused" | "sold" }) {

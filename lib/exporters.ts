@@ -1,5 +1,5 @@
 import type { ObsidianTemplateKey, WealthData } from "./types";
-import { convert, formatMoney, getBudgetRemaining, getGoalProgress, getRate, getRateAtDate, getUpcomingPlannedPayments, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "./finance";
+import { convert, formatMoney, getAssetCostPerUse, getAssetCurrentCurrency, getAssetDailyCost, getAssetEndDate, getAssetPurchaseCurrency, getAssetRealizedValue, getAssetUsageDays, getAssetUsageStartDate, getBudgetRemaining, getGoalProgress, getRate, getRateAtDate, getUpcomingPlannedPayments, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "./finance";
 
 const AUTO_START = "<!-- WEALTH_ATLAS_AUTO_START -->";
 const AUTO_END = "<!-- WEALTH_ATLAS_AUTO_END -->";
@@ -41,7 +41,7 @@ function renderTemplate(key: ObsidianTemplateKey, data: WealthData, metadata: { 
 }
 
 function localTransactions(data: WealthData, period: string) {
-  return data.transactions.filter((item) => item.date.startsWith(period));
+  return data.transactions.filter((item) => !item.deleted && item.date.startsWith(period));
 }
 
 function sumOriginal(data: WealthData, period: string, currency: "MYR" | "SGD" | "USD", type?: "income" | "expense") {
@@ -61,10 +61,10 @@ function reportTotals(data: WealthData, period: string) {
 }
 
 export function buildDailyMarkdown(data: WealthData, date = new Date().toISOString().slice(0, 10)) {
-  const today = data.transactions.filter((item) => item.date === date);
+  const today = data.transactions.filter((item) => !item.deleted && item.date === date);
   const income = today.filter((item) => item.type === "income");
   const expenses = today.filter((item) => item.type === "expense");
-  const transfers = data.transfers.filter((item) => item.date === date);
+  const transfers = data.transfers.filter((item) => !item.deleted && item.date === date);
   const budgetRemaining = (data.budgets ?? []).filter((budget) => budget.month === date.slice(0, 7)).reduce((sum, budget) => sum + getBudgetRemaining(data, budget), 0);
   const purchases = expenses.length ? expenses.map((item) => `- ${item.merchant || item.category}：${formatMoney(item.amount, item.currency)}${item.note ? `（${item.note}）` : ""}`).join("\n") : "- 暂无购买记录";
   const body = [
@@ -136,6 +136,24 @@ export function buildYearlyMarkdown(data: WealthData, year = new Date().getFullY
   return renderTemplate("yearly", data, { type: "yearly-finance", period: `year: ${year}`, title: String(year), year: String(year) }, body);
 }
 
+export function buildAssetMarkdown(data: WealthData, assetId: string) {
+  const asset = data.assets.find((item) => item.id === assetId);
+  if (!asset) return "";
+  const purchaseCurrency = getAssetPurchaseCurrency(asset);
+  const currentCurrency = getAssetCurrentCurrency(asset);
+  const startDate = getAssetUsageStartDate(asset);
+  const usageDays = getAssetUsageDays(asset);
+  const dailyCost = getAssetDailyCost(asset);
+  const costPerUse = getAssetCostPerUse(asset);
+  const usageMode = asset.usageStartMode === "customDate" ? "从自定义日期开始" : "从买入日期开始";
+  const body = [
+    `## 资产资料\n- 名称：${asset.name}\n- 分类：${asset.category}\n- 状态：${asset.status}\n- 买入价格：${formatMoney(asset.purchaseValue, purchaseCurrency)}\n- 买入日期：${asset.purchaseDate ?? "未填写"}\n- 当前价值：${formatMoney(getAssetRealizedValue(asset), currentCurrency)}`,
+    `## 使用价值\n- 使用天数起算方式：${usageMode}\n- 使用起算日期：${startDate ?? "等待使用日期"}\n- 结束日期：${getAssetEndDate(asset)}\n- 当前使用天数：${usageDays} 天\n- 当前日均成本：${usageDays > 0 ? formatMoney(dailyCost, currentCurrency) : "尚未计算"}\n- 单次使用成本：${costPerUse === null ? "尚未设置使用次数" : formatMoney(costPerUse, currentCurrency)}`,
+    `## 备注\n${asset.note || "- 暂无备注"}`,
+  ].join("\n\n");
+  return renderTemplate("asset", data, { type: "asset", period: `asset_id: ${asset.id}`, title: asset.name }, body);
+}
+
 export async function exportExcel(data: WealthData) {
   const ExcelJS = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
@@ -154,9 +172,9 @@ export async function exportExcel(data: WealthData) {
   const annualPlans = workbook.addWorksheet("Annual Plans");
   annualPlans.columns = [{ header: "Year", key: "year", width: 10 }, { header: "Month", key: "month", width: 10 }, { header: "Plan", key: "name", width: 24 }, { header: "Category", key: "category", width: 18 }, { header: "Amount", key: "amount", width: 14 }, { header: "Currency", key: "currency", width: 12 }, { header: "Status", key: "status", width: 14 }, { header: "Note", key: "note", width: 30 }];
   (data.annualPlans ?? []).forEach((item) => annualPlans.addRow(item));
-  const assets = workbook.addWorksheet("Assets");
-  assets.columns = [{ header: "Name", key: "name", width: 24 }, { header: "Category", key: "category", width: 18 }, { header: "Purchase Value", key: "purchaseValue", width: 16 }, { header: "Purchase Currency", key: "purchaseCurrency", width: 18 }, { header: "Purchase Date", key: "purchaseDate", width: 16 }, { header: "Current Value", key: "currentValue", width: 16 }, { header: "Current Currency", key: "currentCurrency", width: 18 }, { header: "Sell Price", key: "sellPrice", width: 14 }, { header: "Usage Days", key: "usageDays", width: 14 }, { header: "Daily Cost", key: "dailyCost", width: 14 }, { header: "Status", key: "status", width: 14 }, { header: "Note", key: "note", width: 30 }];
-  data.assets.forEach((item) => assets.addRow({ ...item, purchaseCurrency: item.purchaseCurrency ?? item.currency, currentCurrency: item.currentCurrency ?? item.currency }));
+  const assets = workbook.addWorksheet("Asset Items");
+  assets.columns = [{ header: "Name", key: "name", width: 24 }, { header: "Category", key: "category", width: 18 }, { header: "Purchase Value", key: "purchaseValue", width: 16 }, { header: "Purchase Currency", key: "purchaseCurrency", width: 18 }, { header: "Purchase Date", key: "purchaseDate", width: 16 }, { header: "Current Value", key: "currentValue", width: 16 }, { header: "Current Currency", key: "currentCurrency", width: 18 }, { header: "Sell Price", key: "sellPrice", width: 14 }, { header: "Sale Date", key: "saleDate", width: 14 }, { header: "Usage Start Mode", key: "usageStartMode", width: 18 }, { header: "Usage Start Date", key: "usageStartDate", width: 18 }, { header: "Usage End Date", key: "usageEndDate", width: 16 }, { header: "Calculated Usage Days", key: "calculatedUsageDays", width: 22 }, { header: "Daily Cost", key: "dailyCost", width: 14 }, { header: "Cost Per Use", key: "costPerUse", width: 14 }, { header: "Status", key: "status", width: 14 }, { header: "Note", key: "note", width: 30 }];
+  data.assets.forEach((item) => assets.addRow({ ...item, purchaseCurrency: getAssetPurchaseCurrency(item), currentCurrency: getAssetCurrentCurrency(item), usageStartMode: item.usageStartMode ?? "purchaseDate", usageStartDate: getAssetUsageStartDate(item), usageEndDate: getAssetEndDate(item), calculatedUsageDays: getAssetUsageDays(item), dailyCost: getAssetDailyCost(item), costPerUse: getAssetCostPerUse(item) ?? "" }));
   const fx = workbook.addWorksheet("FX Rates");
   fx.columns = [{ header: "Base Currency", key: "baseCurrency", width: 16 }, { header: "Target Currency", key: "quoteCurrency", width: 16 }, { header: "Pair", key: "pair", width: 16 }, { header: "Rate", key: "rate", width: 16 }, { header: "Effective Date", key: "date", width: 18 }, { header: "Entered At", key: "enteredAt", width: 26 }, { header: "Source", key: "source", width: 18 }, { header: "Default", key: "isDefault", width: 12 }, { header: "Active", key: "active", width: 12 }, { header: "Use Count", key: "useCount", width: 12 }, { header: "Note", key: "note", width: 30 }];
   data.fxRates.forEach((item) => fx.addRow({ ...item, pair: `${item.baseCurrency}/${item.quoteCurrency}`, date: item.effectiveDate, note: item.note }));
@@ -172,6 +190,7 @@ function filesForScope(data: WealthData, scope: ObsidianZipScope, date = new Dat
   if (scope === "daily" || scope === "full") files.push({ path: `财富理财师/01-每日/${year}/${date}.md`, content: buildDailyMarkdown(data, date) });
   if (scope === "monthly" || scope === "full") files.push({ path: `财富理财师/02-每月/${year}/${date.slice(0, 7)}.md`, content: buildMonthlyMarkdown(data, date.slice(0, 7)) });
   if (scope === "yearly" || scope === "full") files.push({ path: `财富理财师/03-每年/${year}.md`, content: buildYearlyMarkdown(data, Number(year)) });
+  if (scope === "full") data.assets.forEach((asset) => files.push({ path: `财富理财师/06-物品资产/${asset.id}.md`, content: buildAssetMarkdown(data, asset.id) }));
   if (scope === "full") {
     const templates = { ...getDefaultObsidianTemplates(), ...(data.obsidianTemplates ?? {}) };
     const templateNames: Record<ObsidianTemplateKey, string> = { daily: "每日模板.md", monthly: "每月模板.md", yearly: "每年模板.md", goal: "储蓄目标模板.md", asset: "资产模板.md", review: "财务复盘模板.md" };
