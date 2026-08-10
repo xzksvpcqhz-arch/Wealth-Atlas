@@ -90,3 +90,9 @@ The implementation reserves the same panel language for empty, loading, import-e
 
 - Integration status is shown as three operational states: online/offline, bank adapter disabled, and live FX adapter disabled. Permission guidance sits next to the capability instead of being hidden in settings.
 - CSV review history uses the same calm list treatment as sync logs. Duplicate counts are visible, and undo remains a secondary action after apply.
+
+## v1.0.0 stability bar
+
+- Every dense surface is checked for visible amount text, min-width constraints, breakable currencies, and document-level overflow at desktop, tablet, and 390px mobile sizes.
+- The design system stays deep night blue, silver-white, star-light cyan, muted green, and amber. Purple AI gradients and cyberpunk neon are not part of the release.
+- Empty, offline, permission, export failure, sync conflict, and success states use the same restrained operational language and remain keyboard reachable.

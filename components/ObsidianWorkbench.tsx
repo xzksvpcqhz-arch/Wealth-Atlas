@@ -173,7 +173,7 @@ export default function ObsidianWorkbench({ mode, data, setData, onToast, onNavi
     setBusy("sync");
     setError("");
     try {
-      const result = await writeSyncPlan(vaultHandle, plans, "0.7.0");
+      const result = await writeSyncPlan(vaultHandle, plans, "1.0.0");
       const log: SyncLog = { id: makeSyncId(), syncedAt: new Date().toISOString(), vaultName, ...result };
       setData((current) => ({ ...current, syncLogs: [log, ...(current.syncLogs ?? [])].slice(0, 30), obsidian: { ...current.obsidian, vaultName, status: result.failed ? "permission-error" : "connected", lastSyncAt: log.syncedAt, lastError: result.errorReason } }));
       if (result.failed) {

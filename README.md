@@ -70,3 +70,16 @@ Quick capture keeps record income/expense, SGD transfer, manual FX update, accou
 The integration page now documents the optional BankSyncAdapter and FxRateAdapter contracts while keeping both disabled by default. Permission explanations are shown before any future connection, manual rates remain primary, and no external provider is contacted by this build.
 
 CSV import is a local review workflow: parse, duplicate warning, pending review, explicit apply, and soft-delete undo. Applied imports retain their generated transaction IDs so the import can be reversed without permanently removing the user’s local records.
+
+## v1.0.0 stable release
+
+Wealth Atlas v1.0.0 is the stable local-first release line. It keeps the v0.7 account, transaction recovery, budget, FX, Obsidian, asset-use, investment, liability, net-worth, responsive, and dark celestial foundations while adding cash-flow planning, Watchlists, reporting, analysis, PWA/mobile capture, and opt-in integration boundaries.
+
+The final data migration is additive and reversible in intent: schema version 9 adds optional integration settings without deleting existing collections or personal records. Build artifacts, exports, Vault files, and local IndexedDB snapshots are not committed to Git.
+
+### Final acceptance checklist
+
+- Core account, transaction, transfer, budget, goal, asset, investment, liability, net-worth, FX, and recovery flows remain available.
+- Forecast horizons, planned-payment calendar, Watchlist metrics, debt scenarios, flow/decomposition analysis, reviews, Excel/PDF/PNG exports, PWA shell, CSV review, Obsidian sync, and mobile shortcuts are available.
+- Desktop, tablet, and 390px mobile layout checks pass without document-level horizontal overflow.
+- Real-device validation remains necessary for native folder permissions, installed PWA behavior, downloaded file opening, and the user’s own Obsidian Vault.

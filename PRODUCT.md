@@ -51,3 +51,7 @@ The PWA is an installable shell around the local-first app, not a cloud sync cha
 ## v0.12.0 integration truth
 
 External integrations are capability boundaries, not hidden background behavior. Bank and live-FX adapters are opt-in, permission-gated, disconnectable, and must import into review before formal data. CSV and Excel remain valid local import/export paths; duplicate detection and undo are required.
+
+## v1.0.0 stable truth
+
+The stable product is local-first and recovery-oriented. All derived reports, forecasts, scenarios, charts, and exposure views are read models over the local snapshot. A release must preserve existing user records across migrations and rollbacks, keep historical FX snapshots immutable, protect Obsidian hand-written regions, and make download, permission, offline, empty, and error states visible.

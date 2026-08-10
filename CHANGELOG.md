@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0] - 2026-08-10
+
+- Completed the stable Wealth Atlas release line from v0.7.0 through v0.12.0.
+- Completed final responsive layout, local recovery, immutable FX snapshot, protected Obsidian, Excel/PDF/PNG, PWA, offline, and optional-integration acceptance surfaces.
+- Added additive schema version 9 migration for optional integration settings without removing personal data.
+- Documented the final acceptance checklist and real-environment validation boundaries.
+
 ## [0.8.0] - 2026-08-10
 
 - Added a local future cash-flow workspace with 7, 30, 60, and 90-day forecasts, month-end projection, safety balance, and free-to-spend calculations.
