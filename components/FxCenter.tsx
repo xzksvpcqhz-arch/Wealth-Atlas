@@ -26,10 +26,12 @@ import {
   getInvestmentConversion,
   getLocalDate,
   getRate,
+  getRateAtDate,
   getRateAgeDays,
   getRateRecord,
   simulateFx,
 } from "@/lib/finance";
+import { SharedMonthPicker,formatMonthLabel,getMonthEnd,getMonthReferenceDate,useSharedMonth } from "@/components/MonthPicker";
 import type { CurrencyCode, FxRate, WealthData } from "@/lib/types";
 
 const pairs = ["SGD/MYR", "USD/SGD", "MYR/SGD", "SGD/USD"] as const;
@@ -62,6 +64,9 @@ function FxDeleteConfirmModal({ rate, isUsed, onCancel, onConfirm, isProcessing 
 }
 
 export default function FxCenter({ data, setData, onToast, onNavigate }: { data: WealthData; setData: Dispatch<SetStateAction<WealthData>>; onToast: (message: string) => void; onNavigate: (page: "home" | "fx") => void }) {
+  const [selectedMonth] = useSharedMonth(today().slice(0,7));
+  const selectedMonthEnd = getMonthEnd(selectedMonth);
+  const selectedMonthReference = getMonthReferenceDate(selectedMonth,today());
   const [selectedPair, setSelectedPair] = useState<Pair>("SGD/MYR");
   const [dateFilter, setDateFilter] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -74,23 +79,24 @@ export default function FxCenter({ data, setData, onToast, onNavigate }: { data:
 
   const [baseCurrency, quoteCurrency] = splitPair(selectedPair);
   const pairHistory = useMemo(() => data.fxRates.filter((rate) => rate.baseCurrency === baseCurrency && rate.quoteCurrency === quoteCurrency).sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate) || (b.enteredAt ?? "").localeCompare(a.enteredAt ?? "")), [baseCurrency, data.fxRates, quoteCurrency]);
-  const filteredHistory = dateFilter ? pairHistory.filter((rate) => rate.effectiveDate === dateFilter) : pairHistory;
-  const current = getRateRecord(data.fxRates, baseCurrency, quoteCurrency);
-  const previous = pairHistory.find((rate) => rate.id !== current?.id);
-  const change = rateDelta(current?.rate ?? getRate(data.fxRates, baseCurrency, quoteCurrency), previous?.rate);
-  const exposures = getCurrencyExposures(data, data.reportCurrency);
-  const futureNeed = getFutureMyrNeed(data);
+  const monthHistory = pairHistory.filter((rate) => rate.effectiveDate.slice(0,7) === selectedMonth);
+  const filteredHistory = dateFilter ? monthHistory.filter((rate) => rate.effectiveDate === dateFilter) : monthHistory;
+  const current = getRateRecord(data.fxRates, baseCurrency, quoteCurrency, selectedMonthEnd, true);
+  const previous = pairHistory.find((rate) => rate.id !== current?.id && rate.effectiveDate <= selectedMonthEnd);
+  const change = rateDelta(current?.rate ?? getRateAtDate(data.fxRates, baseCurrency, quoteCurrency, selectedMonthEnd), previous?.rate);
+  const exposures = getCurrencyExposures(data, data.reportCurrency, selectedMonthReference);
+  const futureNeed = getFutureMyrNeed(data,selectedMonthReference);
   const investment = getInvestmentConversion(data);
   const simulationResult = simulated ? simulateFx({ currentRate: Number(simulation.currentRate) || 0, simulatedRate: Number(simulation.simulatedRate) || 0, monthlySgd: Number(simulation.monthlySgd) || 0, usdAmount: Number(simulation.usdAmount) || 0, months: Number(simulation.months) || 0 }) : null;
 
   const alerts = pairs.flatMap((pair) => {
     const [base, quote] = splitPair(pair);
-    const record = getRateRecord(data.fxRates, base, quote) ?? getRateRecord(data.fxRates, quote, base);
+    const record = getRateRecord(data.fxRates, base, quote,selectedMonthEnd,true) ?? getRateRecord(data.fxRates, quote, base,selectedMonthEnd,true);
     if (!record) return [{ title: `${pair} 缺少必要汇率`, body: "请在汇率中心新增一条手动汇率，相关换算和提醒会恢复。", tone: "warning" }];
-    const age = getRateAgeDays(record);
+    const age = getRateAgeDays(record,selectedMonthReference);
     return age !== null && age > 30 ? [{ title: `${pair} 已超过 30 天未更新`, body: `最近生效日为 ${record.effectiveDate}，会影响当前余额、未来支出和投资估值。`, tone: "warning" }] : [];
   });
-  if (!getRate(data.fxRates, "USD", "SGD") || !getRate(data.fxRates, "SGD", "MYR")) alerts.push({ title: "USD → SGD → MYR 链式路径不完整", body: "USD 投资的 MYR 报告价值暂时不能完整计算。", tone: "warning" });
+  if (!getRateAtDate(data.fxRates, "USD", "SGD",selectedMonthEnd) || !getRateAtDate(data.fxRates, "SGD", "MYR",selectedMonthEnd)) alerts.push({ title: "USD → SGD → MYR 链式路径不完整", body: `${formatMonthLabel(selectedMonth)}缺少完整历史汇率路径，历史交易快照不会被改变。`, tone: "warning" });
 
   const saveRate = () => {
     const rateValue = Number(form.rate);
@@ -140,7 +146,7 @@ export default function FxCenter({ data, setData, onToast, onNavigate }: { data:
     }
   };
 
-  const renderPairCards = () => <div className="fx-pair-grid">{pairs.map((pair) => { const [base, quote] = splitPair(pair); const record = getRateRecord(data.fxRates, base, quote); const value = getRate(data.fxRates, base, quote); const age = getRateAgeDays(record); return <button type="button" className={`fx-pair-card ${selectedPair === pair ? "active" : ""}`} key={pair} onClick={() => { setSelectedPair(pair); setEditingId(null); }}><span>{pair}</span><strong>{formatRate(value)}</strong><small>{record ? `${record.effectiveDate} · ${age === null ? "" : `${age} 天前`}` : "缺少汇率"}</small></button>; })}</div>;
+  const renderPairCards = () => <><div className="fx-inline-month"><SharedMonthPicker ariaLabel="选择汇率中心查看月份" /></div><div className="fx-pair-grid">{pairs.map((pair) => { const [base, quote] = splitPair(pair); const record = getRateRecord(data.fxRates, base, quote,selectedMonthEnd,true); const value = getRateAtDate(data.fxRates, base, quote,selectedMonthEnd); return <button type="button" className={`fx-pair-card ${selectedPair === pair ? "active" : ""}`} key={pair} onClick={() => { setSelectedPair(pair); setEditingId(null); }}><span>{pair}</span><strong>{formatRate(value)}</strong><small>{record ? `${record.effectiveDate} · 截至 ${formatMonthLabel(selectedMonth)}` : `${formatMonthLabel(selectedMonth)}缺少汇率`}</small></button>; })}</div></>;
 
   const renderHistory = () => <section className="panel fx-history-panel"><div className="panel-title-row"><div><div className="panel-kicker">RATE HISTORY</div><h2>{selectedPair} 历史</h2></div><div className="fx-history-tools"><input type="date" aria-label="按生效日期筛选" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />{dateFilter && <button type="button" className="icon-button" aria-label="清除日期筛选" onClick={() => setDateFilter("")} title="清除日期筛选"><X size={16} /></button>}</div></div><div className="fx-history-meta"><span>当前汇率 <b>{formatRate(current?.rate ?? getRate(data.fxRates, baseCurrency, quoteCurrency))}</b></span><span>最近更新时间 <b>{current?.effectiveDate ?? "未设置"}</b></span><span>变化 <b className={change !== null && change >= 0 ? "positive" : "negative"}>{change === null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}</b></span></div><div className="fx-trend" aria-label={`${selectedPair} 汇率趋势`}><div className="fx-trend-axis"><span>{pairHistory.length ? formatRate(Math.max(...pairHistory.map((rate) => rate.rate))) : "—"}</span><span>{pairHistory.length ? formatRate(Math.min(...pairHistory.map((rate) => rate.rate))) : "—"}</span></div><div className="fx-trend-bars">{pairHistory.slice(0, 12).reverse().map((rate) => { const values = pairHistory.map((item) => item.rate); const min = Math.min(...values); const max = Math.max(...values); const height = max === min ? 50 : 18 + ((rate.rate - min) / (max - min)) * 62; return <div className={`fx-trend-bar ${rate.active === false ? "inactive" : ""}`} key={rate.id} style={{ height: `${height}%` }} title={`${rate.effectiveDate} ${rate.rate}`} />; })}</div></div><div className="fx-history-list">{filteredHistory.length ? filteredHistory.map((rate) => <div className={`fx-history-row ${rate.active === false ? "inactive" : ""}`} key={rate.id}><div><strong>{formatRate(rate.rate)}</strong><span>{rate.effectiveDate} · 输入于 {rate.enteredAt ? new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric" }).format(new Date(rate.enteredAt)) : "旧记录"}</span></div><div><span>{rate.source ?? "手动输入"}</span><small>{rate.note || "无备注"}</small></div><div><span>{getFxUsageCount(data, rate.id) + (rate.useCount ?? 0)} 次使用</span><small>{rate.isDefault ? "默认" : rate.active === false ? "已停用" : "历史"}</small></div><div className="fx-row-actions"><button type="button" className="icon-button" aria-label={`编辑 ${rate.rate}`} onClick={() => editRate(rate)} title={`编辑汇率 ${rate.rate}`}><PencilSimple size={16} /></button><button type="button" className="icon-button" aria-label={rate.active === false ? `启用 ${rate.rate}` : `停用 ${rate.rate}`} onClick={() => toggleRate(rate)} title={rate.active === false ? "启用汇率" : "停用汇率"}><ArrowClockwise size={16} /></button><button type="button" className="icon-button danger-icon" aria-label={`删除 ${rate.rate}`} onClick={() => deleteRate(rate)} title="删除汇率" disabled={deleteInFlight}><Trash size={16} /></button></div></div>) : <div className="empty-state compact-empty"><ChartLineUp size={28} /><strong>还没有符合条件的历史汇率</strong><span>输入第一条 {selectedPair}，系统会保留每次变更。</span></div>}</div></section>;
 

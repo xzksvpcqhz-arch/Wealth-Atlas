@@ -229,24 +229,27 @@ function buildPdf(lines: string[]) {
   return new Blob([pdf], { type: "application/pdf" });
 }
 
-export async function exportPdfReport(data: WealthData, report: "monthly" | "annual" | "net-worth" | "investment" | "asset" | "fx" | "cashflow") {
-  const forecast = getCashFlowForecast(data, 30);
+export async function exportPdfReport(data: WealthData, report: "monthly" | "annual" | "net-worth" | "investment" | "asset" | "fx" | "cashflow", selectedMonth = new Date().toISOString().slice(0,7)) {
+  const period = report === "annual" ? selectedMonth.slice(0,4) : selectedMonth;
+  const periodTransactions = data.transactions.filter((item) => item.date.startsWith(period));
+  const forecast = getCashFlowForecast(data, 30,`${selectedMonth}-01`);
   const lines = [
     `Wealth Atlas ${report} report`,
+    `Period: ${period}`,
     `Generated: ${new Date().toISOString()}`,
     `Report currency: ${data.reportCurrency}`,
     `Current accounts: ${formatMoney(totalInCurrency(data, data.reportCurrency), data.reportCurrency)}`,
     `30-day projected balance: ${formatMoney(forecast.endBalance, forecast.currency)}`,
     `Safety balance: ${formatMoney(forecast.safetyBalance, forecast.currency)}`,
     `Free to spend: ${formatMoney(forecast.freeToSpend, forecast.currency)}`,
-    `Transactions: ${data.transactions.filter((item) => !item.deleted).length}`,
+    `Transactions: ${periodTransactions.filter((item) => !item.deleted).length}`,
     `Investments: ${(data.investments ?? []).length}`,
     `Liabilities: ${(data.liabilities ?? []).length}`,
   ];
-  downloadBlob(buildPdf(lines), `wealth-atlas-${report}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  downloadBlob(buildPdf(lines), `wealth-atlas-${report}-${selectedMonth}.pdf`);
 }
 
-export async function exportChartPng(data: WealthData, chart: "cashflow" | "net-worth" | "currency" | "income-expense" | "savings" | "assets" | "fx" | "investment" | "watchlist") {
+export async function exportChartPng(data: WealthData, chart: "cashflow" | "net-worth" | "currency" | "income-expense" | "savings" | "assets" | "fx" | "investment" | "watchlist", selectedMonth = new Date().toISOString().slice(0,7)) {
   const canvas = document.createElement("canvas");
   canvas.width = 1400;
   canvas.height = 820;
@@ -259,14 +262,15 @@ export async function exportChartPng(data: WealthData, chart: "cashflow" | "net-
   context.fillText(`Wealth Atlas / ${chart}`, 70, 86);
   context.font = "18px system-ui";
   context.fillStyle = "#8292ab";
-  context.fillText(`Generated ${new Date().toISOString().slice(0, 10)} · ${data.reportCurrency}`, 70, 122);
-  const forecast = getCashFlowForecast(data, 30);
-  const values = chart === "cashflow" ? [forecast.startBalance, forecast.endBalance, forecast.safetyBalance, forecast.freeToSpend] : chart === "net-worth" ? [totalInCurrency(data, data.reportCurrency), ...(data.netWorthHistory ?? []).slice(-3).map((item) => item.value)] : chart === "currency" ? ["MYR", "SGD", "USD"].map((currency) => data.accounts.filter((account) => account.currency === currency).reduce((sum, account) => sum + account.balance, 0)) : [data.transactions.filter((item) => !item.deleted && item.type === "income").reduce((sum, item) => sum + item.amount, 0), data.transactions.filter((item) => !item.deleted && item.type === "expense").reduce((sum, item) => sum + item.amount, 0), data.assets.reduce((sum, item) => sum + item.currentValue, 0)];
+  context.fillText(`${selectedMonth} · ${data.reportCurrency}`, 70, 122);
+  const forecast = getCashFlowForecast(data, 30,`${selectedMonth}-01`);
+  const monthTransactions = data.transactions.filter((item) => !item.deleted && item.date.slice(0,7) === selectedMonth);
+  const values = chart === "cashflow" ? [forecast.startBalance, forecast.endBalance, forecast.safetyBalance, forecast.freeToSpend] : chart === "net-worth" ? [totalInCurrency(data, data.reportCurrency), ...(data.netWorthHistory ?? []).filter((item) => item.date?.slice(0,7) <= selectedMonth).slice(-3).map((item) => item.value)] : chart === "currency" ? ["MYR", "SGD", "USD"].map((currency) => data.accounts.filter((account) => account.currency === currency).reduce((sum, account) => sum + account.balance, 0)) : [monthTransactions.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0), monthTransactions.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0), data.assets.reduce((sum, item) => sum + item.currentValue, 0)];
   const numericValues = values.map((value) => typeof value === "number" ? value : 0);
   const max = Math.max(1, ...numericValues);
   numericValues.forEach((value, index) => { const x = 100 + index * 300; const height = Math.max(8, (value / max) * 500); context.fillStyle = index % 2 ? "#3cd9f5" : "#8fe1b4"; context.fillRect(x, 680 - height, 150, height); context.fillStyle = "#eef6ff"; context.font = "18px system-ui"; context.fillText(formatMoney(value, data.reportCurrency), x, 720); });
   const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("无法生成 PNG")), "image/png"));
-  downloadBlob(blob, `wealth-atlas-${chart}-${new Date().toISOString().slice(0, 10)}.png`);
+  downloadBlob(blob, `wealth-atlas-${chart}-${selectedMonth}.png`);
 }
 
 export type ObsidianZipScope = "daily" | "monthly" | "yearly" | "full";

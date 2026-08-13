@@ -2,9 +2,10 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { ArrowRight, Bank, CalendarDots, ChartLineUp, Check, CloudArrowDown, DownloadSimple, FileCsv, FilePdf, FileXls, FloppyDisk, GearSix, HardDrives, Lightning, MagnifyingGlass, PencilSimple, Plus, ShieldCheck, Sparkle, Target, Trash, TrendUp, UploadSimple, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import { detectDuplicateTransactions } from "@/lib/adapters";
-import { exportChartPng, exportExcel, exportPdfReport } from "@/lib/exporters";
+import { exportChartPng as exportChartPngFile, exportExcel, exportPdfReport as exportPdfReportFile } from "@/lib/exporters";
 import { formatMoney, getCashFlowForecast, getCashFlowForecastSet, getFinanceAlerts, getLocalDate, getWatchlistMetrics, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "@/lib/finance";
 import ProtectedDeleteDialog from "@/components/ProtectedDeleteDialog";
+import { SharedMonthPicker,formatMonthLabel,getMonthReferenceDate,getMonthStart,useSharedMonth } from "@/components/MonthPicker";
 import type { CurrencyCode, FinancialReview, Liability, PlannedPayment, Transaction, Watchlist, WealthData } from "@/lib/types";
 type AdvancedPage = "cashflow" | "watchlists" | "reports" | "analysis" | "integrations";
 type Props = {
@@ -36,7 +37,7 @@ function PageFrame({ eyebrow, title, description, children }: {
     description: string;
     children: React.ReactNode;
 }) {
-    return <main className="main-content module-page advanced-page"><div className="page-header"><div><div className="breadcrumb">WEALTH ATLAS / {eyebrow}</div><h1>{title}</h1><p className="page-description">{description}</p></div></div>{children}</main>;
+    return <main className="main-content module-page advanced-page"><div className="page-header module-header transaction-page-header"><div><div className="breadcrumb">WEALTH ATLAS / {eyebrow}</div><h1>{title}</h1><p className="page-description">{description}</p></div><div className="header-actions"><SharedMonthPicker ariaLabel={`选择${title}查看月份`} /></div></div>{children}</main>;
 }
 function MoneyPair({ label, value, currency }: {
     label: string;
@@ -154,7 +155,10 @@ function WatchlistsPageLegacy({ data, setData, onToast }: Pick<Props, "data" | "
     return <PageFrame eyebrow="WATCHLISTS" title="Watchlist" description="关注正在变快的支出，而不是等月底才发现超支。"><div className="advanced-toolbar"><label className="search-field"><MagnifyingGlass size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索 Watchlist"/></label><span>{metrics.length} 个关注项</span></div><section className="watchlist-grid">{metrics.length ? metrics.map((item) => <article className="panel watchlist-card" key={item.id}><div className="panel-title-row"><div><h2>{item.name}</h2><span>{[item.category, item.merchant, item.itemType].filter(Boolean).join(" · ") || "自定义支出范围"}</span></div><span className={`status-chip ${item.overBudget ? "risk" : item.warning ? "attention" : "safe"}`}>{item.overBudget ? "可能超支" : item.warning ? "接近警戒" : "正常"}</span></div><div className="watchlist-number"><strong>{formatMoney(item.monthSpent, item.currency)}</strong><span>本月已用 / {formatMoney(item.limit, item.currency)}</span></div><div className="watchlist-bar"><span style={{ width: `${Math.min(100, item.limit ? (item.monthSpent / item.limit) * 100 : 0)}%` }}/></div><div className="watchlist-details"><div><span>12 个月平均</span><b>{formatMoney(item.average12Months, item.currency)}</b></div><div><span>当前支出速度</span><b>{formatMoney(item.spendRate, item.currency)} / 日</b></div><div><span>预计月底</span><b>{formatMoney(item.forecastAtMonthEnd, item.currency)}</b></div><div><span>警戒金额</span><b>{formatMoney(item.warningAmount ?? item.limit * 0.8, item.currency)}</b></div></div></article>) : <div className="panel empty-state"><MagnifyingGlass size={30}/><strong>还没有 Watchlist</strong><span>从外食、购物、订阅或物品类型开始追踪。</span></div>}</section><WatchlistForm data={data} onSave={saveWatchlist}/></PageFrame>;
 }
 function CashFlowPage({ data, setData, onToast }: Pick<Props, "data" | "setData" | "onToast">) {
-  const forecasts=getCashFlowForecastSet(data,today);
+  const [selectedMonth]=useSharedMonth(today.slice(0,7));
+  const forecastStart=getMonthStart(selectedMonth);
+  const isHistoricalMonth=selectedMonth<today.slice(0,7);
+  const forecasts=getCashFlowForecastSet(data,forecastStart);
   const [deleteTarget,setDeleteTarget]=useState<PlannedPayment | null>(null);
   const [editingPayment,setEditingPayment]=useState<PlannedPayment | null>(null);
   const { isProcessing,run }=useDeleteGuard();
@@ -176,7 +180,7 @@ function CashFlowPage({ data, setData, onToast }: Pick<Props, "data" | "setData"
       onToast("计划付款已删除，现金流预测已更新");
     });
   };
-  return <PageFrame eyebrow="CASH FLOW" title="未来现金流" description="当前余额、预计余额、安全余额和可自由使用金额分别显示；计划付款不会自动生成交易。">
+  return <PageFrame eyebrow="CASH FLOW" title="未来现金流" description={isHistoricalMonth? `${formatMonthLabel(selectedMonth)}没有已保存的历史预测；以下计划从所选月份起计算，仅供回看。`:`从 ${formatMonthLabel(selectedMonth)} 起查看预测；计划付款不会自动生成交易。`}>
     <section className="module-summary forecast-summary"><MoneyPair label="当前余额" value={forecasts[30].startBalance} currency={forecasts[30].currency}/><MoneyPair label="预计 30 天余额" value={forecasts[30].endBalance} currency={forecasts[30].currency}/><MoneyPair label="安全余额" value={forecasts[30].safetyBalance} currency={forecasts[30].currency}/><MoneyPair label="可自由使用" value={forecasts[30].freeToSpend} currency={forecasts[30].currency}/></section>
     <div className="advanced-two-column"><PlanForm data={data} onSave={savePayment} editing={editingPayment} onCancelEdit={() => setEditingPayment(null)}/><section className="panel planned-payment-panel"><div className="panel-title-row"><div><h2>已保存计划付款</h2><span>删除只移除未来预测，不会影响账户、交易或历史记录。</span></div><CalendarDots size={22}/></div>{data.plannedPayments.length?<div className="planned-payment-list">{data.plannedPayments.map((item) => <div className="planned-payment-row" key={item.id}><div><strong>{item.name}</strong><span>{item.due} · {item.cadence==="monthly"? "每月":item.cadence==="yearly"? "每年":"一次"}</span></div><b>{formatMoney(item.amount,item.currency)}</b><div className="planned-payment-actions"><button type="button" className="icon-button" onClick={() => setEditingPayment(item)} aria-label={"编辑计划付款 "+item.name} title={"编辑计划付款 "+item.name} disabled={isProcessing}><PencilSimple size={16}/></button><button type="button" className="icon-button danger-icon" onClick={() => setDeleteTarget(item)} aria-label={"删除计划付款 "+item.name} title={"删除计划付款 "+item.name} disabled={isProcessing}><Trash size={16}/></button></div></div>)}</div>:<div className="empty-state compact-empty"><CalendarDots size={28}/><strong>还没有计划付款</strong></div>}</section></div>
     <section className="panel forecast-calendar"><div className="panel-title-row"><div><h2>未来 90 天付款日历</h2><span>按当前计划展开，金额不会写入正式账本。</span></div><TrendUp size={22}/></div>{forecasts[90].occurrences.length?<div className="calendar-list">{forecasts[90].occurrences.map((item) => <div className="calendar-row" key={item.id}><div><strong>{item.date}</strong><span>{item.name}</span></div><b>{formatMoney(item.amount,item.currency)}</b></div>)}</div>:<div className="empty-state compact-empty"><strong>未来 90 天没有计划付款</strong></div>}</section>
@@ -185,11 +189,13 @@ function CashFlowPage({ data, setData, onToast }: Pick<Props, "data" | "setData"
 }
 
 function WatchlistsPage({ data, setData, onToast }: Pick<Props, "data" | "setData" | "onToast">) {
+  const [selectedMonth]=useSharedMonth(today.slice(0,7));
   const [query,setQuery]=useState("");
   const [deleteTarget,setDeleteTarget]=useState<Watchlist | null>(null);
   const [editingWatchlist,setEditingWatchlist]=useState<Watchlist | null>(null);
   const { isProcessing,run }=useDeleteGuard();
-  const metrics=data.watchlists.map((watchlist) => getWatchlistMetrics(data,watchlist,today.slice(0,7),today)).filter((item) => !query||item.name.toLowerCase().includes(query.toLowerCase()));
+  const monthReference=getMonthReferenceDate(selectedMonth,today);
+  const metrics=data.watchlists.map((watchlist) => getWatchlistMetrics(data,watchlist,selectedMonth,monthReference)).filter((item) => !query||item.name.toLowerCase().includes(query.toLowerCase()));
   const saveWatchlist=(watchlist: Watchlist) => {
     setData((current) => {
       const exists=current.watchlists.some((item) => item.id===watchlist.id);
@@ -227,8 +233,10 @@ function simulateDebt(liability: Liability, extra: number) {
     return { months, interest, remaining: balance, payoff: payoff.toISOString().slice(0, 7) };
 }
 function AnalysisPage({ data, setData, onToast }: Pick<Props, "data" | "setData" | "onToast">) {
+    const [selectedMonth] = useSharedMonth(today.slice(0,7));
     const [extra, setExtra] = useState("300");
-    const [review, setReview] = useState<Partial<FinancialReview>>({ period: today.slice(0, 7) });
+    const [review, setReview] = useState<Partial<FinancialReview>>({ period: selectedMonth });
+    useEffect(() => { setReview((current) => ({ ...current, period: selectedMonth })); }, [selectedMonth]);
     const activeDebt = (data.liabilities ?? []).find((item) => item.status === "active");
     const debt = activeDebt ?? { id: "demo", name: "示例负债", type: "loan" as const, principal: 10000, remainingPrincipal: 10000, interestRate: 4.5, minimumPayment: 400, currency: "MYR" as CurrencyCode, status: "active" as const };
     const scenarios = [{ name: "方案 A：每月多还 MYR 300", value: 300 }, { name: "方案 B：每月多还 MYR 600", value: 600 }, { name: "方案 C：暂不提前还款，优先建立预备金", value: 0 }].map((scenario) => ({ ...scenario, result: simulateDebt(debt, scenario.value) }));
@@ -281,12 +289,13 @@ type ImportActionTarget = {
 };
 
 function IntegrationsPage({ data, setData, onToast }: Pick<Props, "data" | "setData" | "onToast">) {
+    const [selectedMonth] = useSharedMonth(today.slice(0,7));
     const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
     const [installEvent, setInstallEvent] = useState<Event | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<ImportActionTarget | null>(null);
     const { isProcessing, run } = useDeleteGuard();
     const pendingImports = (data.importReviews ?? []).filter((item) => item.status === "pending");
-    const importHistory = (data.importReviews ?? []).filter((item) => item.status !== "pending");
+    const importHistory = (data.importReviews ?? []).filter((item) => item.status !== "pending" && getLocalDate(new Date(item.importedAt)).slice(0,7) === selectedMonth);
 
     useEffect(() => {
         const onlineHandler = () => setOnline(true);
@@ -395,6 +404,9 @@ function IntegrationsPage({ data, setData, onToast }: Pick<Props, "data" | "setD
 }
 
 function ReportsPage({ data, onToast }: Pick<Props, "data" | "onToast">) {
+    const [selectedMonth] = useSharedMonth(today.slice(0,7));
+    const exportPdfReport = (source: WealthData, report: "monthly" | "annual" | "net-worth" | "investment" | "asset" | "fx" | "cashflow") => exportPdfReportFile(source,report,selectedMonth);
+    const exportChartPng = (source: WealthData, chart: "cashflow" | "net-worth" | "currency" | "income-expense" | "savings" | "assets" | "fx" | "investment" | "watchlist") => exportChartPngFile(source,chart,selectedMonth);
     const run = async (task: () => Promise<void>, success: string) => { try {
         await task();
         onToast(success);
