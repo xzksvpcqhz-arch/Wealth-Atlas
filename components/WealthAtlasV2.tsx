@@ -668,14 +668,23 @@ export default function WealthAtlasV2() {
     showToast("账户已恢复");
   };
 
-  const permanentlyDeleteAccount=(account: Account) => {
-    if(!canPermanentlyDeleteAccount(data,account.id)) {
-      showToast("账户已有历史记录或关联子账户，无法永久删除");
-      return;
+  const permanentlyDeleteAccount=async (account: Account) => {
+    if(!beginDelete(`permanent-account:${account.id}`)) return;
+    try {
+      if(!canPermanentlyDeleteAccount(data,account.id)) {
+        showToast("账户已有历史记录或关联子账户，无法永久删除");
+        return;
+      }
+      const nextData={ ...data,accounts: data.accounts.filter((item) => item.id!==account.id) };
+      await saveWealthData(nextData);
+      setData(nextData);
+      setAccountPermanentTarget(null);
+      showToast("账户已永久删除，其他账户与财务历史未改变");
+    } catch {
+      showToast("永久删除账户失败，原始资料未改变");
+    } finally {
+      finishDelete();
     }
-    setData((current) => ({ ...current,accounts: current.accounts.filter((item) => item.id!==account.id) }));
-    setAccountPermanentTarget(null);
-    showToast("账户已永久删除，其他账户与财务历史未改变");
   };
 
   const archiveBudget=(budget: MonthlyBudget) => {
@@ -829,9 +838,9 @@ export default function WealthAtlasV2() {
           <div><span>全部账户净值</span><strong>{formatMoney(totalInCurrency(data,reportCurrency),reportCurrency)}</strong><small>按是否计入净资产计算</small></div>
           <div><span>启用账户</span><strong>{activeAccounts.length}</strong><small>{data.accounts.length} 个账户资料已保留</small></div>
         </section>
-        <div className="module-toolbar">
+        <div className="module-toolbar account-ledger-toolbar">
           <div><div className="panel-kicker">BALANCE LEDGER</div><h2>余额由流水推导</h2></div>
-          <p>开户余额 + 收入 - 支出 - 转出 + 转入。账户改名只更新显示，不改变历史交易。</p>
+          <p className="account-ledger-explanation">开户余额 + 收入 - 支出 - 转出 + 转入。账户改名只更新显示，不改变历史交易。</p>
         </div>
         {activeAccounts.length===0 ? <section className="panel empty-module-state"><h2>还没有启用账户</h2><p>新增账户后，这里会按分组与原始货币分别显示余额。</p></section> : groups.map((group) => {
           const groupAccounts=activeAccounts.filter((account) => (account.accountGroup||"未分组")===group);
@@ -869,24 +878,28 @@ export default function WealthAtlasV2() {
             </section>
           </section>;
         })}
-        {archivedAccounts.length>0&&<section className="panel archived-records">
-          <div className="panel-title-row"><div><div className="panel-kicker">ACCOUNT RECOVERY</div><h2>停用与回收账户</h2></div><Trash size={19} /></div>
+        {archivedAccounts.length>0&&<section className="panel archived-records account-recovery-panel">
+          <div className="panel-title-row account-recovery-header"><div><div className="panel-kicker">ACCOUNT RECOVERY</div><h2>停用与回收账户</h2><span>恢复后账户会重新启用；有历史记录的账户会保留资料。</span></div></div>
+          <div className="account-recovery-list">
           {archivedAccounts.map((account) => {
             const canPermanentlyDelete=canPermanentlyDeleteAccount(data,account.id);
-            return <div className="archived-row" key={account.id}>
-              <div><strong>{account.name}</strong><span>{account.currency} · {account.status==="deleted"? "已移入回收站":"已停用"} · 历史 {getAccountHistoryCount(data,account.id)} 笔</span></div>
-              <div className="inline-actions">
+            const historyCount=getAccountHistoryCount(data,account.id);
+            return <div className="archived-row account-recovery-row" key={account.id}>
+              <div className="account-recovery-copy"><strong>{account.name}</strong><span>{account.currency} · {account.status==="deleted"? "已移入回收站":"已停用"} · 历史 {historyCount} 笔</span></div>
+              <div className="inline-actions account-recovery-actions">
                 <button type="button" className="secondary-button compact" onClick={() => restoreAccount(account)} aria-label={"恢复账户 "+account.name} title={"恢复账户 "+account.name}>恢复</button>
-                {canPermanentlyDelete ? <button type="button" className="icon-button danger-icon" onClick={() => setAccountPermanentTarget(account)} aria-label={"永久删除账户 "+account.name} title={"永久删除账户 "+account.name}><Trash size={16} /></button> : <span className="archived-action-note">有历史记录或关联子账户，保留资料</span>}
+                {canPermanentlyDelete ? <button type="button" className="text-button danger-text account-permanent-delete-button" onClick={() => setAccountPermanentTarget(account)} aria-label={"永久删除账户 "+account.name} title={"永久删除账户 "+account.name}><Trash size={16} />永久删除</button> : <span className="archived-action-note">{historyCount>0? "有历史记录，保留资料":"有关联子账户，保留资料"}</span>}
               </div>
             </div>;
           })}
+          </div>
         </section>}
       </main>
       {accountPermanentTarget&&<ProtectedDeleteDialog
         title="永久删除账户"
         titleId="permanent-account-delete-title"
         lead={"账户："+accountPermanentTarget.name}
+        summary={<div className="confirm-record-summary"><div><span>账户货币</span><strong>{accountPermanentTarget.currency}</strong></div><div><span>账户状态</span><strong>{accountPermanentTarget.status==="deleted"? "已移入回收站":"已停用"}</strong></div><div><span>历史记录</span><strong>{getAccountHistoryCount(data,accountPermanentTarget.id)} 笔</strong></div></div>}
         warning="此操作无法恢复。只有没有交易、转账或子账户关联的账户才可以永久删除；不会删除其他财务资料。"
         confirmLabel="永久删除账户"
         onCancel={() => setAccountPermanentTarget(null)}

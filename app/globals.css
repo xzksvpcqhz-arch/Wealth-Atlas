@@ -614,3 +614,81 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
   .advanced-two-column > .panel:not(.advanced-form) { padding: 16px; }
   .home-watchlist-heading { align-items: flex-start; flex-direction: column; }
 }
+
+/* Approved baseline refinement: account ledger copy and recovery actions only. */
+.account-ledger-toolbar { align-items: center; }
+.account-ledger-toolbar > div { flex: 0 0 auto; }
+.module-toolbar .account-ledger-explanation {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  font-size: clamp(0.7rem, 0.78vw, 0.78rem);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  text-align: right;
+  white-space: nowrap;
+}
+.account-recovery-panel { padding: 20px 22px; }
+.account-recovery-header { padding-bottom: 15px; }
+.account-recovery-list { display: grid; }
+.account-recovery-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-height: 72px;
+  padding: 14px 0;
+}
+.account-recovery-copy { min-width: 0; }
+.account-recovery-copy strong { color: var(--text); font-size: 13px; }
+.account-recovery-copy span { line-height: 1.5; }
+.account-recovery-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+.account-recovery-actions .secondary-button,
+.account-permanent-delete-button {
+  min-height: 44px;
+}
+.account-recovery-actions .secondary-button { min-width: 82px; }
+.account-permanent-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .account-ledger-toolbar {
+    display: grid;
+    align-items: start;
+    gap: 10px;
+  }
+  .module-toolbar .account-ledger-explanation {
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 640px) {
+  .account-recovery-panel { padding: 18px; }
+  .account-recovery-header { padding-bottom: 12px; }
+  .account-recovery-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+  }
+  .account-recovery-actions {
+    min-width: 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .account-recovery-actions .secondary-button,
+  .account-permanent-delete-button { flex: 0 1 auto; }
+  .archived-action-note { width: 100%; }
+}
