@@ -24,6 +24,7 @@ import {
   getDirectoryPicker,
   OBSIDIAN_FOLDERS,
   requestVaultPermission,
+  restoreVaultHandle,
   type SyncFilePlan,
   type VaultDirectoryHandle,
   writeSyncPlan,
@@ -74,8 +75,11 @@ export default function ObsidianWorkbench({ mode, data, setData, onToast, onNavi
     let cancelled = false;
     loadObsidianHandle().then((stored) => {
       if (cancelled || !stored) return;
-      setVaultHandle(stored.handle as VaultDirectoryHandle);
-      setVaultName(stored.vaultName);
+      return restoreVaultHandle(stored.handle, stored.vaultName).then((handle) => {
+        if (cancelled) return;
+        setVaultHandle(handle);
+        setVaultName(stored.vaultName);
+      });
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
@@ -120,7 +124,7 @@ export default function ObsidianWorkbench({ mode, data, setData, onToast, onNavi
     try {
       const stored = vaultHandle ? { handle: vaultHandle, vaultName } : await loadObsidianHandle();
       if (!stored) throw new Error("没有可重新连接的 Vault，请先选择本地 Vault。");
-      const handle = stored.handle as VaultDirectoryHandle;
+      const handle = vaultHandle ?? await restoreVaultHandle(stored.handle, stored.vaultName);
       await requestVaultPermission(handle);
       await ensureVaultFolders(handle, data.obsidianTemplates);
       setVaultHandle(handle);

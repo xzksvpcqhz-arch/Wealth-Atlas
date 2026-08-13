@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] - 2026-08-13
+
+- Added a protected Windows desktop build and NSIS installer while preserving the approved dark celestial interface and existing finance features.
+- Isolated desktop storage under the Wealth Atlas application profile so a new desktop installation starts blank without clearing or changing browser data.
+- Added secure native Obsidian Vault folder access through the desktop bridge, with explicit user actions, path validation, previews, and existing backup safeguards.
+- Added desktop persistence, restart, responsive-layout, edit, recycle-bin, restore, and permanent-delete verification.
+- Disabled browser-only PWA service-worker registration inside the packaged desktop application.
+
 ## [1.1.0] - 2026-08-10
 
 - Added persisted left-navigation active state with visible keyboard/focus treatment, `aria-current`, and mobile navigation alignment.

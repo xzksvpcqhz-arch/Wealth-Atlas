@@ -1,6 +1,7 @@
 node_modules/
 .next/
 out/
+desktop-dist/
 data/
 exports/
 private-vault/

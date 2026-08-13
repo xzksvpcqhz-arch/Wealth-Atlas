@@ -86,7 +86,7 @@ const today=getLocalDate();
 const currentMonth=today.slice(0,7);
 const currencies: CurrencyCode[]=["SGD","MYR","USD"];
 
-const initialData: WealthData={
+const approvedBaselineData: WealthData={
   reportCurrency: "MYR",
   schemaVersion: 10,
   categories: [
@@ -147,6 +147,35 @@ const initialData: WealthData={
     { id: "shopping",name: "购物",spent: 340,limit: 600,average: 520,forecast: 480,currency: "MYR" },
   ],
 };
+
+const emptyDesktopData: WealthData={
+  reportCurrency: "MYR",
+  schemaVersion: 10,
+  categories: approvedBaselineData.categories,
+  accounts: [],
+  transactions: [],
+  transfers: [],
+  fxRates: [],
+  budgets: [],
+  goals: [],
+  annualPlans: [],
+  assets: [],
+  plannedPayments: [],
+  watchlists: [],
+  investments: [],
+  investmentTransactions: [],
+  liabilities: [],
+  netWorthHistory: [],
+  subscriptions: [],
+  reviews: [],
+  importReviews: [],
+  syncLogs: [],
+  obsidian: { vaultName: "",status: "disconnected" },
+  cashFlowSettings: { safetyBalance: 0,currency: "MYR" },
+  externalIntegrations: { bankSyncEnabled: false,liveFxEnabled: false },
+};
+
+const initialData=process.env.NEXT_PUBLIC_WEALTH_ATLAS_DESKTOP==="1"? emptyDesktopData:approvedBaselineData;
 
 type ModalType="transaction"|"transfer"|"fx"|"account"|"budget"|"goal"|"annual-plan"|null;
 type NavItem={ label: string; icon: ElementType; key: string; };
@@ -324,6 +353,7 @@ export default function WealthAtlasV2() {
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    if (process.env.NEXT_PUBLIC_WEALTH_ATLAS_DESKTOP === "1") return;
 
     if (process.env.NODE_ENV === "production") {
       void navigator.serviceWorker.register("/sw.js");

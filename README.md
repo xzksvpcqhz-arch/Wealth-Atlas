@@ -11,6 +11,21 @@ npm run dev
 
 打开 `http://localhost:3000`。
 
+## Windows 桌面版
+
+```bash
+npm run desktop:dev
+npm run desktop:build
+npm run desktop:test
+npm run desktop:package
+```
+
+最终安装程序生成在 `desktop-dist/Wealth-Atlas-Setup.exe`。桌面版加载本地生产构建，不依赖 Next.js 开发服务器或固定端口；应用资料保存在 Windows `%APPDATA%/Wealth Atlas`，升级与卸载默认不会清除此目录。
+
+浏览器与桌面版使用不同的 IndexedDB 资料空间，不会自动读取、复制或清空浏览器现有财务资料。需要迁移交易时，可在现有网页版导出资料，再通过桌面版 CSV 审核中心预览并明确应用；账户、预算、目标与其他资料继续由用户确认后录入。桌面生产构建首次启动使用空白财务资料，但保留系统分类与所有空状态。
+
+桌面版的 Obsidian 连接使用受限的本地文件夹桥接。只有用户点击连接、扫描或确认同步时才访问所选 Vault；同步仍遵循变更预览、确认、备份和写入流程，且不会覆盖自动区域之外的手写内容。测试只使用隔离的假 Vault。
+
 ## Obsidian 同步
 
 v0.4.0 通过设置页连接本地 Obsidian Vault。连接动作只会创建缺失的 `财富理财师/` Folder 和模板；读取与写入只发生在用户明确点击“开始扫描并生成预览”或“确认同步”之后。

@@ -1,4 +1,5 @@
 import { buildAssetMarkdown, buildDailyMarkdown, buildMonthlyMarkdown, buildYearlyMarkdown, getDefaultObsidianTemplates } from "./exporters";
+import { getDesktopBridge } from "./desktop";
 import type { WealthData } from "./types";
 
 export const OBSIDIAN_ROOT = "财富理财师";
@@ -52,6 +53,47 @@ export type SyncResult = {
   errorReason?: string;
 };
 
+function joinVaultPath(base: string, name: string) {
+  return [base, name].filter(Boolean).join("/");
+}
+
+function createDesktopDirectoryHandle(name: string, relativePath = ""): VaultDirectoryHandle {
+  const bridge = getDesktopBridge();
+  if (!bridge) throw new Error("桌面文件夹桥接不可用，请改用 ZIP 下载。");
+  return {
+    name,
+    async getDirectoryHandle(childName, options) {
+      const childPath = joinVaultPath(relativePath, childName);
+      await bridge.ensureDirectory(childPath, options?.create === true);
+      return createDesktopDirectoryHandle(childName, childPath);
+    },
+    async getFileHandle(filename, options) {
+      const filePath = joinVaultPath(relativePath, filename);
+      await bridge.ensureFile(filePath, options?.create === true);
+      return {
+        getFile: async () => ({ text: () => bridge.readFile(filePath) }),
+        createWritable: async () => {
+          let pendingContent = "";
+          return {
+            write: async (content: string) => { pendingContent = content; },
+            close: async () => { await bridge.writeFile(filePath, pendingContent); },
+          };
+        },
+      };
+    },
+    queryPermission: async () => (await bridge.getVaultConnection()).connected ? "granted" : "denied",
+    requestPermission: async () => (await bridge.getVaultConnection()).connected ? "granted" : "denied",
+  };
+}
+
+export async function restoreVaultHandle(handle: unknown, vaultName: string) {
+  const bridge = getDesktopBridge();
+  if (!bridge) return handle as VaultDirectoryHandle;
+  const connection = await bridge.getVaultConnection();
+  if (!connection.connected) throw new Error("上次选择的 Vault 已断开，请重新选择本地 Vault。");
+  return createDesktopDirectoryHandle(connection.name || vaultName);
+}
+
 const templateFiles = {
   daily: "每日模板.md",
   monthly: "每月模板.md",
@@ -63,6 +105,14 @@ const templateFiles = {
 
 export function getDirectoryPicker() {
   if (typeof window === "undefined") return null;
+  const bridge = getDesktopBridge();
+  if (bridge) {
+    return async () => {
+      const selected = await bridge.selectVault();
+      if (!selected?.connected) throw new Error("已取消选择 Vault，未读取或写入任何文件。");
+      return createDesktopDirectoryHandle(selected.name);
+    };
+  }
   return (window as Window & { showDirectoryPicker?: () => Promise<VaultDirectoryHandle> }).showDirectoryPicker ?? null;
 }
 

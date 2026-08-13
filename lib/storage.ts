@@ -1,4 +1,5 @@
 import Dexie, { type Table } from "dexie";
+import { getDesktopBridge } from "./desktop";
 import type { WealthData } from "./types";
 
 class WealthAtlasDatabase extends Dexie {
@@ -27,7 +28,8 @@ export async function loadWealthData() {
 
 export async function saveObsidianHandle(handle: unknown, vaultName: string) {
   if (!db) return;
-  await db.obsidianHandles.put({ id: "current", handle, vaultName, updatedAt: new Date().toISOString() });
+  const storedHandle = getDesktopBridge() ? { kind: "desktop-vault" } : handle;
+  await db.obsidianHandles.put({ id: "current", handle: storedHandle, vaultName, updatedAt: new Date().toISOString() });
 }
 
 export async function loadObsidianHandle() {
@@ -38,5 +40,6 @@ export async function loadObsidianHandle() {
 
 export async function clearObsidianHandle() {
   if (!db) return;
+  await getDesktopBridge()?.disconnectVault();
   await db.obsidianHandles.delete("current");
 }
