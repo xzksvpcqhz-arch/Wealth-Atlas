@@ -23,10 +23,9 @@ export const DEFAULT_HOME_LAYOUTS: HomeLayouts = {
     { i: "sgd-myr", x: 5, y: 5, w: 2, h: 3 },
     { i: "usd-sgd", x: 7, y: 5, w: 2, h: 3 },
     { i: "currency", x: 9, y: 5, w: 3, h: 3 },
-    { i: "recent", x: 0, y: 10, w: 6, h: 5 },
+    { i: "recent", x: 0, y: 10, w: 6, h: 6 },
     { i: "watchlist", x: 6, y: 10, w: 3, h: 5 },
     { i: "reminders", x: 9, y: 10, w: 3, h: 5 },
-    { i: "quick-actions", x: 0, y: 15, w: 12, h: 5 },
   ],
   md: [
     { i: "free", x: 0, y: 0, w: 8, h: 5 },
@@ -41,7 +40,6 @@ export const DEFAULT_HOME_LAYOUTS: HomeLayouts = {
     { i: "recent", x: 0, y: 22, w: 8, h: 5 },
     { i: "watchlist", x: 0, y: 27, w: 8, h: 5 },
     { i: "reminders", x: 0, y: 32, w: 8, h: 5 },
-    { i: "quick-actions", x: 0, y: 37, w: 8, h: 5 },
   ],
   sm: [
     { i: "free", x: 0, y: 0, w: 1, h: 5 },
@@ -56,7 +54,6 @@ export const DEFAULT_HOME_LAYOUTS: HomeLayouts = {
     { i: "recent", x: 0, y: 31, w: 1, h: 5 },
     { i: "watchlist", x: 0, y: 36, w: 1, h: 5 },
     { i: "reminders", x: 0, y: 41, w: 1, h: 5 },
-    { i: "quick-actions", x: 0, y: 46, w: 1, h: 5 },
   ],
 };
 
@@ -97,6 +94,15 @@ function isValidHomeLayouts(value: unknown, ids: string[]): value is HomeLayouts
   return BREAKPOINTS.every((breakpoint) => isValidLayout(value[breakpoint], ids, breakpoint));
 }
 
+function migrateLegacyQuickActionLayout(value: unknown, ids: string[]): HomeLayouts | null {
+  if (!isRecord(value)) return null;
+  const migrated = Object.fromEntries(BREAKPOINTS.map((breakpoint) => {
+    const layout = value[breakpoint];
+    return [breakpoint, Array.isArray(layout) ? layout.filter((item) => isRecord(item) && item.i !== "quick-actions") : layout];
+  }));
+  return isValidHomeLayouts(migrated, ids) ? cloneLayouts(migrated) : null;
+}
+
 function persistLayouts(layouts: HomeLayouts, onNotify: (message: string) => void) {
   try {
     const snapshot: LayoutSnapshot = { homeLayout: cloneLayouts(layouts), homeLayoutUpdatedAt: new Date().toISOString() };
@@ -113,23 +119,29 @@ export default function HomeLayoutGrid({ items, onNotify }: { items: HomeLayoutI
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeBreakpoint, setActiveBreakpoint] = useState<HomeBreakpoint>("lg");
-  const ids = items.map((item) => item.id);
+  const visibleItems = items.filter((item) => item.id !== "quick-actions");
+  const ids = visibleItems.map((item) => item.id);
   const isMobile = activeBreakpoint === "sm";
   const layoutEditing = isEditing && !isMobile;
 
   useEffect(() => {
     const fallback = cloneLayouts(DEFAULT_HOME_LAYOUTS);
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      setLayouts(fallback);
-      setIsLoading(false);
-      return;
-    }
     try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        setLayouts(fallback);
+        setIsLoading(false);
+        return;
+      }
       const parsed: unknown = JSON.parse(raw);
       const storedLayouts = isRecord(parsed) ? parsed.homeLayout : undefined;
       if (isValidHomeLayouts(storedLayouts, ids)) {
         setLayouts(cloneLayouts(storedLayouts));
+      } else if (migrateLegacyQuickActionLayout(storedLayouts, ids)) {
+        const migrated = migrateLegacyQuickActionLayout(storedLayouts, ids)!;
+        setLayouts(migrated);
+        persistLayouts(migrated, onNotify);
+        onNotify("快捷操作已移到首页顶部，其余首页排版已保留");
       } else {
         setLayouts(fallback);
         persistLayouts(fallback, onNotify);
@@ -170,13 +182,13 @@ export default function HomeLayoutGrid({ items, onNotify }: { items: HomeLayoutI
         <p>{isMobile ? "手机端保持单栏浏览，拖动和调整大小已关闭。" : layoutEditing ? "拖动模块改变顺序，使用右下角手柄调整大小。" : "首页偏好只保存模块位置和尺寸，不会保存财务金额。"}</p>
       </div>
       <div className="home-layout-toolbar-actions">
-        {isEditing && <button className="secondary-button compact" onClick={resetLayouts} aria-label="恢复默认首页排版"><Sparkle size={16} />恢复默认排版</button>}
-        {isEditing ? <button className="primary-button compact" onClick={finishEditing} aria-label="完成首页排版"><Check size={16} weight="bold" />完成排版</button> : <button className="secondary-button compact" onClick={() => setIsEditing(true)} disabled={isMobile} aria-label={isMobile ? "手机端保持单栏排版" : "调整首页排版"}><ArrowsOutCardinal size={16} />{isMobile ? "手机端单栏" : "调整排版"}</button>}
+        {isEditing && <button type="button" className="secondary-button compact" onClick={resetLayouts} aria-label="恢复默认首页排版" title="恢复默认排版"><Sparkle size={16} />恢复默认排版</button>}
+        {isEditing ? <button type="button" className="primary-button compact" onClick={finishEditing} aria-label="完成首页排版" title="完成排版"><Check size={16} weight="bold" />完成排版</button> : <button type="button" className="secondary-button compact" onClick={() => setIsEditing(true)} disabled={isMobile} aria-label={isMobile ? "手机端保持单栏排版" : "调整首页排版"} title={isMobile ? "手机端保持单栏排版" : "调整排版"}><ArrowsOutCardinal size={16} />{isMobile ? "手机端单栏" : "调整排版"}</button>}
       </div>
     </div>
     {layoutEditing && <div className="home-layout-edit-notice" role="status"><DotsSixVertical size={17} /><span>编辑模式已开启，完成后点击“完成排版”才会退出。</span></div>}
-    {isLoading ? <div className="home-layout-loading" role="status"><div className="home-layout-skeleton skeleton-wide" /><div className="home-layout-skeleton" /><div className="home-layout-skeleton" /><span>正在读取首页排版…</span></div> : items.length === 0 ? <div className="panel home-layout-empty"><Sparkle size={28} /><strong>暂无可调整的首页模块</strong><span>首页模块加载后会出现在这里。</span></div> : <ResponsiveGrid className="home-layout-grid" layouts={layouts} breakpoints={{ lg: 1100, md: 760, sm: 0 }} cols={COLUMNS} rowHeight={64} margin={[14, 14]} containerPadding={[0, 0]} compactType="vertical" preventCollision={false} isDraggable={layoutEditing} isResizable={layoutEditing} resizeHandles={layoutEditing ? ["se"] : []} draggableHandle=".home-layout-drag-handle" onBreakpointChange={(breakpoint) => setActiveBreakpoint(breakpoint as HomeBreakpoint)} onLayoutChange={handleLayoutChange}>
-      {items.map((item) => <div key={item.id} className="home-layout-item" data-editing={layoutEditing ? "true" : "false"} data-home-module={item.id} aria-label={item.label}>
+    {isLoading ? <div className="home-layout-loading" role="status"><div className="home-layout-skeleton skeleton-wide" /><div className="home-layout-skeleton" /><div className="home-layout-skeleton" /><span>正在读取首页排版…</span></div> : visibleItems.length === 0 ? <div className="panel home-layout-empty"><Sparkle size={28} /><strong>暂无可调整的首页模块</strong><span>首页模块加载后会出现在这里。</span></div> : <ResponsiveGrid className="home-layout-grid" layouts={layouts} breakpoints={{ lg: 1100, md: 760, sm: 0 }} cols={COLUMNS} rowHeight={56} margin={[14, 14]} containerPadding={[0, 0]} compactType="vertical" preventCollision={false} isDraggable={layoutEditing} isResizable={layoutEditing} resizeHandles={layoutEditing ? ["se"] : []} draggableHandle=".home-layout-drag-handle" onBreakpointChange={(breakpoint) => setActiveBreakpoint(breakpoint as HomeBreakpoint)} onLayoutChange={handleLayoutChange}>
+      {visibleItems.map((item) => <div key={item.id} className="home-layout-item" data-editing={layoutEditing ? "true" : "false"} data-home-module={item.id} aria-label={item.label}>
         {layoutEditing && <span className="home-layout-drag-handle" aria-label={`拖动${item.label}模块`} role="img"><DotsSixVertical size={16} weight="bold" /></span>}
         {item.children}
       </div>)}

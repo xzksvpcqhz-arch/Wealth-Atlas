@@ -127,6 +127,9 @@ export type AnnualPlan = {
   status: "planned" | "funded" | "complete";
   goalId?: string;
   note?: string;
+  active?: boolean;
+  deleted?: boolean;
+  deletedAt?: string;
 };
 
 export type AssetItem = {
@@ -150,6 +153,8 @@ export type AssetItem = {
   costPerUse?: number;
   status: "active" | "unused" | "sold";
   note?: string;
+  deleted?: boolean;
+  deletedAt?: string;
 };
 
 export type PlannedPayment = {

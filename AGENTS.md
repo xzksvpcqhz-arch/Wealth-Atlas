@@ -11,7 +11,5 @@
 1. 完成功能修改后，必须运行：
    - `npm test`
    - `npm run build`
-2. DeepSeek/Hermes 审核为可选步骤，只有用户明确要求时才运行 `npm run prepare:review` 或读取 `review/result.json`。
-3. 即使进行可选审核，也不得发送 `.env.local`、API Key、`data/`、`exports/`、`private-vault/`、`backups/` 或真实财务资料。
 
 删除项目文件时，必须先移入 `D:\Trash`；如果无法移入，则停止并要求人工确认。

@@ -327,3 +327,290 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 @media (max-width: 780px) { .home-layout-toolbar { align-items: stretch; flex-direction: column; }.home-layout-toolbar-actions { justify-content: flex-start; }.home-layout-grid { min-height: 540px; }.home-layout-item > .panel { overflow: auto; }.home-layout-item .stat-cell { padding: 18px; }.home-free-panel, .home-watchlist-panel, .home-quick-actions-panel { padding: 21px 20px; } }
 @media (max-width: 640px) { .home-layout-toolbar { padding: 14px; }.home-layout-toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; }.home-layout-toolbar-actions button { width: 100%; min-width: 0; }.home-layout-grid { min-height: 0; }.home-layout-item[data-editing="true"] > .panel { border-color: var(--line); }.home-layout-item[data-editing="true"] > .panel::before, .home-layout-drag-handle, .home-layout-item .react-resizable-handle { display: none; }.home-layout-item { cursor: default; }.home-layout-item .stat-value { font-size: clamp(1rem, 5vw, 1.45rem); }.home-rate-panel strong { font-size: 1.55rem; }.home-action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.home-layout-loading { grid-template-columns: 1fr 1fr; }.home-layout-skeleton.skeleton-wide { grid-row: span 2; } }
 @media (prefers-reduced-motion: reduce) { .home-layout-grid .react-grid-item, .home-action-card, .home-layout-toolbar-actions button { transition: none !important; }.home-layout-skeleton { animation: none; }.home-layout-item[data-editing="true"] > .panel::before { opacity: .6; } }
+
+/* Deletion and recovery controls: keep the interaction area readable and reachable at every viewport. */
+.planned-payment-panel, .import-history { min-width: 0; }
+.planned-payment-list { display: grid; margin-top: 8px; }
+.planned-payment-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(112px, auto) auto; align-items: center; gap: 12px; min-width: 0; padding: 12px 0; border-bottom: 1px solid rgba(120, 157, 198, .13); }
+.planned-payment-row:last-child { border-bottom: 0; }
+.planned-payment-row > div, .planned-payment-row strong, .planned-payment-row span { min-width: 0; }
+.planned-payment-row strong, .planned-payment-row span { display: block; overflow-wrap: anywhere; word-break: break-word; }
+.planned-payment-row strong { color: var(--text); font-size: 12px; }
+.planned-payment-row span { margin-top: 4px; color: var(--muted); font-size: 10px; }
+.planned-payment-row > b { color: var(--text); font-size: 12px; text-align: right; overflow-wrap: anywhere; word-break: break-word; }
+.planned-payment-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.watchlist-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+.import-review-row { grid-template-columns: minmax(0, 1fr) auto; }
+.import-review-row > div:first-child { min-width: 0; }
+.import-review-row span { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.danger-icon { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; }
+.record-actions .icon-button, .fx-row-actions .icon-button, .asset-row-actions .icon-button, .planned-payment-actions .icon-button, .watchlist-card-actions .icon-button, .category-manager-row .icon-button, .annual-plan-row .icon-button { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; }
+.icon-button:focus-visible, .danger-button:focus-visible, .secondary-button:focus-visible, .text-button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+.danger-confirm-modal { max-width: min(100% - 28px, 520px); }
+@media (max-width: 620px) {
+  .planned-payment-row { grid-template-columns: minmax(0, 1fr) auto; gap: 9px; }
+  .planned-payment-row > b { grid-column: 1; text-align: left; }
+  .planned-payment-actions { grid-column: 2; grid-row: 1 / span 2; flex-wrap: wrap; justify-content: flex-end; max-width: 94px; }
+  .watchlist-card-actions { align-items: flex-start; }
+  .import-review-row { grid-template-columns: 1fr; align-items: start; }
+  .import-review-row .inline-actions, .import-review-row > button { justify-self: start; }
+}
+
+/* Keep every primary destination reachable on a phone without horizontal scrolling. */
+@media (max-width: 620px) {
+  html { min-width: 0; }
+  .sidebar { min-height: 154px; height: auto; padding: 7px 10px; }
+  .sidebar nav { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
+  .sidebar nav button,
+  .sidebar nav button:nth-child(n) { display: grid !important; min-width: 0; min-height: 44px; padding: 5px 2px; }
+  .sidebar nav button span { font-size: 7px; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
+  .main-content { padding-bottom: 178px; }
+}
+
+/* Final responsive safeguards: operational controls retain a full touch target
+   without allowing long local names or currency amounts to force page overflow. */
+html, body { max-width: 100%; overflow-x: clip; }
+.main-content, .module-page, .panel, .account-card, .archived-row, .inline-actions { min-width: 0; }
+.archived-row { gap: 12px; }
+.archived-row > div:first-child { min-width: 0; }
+.archived-row strong, .archived-row span, .archived-action-note { overflow-wrap: anywhere; word-break: break-word; }
+.archived-row .inline-actions { flex-wrap: wrap; justify-content: flex-end; }
+.archived-action-note { max-width: 14rem; color: var(--muted); font-size: 10px; line-height: 1.45; text-align: right; }
+.archived-assets-page { min-height: auto; padding-top: 0; }
+.record-row, .record-subtitle, .record-row > b, .account-card-foot > span, .module-summary strong, .stat-value, .account-balance { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.module-summary strong, .stat-value, .account-balance { white-space: normal; }
+@media (max-width: 620px) {
+  .record-actions { flex-wrap: wrap; max-width: 140px; }
+  .record-actions .icon-button.danger-icon { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .archived-row .inline-actions { justify-content: flex-start; }
+  .archived-action-note { max-width: none; text-align: left; }
+  .danger-confirm-modal, .confirm-modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
+}
+
+/* Later component rules define compact icon sizes; operational rows deliberately
+   override them so touch and keyboard targets remain consistent. */
+.record-actions .icon-button, .fx-row-actions .icon-button, .asset-row-actions .icon-button, .planned-payment-actions .icon-button, .watchlist-card-actions .icon-button, .category-manager-row .icon-button, .annual-plan-row .icon-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+
+/* UI stabilization: shared visual rhythm for the active wealth workspace. */
+:root {
+  --atlas-bg: var(--bg-deep);
+  --atlas-surface: var(--panel);
+  --atlas-surface-raised: rgba(14, 31, 51, .94);
+  --atlas-border: var(--line);
+  --atlas-text: var(--text);
+  --atlas-text-muted: var(--muted);
+  --atlas-accent: var(--cyan);
+  --atlas-success: var(--green);
+  --atlas-warning: var(--amber);
+  --atlas-danger: #e7a7a7;
+  --atlas-radius-card: 14px;
+  --atlas-radius-control: 10px;
+  --atlas-space-section: 24px;
+  --atlas-card-padding: 24px;
+  --atlas-grid-gap: 14px;
+  --atlas-control-height: 44px;
+}
+
+body {
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+button, input, select, textarea { min-width: 0; }
+textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset: 3px; }
+.panel { border-radius: var(--atlas-radius-card); }
+.module-page, .advanced-page { gap: var(--atlas-space-section); }
+.advanced-page > .page-header { margin-bottom: 0; }
+.page-description { margin: 8px 0 0; font-size: 12px; line-height: 1.65; }
+.panel-title-row > div { min-width: 0; }
+.panel-title-row h2 { margin: 0; line-height: 1.35; }
+.panel-title-row .panel-kicker + h2 { margin-top: 7px; }
+.panel-title-row > div > span { display: block; margin-top: 7px; color: var(--atlas-text-muted); font-size: 11px; line-height: 1.55; }
+.panel-title-row > div > h2 + span { margin-top: 7px; }
+
+/* Forms retain their existing field order and behavior, with a consistent control floor. */
+.advanced-two-column { align-items: start; gap: var(--atlas-grid-gap); }
+.advanced-form,
+.planned-payment-panel,
+.forecast-calendar,
+.advanced-two-column > .panel:not(.advanced-form) { padding: var(--atlas-card-padding); }
+.advanced-form { gap: 20px; overflow: visible; }
+.advanced-form .form-grid { gap: 16px; }
+.advanced-form label:not(.checkbox-label),
+.advanced-form > label:not(.checkbox-label) {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted-strong);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.advanced-form input:not([type="checkbox"]),
+.advanced-form select,
+.advanced-form textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--atlas-control-height);
+  padding: 0 12px;
+  border: 1px solid var(--atlas-border);
+  border-radius: var(--atlas-radius-control);
+  color: var(--atlas-text);
+  background: #071322;
+}
+.advanced-form textarea { min-height: 104px; padding-block: 11px; resize: vertical; }
+.advanced-form input::placeholder,
+.advanced-form textarea::placeholder { color: #60718a; }
+.advanced-form .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--atlas-control-height);
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+.advanced-form .checkbox-label input { margin: 0; }
+.advanced-form .inline-actions { justify-content: flex-start; gap: 10px; padding-top: 2px; }
+.forecast-calendar { overflow: visible; }
+.forecast-calendar .calendar-list { margin-top: 18px; }
+.forecast-calendar .compact-empty,
+.planned-payment-panel .compact-empty,
+.advanced-two-column > .panel .compact-empty { min-height: 104px; padding: 24px 16px; }
+.simulator-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.simulator-grid label { display: grid; gap: 8px; min-width: 0; color: var(--muted-strong); font-size: 11px; line-height: 1.45; }
+.simulator-grid input { width: 100%; min-width: 0; min-height: var(--atlas-control-height); padding: 0 12px; border: 1px solid var(--atlas-border); border-radius: var(--atlas-radius-control); color: var(--atlas-text); background: #071322; }
+.simulator-grid .primary-button { width: 100%; align-self: end; }
+
+/* Home cards use one restrained cyan signal and expose data without clipping. */
+.home-layout-panel::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 18px;
+  left: 18px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(60, 217, 245, .38), transparent);
+}
+.home-layout-item > .panel { scrollbar-width: thin; scrollbar-color: rgba(60,217,245,.28) transparent; }
+.home-watchlist-panel, .insight-panel { display: flex; flex-direction: column; }
+.home-watchlist-list, .insight-list { margin-top: 18px; }
+.home-watchlist-row { grid-template-columns: 1fr; gap: 10px; padding: 13px 0; }
+.home-watchlist-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.home-watchlist-heading strong { min-width: 0; font-size: 13px; }
+.home-watchlist-status,
+.home-alert-type {
+  display: inline-flex !important;
+  align-items: center;
+  width: fit-content;
+  min-height: 22px;
+  margin: 0 !important;
+  padding: 0 7px;
+  border: 1px solid rgba(60,217,245,.22);
+  border-radius: 999px;
+  color: var(--atlas-accent) !important;
+  background: rgba(60,217,245,.06);
+  font-size: 9px !important;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.home-watchlist-status.safe { color: var(--atlas-success) !important; border-color: rgba(143,225,180,.25); }
+.home-watchlist-status.attention { color: var(--atlas-warning) !important; border-color: rgba(232,188,117,.28); }
+.home-watchlist-status.risk { color: var(--atlas-danger) !important; border-color: rgba(231,167,167,.28); }
+.home-watchlist-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.home-watchlist-values > span { min-width: 0; margin: 0; color: var(--atlas-text-muted); font-size: 9px; line-height: 1.4; }
+.home-watchlist-values b { display: block; margin-top: 4px; color: var(--atlas-text); font-size: 11px; font-weight: 650; overflow-wrap: anywhere; word-break: break-word; }
+.home-watchlist-values b.safe { color: var(--atlas-success); }
+.home-watchlist-values b.attention { color: var(--atlas-warning); }
+.home-watchlist-values b.risk { color: var(--atlas-danger); }
+.home-watchlist-track { grid-column: auto; height: 6px; }
+.home-alert-row { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; }
+.home-alert-copy { display: grid; gap: 5px; min-width: 0; }
+.home-alert-copy strong { font-size: 12px; line-height: 1.4; }
+.home-alert-copy > span:last-child { margin: 0; font-size: 10px; line-height: 1.55; overflow-wrap: anywhere; }
+.home-alert-action { align-self: center; min-height: 36px; padding-inline: 4px; white-space: nowrap; }
+.currency-mini-row > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.currency-mini-row strong, .currency-mini-row span, .currency-mini-row small { overflow-wrap: anywhere; word-break: break-word; }
+
+@media (min-width: 1181px) {
+  .quick-toolbar-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+
+@media (min-width: 801px) and (max-width: 1180px) {
+  .quick-toolbar-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1050px) {
+  .home-layout-grid {
+    display: grid;
+    gap: 12px;
+    height: auto !important;
+    min-height: 0;
+  }
+  .home-layout-grid .react-grid-item {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    transform: none !important;
+  }
+  .home-layout-item > .panel { height: auto; overflow: visible; }
+}
+
+@media (max-width: 780px) {
+  .advanced-form,
+  .planned-payment-panel,
+  .forecast-calendar,
+  .advanced-two-column > .panel:not(.advanced-form) { padding: 20px; }
+  .simulator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .page-header h1 { line-height: 1.12; }
+  .page-description { margin-top: 10px; font-size: 12px; line-height: 1.65; }
+  .advanced-form,
+  .planned-payment-panel,
+  .forecast-calendar,
+  .advanced-two-column > .panel:not(.advanced-form) { padding: 18px; }
+  .advanced-form .form-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .advanced-form .inline-actions { display: grid; grid-template-columns: 1fr; }
+  .advanced-form .inline-actions button { width: 100%; min-height: 46px; }
+  .simulator-grid { grid-template-columns: minmax(0, 1fr); }
+
+  .home-layout-grid {
+    display: grid;
+    gap: 12px;
+    height: auto !important;
+    min-height: 0;
+  }
+  .home-layout-grid .react-grid-item {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    transform: none !important;
+  }
+  .home-layout-item > .panel { height: auto; overflow: visible; }
+  .home-layout-item .home-free-panel,
+  .home-layout-item .account-snapshot-panel,
+  .home-layout-item .assets-panel,
+  .home-layout-item .home-watchlist-panel,
+  .home-layout-item .insight-panel,
+  .home-layout-item .home-quick-actions-panel,
+  .home-layout-item .currency-mini-panel { min-height: 0; }
+  .home-watchlist-values { grid-template-columns: 1fr 1fr; }
+  .home-watchlist-values > span:last-child { grid-column: 1 / -1; }
+  .home-alert-row { grid-template-columns: 32px minmax(0, 1fr); align-items: start; }
+  .home-alert-action { grid-column: 2; justify-self: start; min-height: 40px; }
+  .currency-mini-row > div:first-child { flex-wrap: wrap; }
+}
+
+@media (max-width: 360px) {
+  .advanced-form,
+  .planned-payment-panel,
+  .forecast-calendar,
+  .advanced-two-column > .panel:not(.advanced-form) { padding: 16px; }
+  .home-watchlist-heading { align-items: flex-start; flex-direction: column; }
+}

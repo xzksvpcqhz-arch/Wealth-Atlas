@@ -69,7 +69,10 @@ export function migrateWealthData(input: WealthData): WealthData {
     transactions,
     budgets,
     goals,
-    annualPlans: input.annualPlans ?? [],
+    annualPlans: (input.annualPlans ?? []).map((plan) => ({
+      ...plan,
+      active: plan.active !== false && !plan.deleted,
+    })),
     watchlists: input.watchlists ?? [],
     plannedPayments: input.plannedPayments ?? [],
     cashFlowSettings: input.cashFlowSettings ?? { safetyBalance: 0, currency: input.reportCurrency },

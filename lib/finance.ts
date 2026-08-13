@@ -394,7 +394,7 @@ export function getGoalRequiredPerPeriod(goal: Goal, fromDate?: string) {
 
 export function getAnnualPlanTotal(data: WealthData, year: number, quote: CurrencyCode) {
   return (data.annualPlans ?? [])
-    .filter((plan) => plan.year === year)
+    .filter((plan) => plan.year === year && plan.active !== false && !plan.deleted)
     .reduce((total, plan) => total + (convert(plan.amount, plan.currency, quote, data.fxRates) ?? 0), 0);
 }
 
