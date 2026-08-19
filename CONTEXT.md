@@ -99,18 +99,17 @@
 
 ## 7. 当前状态（重要）
 
+> **更新（2026-08-15，迁移后）：** 主账户功能已完成并验证（`npm test` 9/9 + `tsc` + `npm run build` 全通过），连同 v1.4.x 发布加固一次性提交为 `32c35e3`（分支 `codex/v1.4.3-safe-update`）。工作区干净。
+
 ### 7.1 Git 状态
-- 最后提交：`c868146 feat: package wealth atlas as protected windows desktop app`（8/13 20:20）
+- 最后提交：`32c35e3 feat: add main account hierarchy with compact child accounts`（8/15，迁移后完成）
+- 此前最后提交：`c868146 feat: package wealth atlas as protected windows desktop app`（8/13 20:20）
 - **18 个已跟踪文件有未提交改动（+1816/-131）**，另有多个未跟踪文件。
 
-### 7.2 未提交内容分析
-- **v1.4.2–v1.4.4 发布工作**（部分未提交）：`CHANGELOG.md`（v1.4.2/3/4 条目）、`docs/WINDOWS_RELEASE.md`、`desktop/main.cjs`（+960：启动日志、备份清单、诊断）、`desktop/preload.cjs`、`lib/desktop.ts`、`lib/diagnostics.ts`（新）、`components/AppErrorBoundary.tsx`/`RuntimeDiagnostics.tsx`（新）、`scripts/windows-release*.mjs`（新）、`tests/`（新）。
-- **8/15 主任务（"新增主账户 + 小账户紧凑排版"）已部分实现**：
-  - `lib/account-hierarchy.ts`（新，未跟踪）—— 账户层级逻辑
-  - `components/WealthAtlasV2.tsx`（+225）—— 账户弹窗已出现 `isMainCreation`/`entryMode:"main"`/`parentAccountId` 主账号表单、无主账户提示与"新增主账户"入口
-  - `app/globals.css`（+258）—— 疑含小账户紧凑排版样式
-  - `lib/finance.ts`、`lib/storage.ts`、`lib/migrations.ts`、`lib/types.ts`、`components/ObsidianWorkbench.tsx` 亦有改动
-- **未验证**：此进行中的改动尚未跑 `npm test` / `npm run build`，也未 commit。
+### 7.2 已提交内容（commit 32c35e3）
+- **主账户功能（8/15 任务）**：`lib/account-hierarchy.ts`、账户弹窗主账号/子账号模式、账户页根账户分组与紧凑子账户行、`app/globals.css` 紧凑样式、`tests/account-hierarchy.test.mjs`。
+- **v1.4.2–v1.4.4 发布工作**：`CHANGELOG.md`、`docs/WINDOWS_RELEASE.md`、`desktop/main.cjs`（启动日志、备份清单、诊断）、`lib/diagnostics.ts`、`components/AppErrorBoundary.tsx`/`RuntimeDiagnostics.tsx`、`scripts/windows-release*.mjs`、`tests/`、`release/windows/*.md`。
+- 本 CONTEXT.md 亦随提交入库（如需移出仓库可告知）。
 
 ### 7.3 已知环境事实
 - `.env.local` 含 `DEEPSEEK_API_KEY`（项目自己的审核脚本用）——**敏感，勿写入任何文档/提交**。
