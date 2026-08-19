@@ -35,7 +35,7 @@ export type Account = {
   type: "bank" | "cash" | "investment" | "credit-card";
   currency: CurrencyCode;
   balance: number;
-  parentAccountId?: string;
+  parentAccountId?: string | null;
   accountGroup?: string;
   institution?: string;
   includeInNetWorth?: boolean;

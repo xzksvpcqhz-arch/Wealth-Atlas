@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import AppErrorBoundary from "@/components/AppErrorBoundary";
+import RuntimeDiagnostics, { DiagnosticBoundaryProbe } from "@/components/RuntimeDiagnostics";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body><RuntimeDiagnostics /><AppErrorBoundary><DiagnosticBoundaryProbe />{children}</AppErrorBoundary></body>
     </html>
   );
 }

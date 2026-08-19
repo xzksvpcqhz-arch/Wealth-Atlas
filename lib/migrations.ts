@@ -1,4 +1,4 @@
-import type { Account, TransactionCategory, WealthData } from "./types";
+import type { Account, CurrencyCode, TransactionCategory, WealthData } from "./types";
 
 export const CURRENT_SCHEMA_VERSION = 10;
 
@@ -9,6 +9,69 @@ const defaultCategories: TransactionCategory[] = [
 
 function categoryId(kind: TransactionCategory["kind"], name: string) {
   return `${kind}:${name.trim()}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const supportedCurrencies = new Set<CurrencyCode>(["MYR", "SGD", "USD"]);
+const collectionKeys = [
+  "accounts",
+  "transactions",
+  "transfers",
+  "fxRates",
+  "goals",
+  "assets",
+  "plannedPayments",
+  "budgets",
+  "categories",
+  "annualPlans",
+  "syncLogs",
+  "watchlists",
+  "investments",
+  "investmentTransactions",
+  "liabilities",
+  "netWorthHistory",
+  "subscriptions",
+  "reviews",
+  "importReviews",
+  "assetMigrationBackups",
+  "migrationHistory",
+  "migrationBackups",
+  "migrationNotices",
+] as const;
+
+function prepareInput(input: unknown) {
+  const raw = isRecord(input) ? input : {};
+  const repairedFields: string[] = [];
+  const prepared: Record<string, unknown> = { ...raw };
+
+  for (const key of collectionKeys) {
+    if (!Array.isArray(raw[key])) {
+      prepared[key] = [];
+      repairedFields.push(key);
+    }
+  }
+
+  if (!supportedCurrencies.has(raw.reportCurrency as CurrencyCode)) {
+    prepared.reportCurrency = "MYR";
+    repairedFields.push("reportCurrency");
+  }
+  if (!isRecord(raw.obsidian)) {
+    prepared.obsidian = { vaultName: "", status: "disconnected" };
+    repairedFields.push("obsidian");
+  }
+  if (!isRecord(raw.cashFlowSettings)) {
+    prepared.cashFlowSettings = { safetyBalance: 0, currency: prepared.reportCurrency };
+    repairedFields.push("cashFlowSettings");
+  }
+  if (!isRecord(raw.externalIntegrations)) {
+    prepared.externalIntegrations = { bankSyncEnabled: false, liveFxEnabled: false };
+    repairedFields.push("externalIntegrations");
+  }
+
+  return { prepared: prepared as WealthData, raw, repairedFields };
 }
 
 function normalizeCategories(input: WealthData) {
@@ -32,9 +95,21 @@ function normalizeAccounts(accounts: WealthData["accounts"]): Account[] {
   }));
 }
 
+export function getWealthDataSchemaVersion(value: unknown) {
+  if (!isRecord(value)) return 7;
+  const version = Number(value.schemaVersion);
+  return Number.isInteger(version) && version > 0 ? version : 7;
+}
+
+export function needsWealthDataMigration(value: unknown) {
+  const { repairedFields } = prepareInput(value);
+  return getWealthDataSchemaVersion(value) < CURRENT_SCHEMA_VERSION || repairedFields.length > 0;
+}
+
 /** Additive, reversible v1.1 migration. The original snapshot is retained in IndexedDB. */
-export function migrateWealthData(input: WealthData): WealthData {
-  const from = input.schemaVersion ?? 7;
+export function migrateWealthData(value: unknown): WealthData {
+  const { prepared: input, raw, repairedFields } = prepareInput(value);
+  const from = getWealthDataSchemaVersion(value);
   const categories = normalizeCategories(input);
   const notices = [...(input.migrationNotices ?? [])];
   const categoryByName = new Map(categories.map((item) => [`${item.kind}:${item.name}`, item]));
@@ -84,14 +159,20 @@ export function migrateWealthData(input: WealthData): WealthData {
     reviews: input.reviews ?? [],
     importReviews: input.importReviews ?? [],
     externalIntegrations: input.externalIntegrations ?? { bankSyncEnabled: false, liveFxEnabled: false },
-    schemaVersion: CURRENT_SCHEMA_VERSION,
+    schemaVersion: Math.max(from, CURRENT_SCHEMA_VERSION),
     migrationNotices: notices,
   };
-  if (from >= CURRENT_SCHEMA_VERSION) return base;
-  const snapshot = JSON.parse(JSON.stringify(input)) as WealthData;
+  if (from >= CURRENT_SCHEMA_VERSION && repairedFields.length === 0) return base;
+  const snapshot = JSON.parse(JSON.stringify(raw)) as unknown;
+  const repairNotice = repairedFields.length
+    ? `启动时已安全补足缺少的资料结构：${repairedFields.join(", ")}。原始 snapshot 已保留在本地迁移备份中。`
+    : null;
   return {
     ...base,
-    migrationBackups: [...(input.migrationBackups ?? []), { id: `migration-${Date.now()}`, from, to: CURRENT_SCHEMA_VERSION, createdAt: new Date().toISOString(), snapshot }],
-    migrationHistory: [...(input.migrationHistory ?? []), { from, to: CURRENT_SCHEMA_VERSION, appliedAt: new Date().toISOString() }],
+    migrationBackups: [...(input.migrationBackups ?? []), { id: `${repairedFields.length ? "startup-repair" : "migration"}-${Date.now()}`, from, to: CURRENT_SCHEMA_VERSION, createdAt: new Date().toISOString(), snapshot }],
+    migrationHistory: from < CURRENT_SCHEMA_VERSION
+      ? [...(input.migrationHistory ?? []), { from, to: CURRENT_SCHEMA_VERSION, appliedAt: new Date().toISOString() }]
+      : input.migrationHistory,
+    migrationNotices: repairNotice ? [...notices, repairNotice] : notices,
   };
 }

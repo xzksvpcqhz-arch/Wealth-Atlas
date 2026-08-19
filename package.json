@@ -1,6 +1,6 @@
 {
   "name": "wealth-atlas",
-  "version": "1.4.0",
+  "version": "1.4.4",
   "description": "Local-first multi-currency personal finance workspace",
   "author": "Wealth Atlas",
   "private": true,
@@ -10,11 +10,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/finance-regression.test.mjs tests/migration-diagnostics.test.mjs tests/account-hierarchy.test.mjs && tsc --noEmit",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "desktop:build": "node scripts/desktop-build.mjs",
     "desktop:test": "node scripts/desktop-persistence-test.mjs",
-    "desktop:package": "npm run desktop:build && electron-builder --win nsis --x64",
+    "desktop:package": "node scripts/windows-release.mjs",
+    "release:windows": "node scripts/windows-release.mjs",
+    "release:check": "node scripts/windows-release-check.mjs",
+    "release:test-installed": "node scripts/windows-installed-release-test.mjs",
     "ai:review": "node scripts/deepseek-review.mjs",
     "prepare:review": "node scripts/prepare-hermes-review.mjs",
     "read:review": "node scripts/read-hermes-review.mjs"
@@ -61,7 +64,14 @@
     "artifactName": "Wealth-Atlas-Setup.${ext}",
     "win": {
       "target": "nsis",
-      "icon": "build/icon.svg"
+      "icon": "build/icon.svg",
+      "legalTrademarks": "Wealth Atlas",
+      "verifyUpdateCodeSignature": true,
+      "signtoolOptions": {
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -71,5 +81,8 @@
       "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": false
     }
+  },
+  "allowScripts": {
+    "electron@43.4.0": true
   }
 }

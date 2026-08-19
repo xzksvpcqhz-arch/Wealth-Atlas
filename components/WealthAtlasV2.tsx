@@ -78,8 +78,12 @@ import {
   totalIncomeInCurrency,
   totalInCurrency,
 } from "@/lib/finance";
-import { loadWealthData,saveWealthData } from "@/lib/storage";
-import { migrateWealthData } from "@/lib/migrations";
+import { getAccountRootId,getAvailableMainAccounts,validateAccountParent } from "@/lib/account-hierarchy";
+import { loadWealthData,retryWealthStorage,saveWealthData,WealthStorageError } from "@/lib/storage";
+import { CURRENT_SCHEMA_VERSION,getWealthDataSchemaVersion,migrateWealthData,needsWealthDataMigration } from "@/lib/migrations";
+import { reportSafeDiagnostic,reportStartupStage,type SafeDiagnostic,type StartupStage } from "@/lib/diagnostics";
+import { DiagnosticFailurePanel } from "@/components/AppErrorBoundary";
+import { getDesktopBridge } from "@/lib/desktop";
 import type { Account,AnnualPlan,CurrencyCode,Goal,MonthlyBudget,Transaction,TransactionCategory,Transfer,WealthData } from "@/lib/types";
 
 const today=getLocalDate();
@@ -179,9 +183,11 @@ const initialData=process.env.NEXT_PUBLIC_WEALTH_ATLAS_DESKTOP==="1"? emptyDeskt
 
 type ModalType="transaction"|"transfer"|"fx"|"account"|"budget"|"goal"|"annual-plan"|null;
 type NavItem={ label: string; icon: ElementType; key: string; };
+type HeaderAction={ label: string; onClick: () => void; icon?: ElementType; variant?: "primary"|"secondary"; };
 type TransactionDraft={ type: "income"|"expense"; accountId: string; amount: string; category: string; categoryId?: string; merchant: string; date: string; note: string; };
 type TransferDraft={ fromAccountId: string; toAccountId: string; amount: string; rate: string; fee: string; feeCurrency: CurrencyCode; date: string; };
-type AccountDraft={ name: string; type: Account["type"]; currency: CurrencyCode; balance: string; accountGroup?: string; parentAccountId?: string; institution?: string; includeInNetWorth?: boolean; };
+type AccountEntryMode="default"|"main"|"child";
+type AccountDraft={ name: string; type: Account["type"]; currency: CurrencyCode; balance: string; accountGroup?: string; parentAccountId?: string; institution?: string; includeInNetWorth?: boolean; entryMode?: AccountEntryMode; sourceAccountId?: string; };
 type BudgetDraft={ month: string; category: string; categoryId?: string; limit: string; budgetAmount?: string; currency: CurrencyCode; period?: string; };
 type GoalDraft={ name: string; current: string; target: string; currency: CurrencyCode; due: string; startDate?: string; endDate?: string; periodAmount?: string; priority?: NonNullable<Goal["priority"]>; isAutomatic?: boolean; cadence: Goal["cadence"]; status: Goal["status"]; };
 type AnnualPlanDraft={ year: string; month: string; name: string; category: string; amount: string; currency: CurrencyCode; status: "planned"|"funded"|"complete"; goalId: string; note: string; };
@@ -289,6 +295,8 @@ export default function WealthAtlasV2() {
   const [toastAction,setToastAction]=useState<(() => void)|null>(null);
   const [toastActionLabel,setToastActionLabel]=useState("撤销删除");
   const [loaded,setLoaded]=useState(false);
+  const [startupFailure,setStartupFailure]=useState<SafeDiagnostic|null>(null);
+  const [startupRetryKey,setStartupRetryKey]=useState(0);
   const [transactionFilter,setTransactionFilter]=useState<"all"|"income"|"expense">("all");
   const [transactionCategoryFilter,setTransactionCategoryFilter]=useState<string|null>(null);
   const [selectedMonth,setSelectedMonth]=useSharedMonth(currentMonth);
@@ -309,6 +317,8 @@ export default function WealthAtlasV2() {
   const [entityDeleteTarget,setEntityDeleteTarget]=useState<EntityDeleteTarget>(null);
   const [deleteInFlightKey,setDeleteInFlightKey]=useState<string|null>(null);
   const deleteInFlightRef=useRef<string|null>(null);
+  const storageLoadFailedRef=useRef(false);
+  const startupReadyReportedRef=useRef(false);
   const [migrationNotice,setMigrationNotice]=useState<string|null>(null);
   const [fxDraft,setFxDraft]=useState({ pair: "SGD/MYR",rate: "3.48",date: today,note: "" });
   const [transactionDraft,setTransactionDraft]=useState<TransactionDraft>({ type: "expense",accountId: "myr-main",amount: "",category: "外食",merchant: "",date: today,note: "" });
@@ -325,19 +335,64 @@ export default function WealthAtlasV2() {
   const [assetStatusFilter,setAssetStatusFilter]=useState<"all"|"active"|"unused"|"sold">("all");
 
   useEffect(() => {
-    loadWealthData().then((saved) => {
-      if(saved) {
-        const migratedData=migrateWealthData({ ...initialData,...saved,assets: saved.assets??initialData.assets });
-        const assetMigration=normalizeAssets(migratedData.assets);
-        setData({ ...migratedData,assets: assetMigration.normalized,assetMigrationBackups: [...(migratedData.assetMigrationBackups??[]),...assetMigration.backups.filter((backup) => !(migratedData.assetMigrationBackups??[]).some((item) => item.assetId===backup.assetId))] });
-        if(migratedData.migrationNotices?.length) setMigrationNotice(migratedData.migrationNotices[migratedData.migrationNotices.length-1]);
-        else if(assetMigration.migrated>0) setMigrationNotice(`已迁移 ${assetMigration.migrated} 项旧物品资产资料。${assetMigration.recalculated>0? ` ${assetMigration.recalculated} 项已按使用起算日期重新计算天数，旧值仍保存在本地备份字段中。`:""}`);
+    let cancelled=false;
+    const initialize=async () => {
+      const bridge=getDesktopBridge();
+      let stage: StartupStage="indexeddb-initialization";
+      storageLoadFailedRef.current=false;
+      startupReadyReportedRef.current=false;
+      if(!cancelled) {
+        setLoaded(false);
+        setStartupFailure(null);
       }
-      setLoaded(true);
-    });
-  },[]);
+      try {
+        await reportStartupStage(stage,"running");
+        const startupContext=bridge? await bridge.getStartupContext():null;
+        if(startupRetryKey>0) await retryWealthStorage();
+        const saved=await loadWealthData();
+        await reportStartupStage(stage,"success");
 
-  useEffect(() => {
+        stage="data-read";
+        await reportStartupStage(stage,"success");
+        const sourceSchemaVersion=saved? getWealthDataSchemaVersion(saved):CURRENT_SCHEMA_VERSION;
+        const requiresMigration=saved? needsWealthDataMigration(saved):false;
+        const requiresUpdateBackup=Boolean(startupContext?.requiresUpdateBackup);
+
+        stage="migration";
+        await reportStartupStage(stage,"running");
+        if(bridge&&(requiresUpdateBackup||requiresMigration)) {
+          const reason=requiresUpdateBackup&&requiresMigration? "app-update-and-migration":requiresMigration? "migration":"app-update";
+          await bridge.createDataBackup({ snapshot: saved,schemaVersion: sourceSchemaVersion,reason });
+        }
+        if(bridge?.startupTestMode==="migration-failure") throw new Error("Migration startup diagnostic test");
+
+        if(saved) {
+          const migratedData=migrateWealthData(saved);
+          const assetMigration=normalizeAssets(migratedData.assets);
+          if(!cancelled) {
+            setData({ ...migratedData,assets: assetMigration.normalized,assetMigrationBackups: [...(migratedData.assetMigrationBackups??[]),...assetMigration.backups.filter((backup) => !(migratedData.assetMigrationBackups??[]).some((item) => item.assetId===backup.assetId))] });
+            if(migratedData.migrationNotices?.length) setMigrationNotice(migratedData.migrationNotices[migratedData.migrationNotices.length-1]);
+            else if(assetMigration.migrated>0) setMigrationNotice("已迁移 "+assetMigration.migrated+" 项旧物品资产资料。"+(assetMigration.recalculated>0? " "+assetMigration.recalculated+" 项已按使用起算日期重新计算天数，旧值仍保存在本地备份字段中。":""));
+          }
+        }
+        await reportStartupStage(stage,"success");
+        if(!cancelled) setLoaded(true);
+      } catch(error) {
+        storageLoadFailedRef.current=true;
+        if(error instanceof WealthStorageError) {
+          stage=error.storageStage==="read"? "data-read":"indexeddb-initialization";
+        }
+        const diagnostic=await reportSafeDiagnostic("startup-"+stage,error);
+        await reportStartupStage(stage,"failed",diagnostic.id);
+        if(!cancelled) {
+          setStartupFailure(diagnostic);
+          setLoaded(false);
+        }
+      }
+    };
+    void initialize();
+    return () => { cancelled=true; };
+  },[startupRetryKey]);  useEffect(() => {
     if(typeof window==="undefined") return;
     try { setActive(window.localStorage.getItem("wealth-atlas.active-section")??"home"); }
     catch { /* Navigation remains usable when browser storage is unavailable. */ }
@@ -356,7 +411,7 @@ export default function WealthAtlasV2() {
     if (process.env.NEXT_PUBLIC_WEALTH_ATLAS_DESKTOP === "1") return;
 
     if (process.env.NODE_ENV === "production") {
-      void navigator.serviceWorker.register("/sw.js");
+      void navigator.serviceWorker.register("/sw.js").catch((error) => reportSafeDiagnostic("service-worker-register", error));
       return;
     }
 
@@ -366,7 +421,7 @@ export default function WealthAtlasV2() {
           .filter((registration) => registration.scope.startsWith(window.location.origin))
           .map((registration) => registration.unregister()),
       ),
-    );
+    ).catch((error) => reportSafeDiagnostic("service-worker-cleanup", error));
 
     if ("caches" in window) {
       void window.caches.keys().then((keys) =>
@@ -375,7 +430,7 @@ export default function WealthAtlasV2() {
             .filter((key) => key.startsWith("wealth-atlas-shell-"))
             .map((key) => window.caches.delete(key)),
         ),
-      );
+      ).catch((error) => reportSafeDiagnostic("service-worker-cache-cleanup", error));
     }
   },[]);
 
@@ -392,7 +447,21 @@ export default function WealthAtlasV2() {
     }
   },[active]);
 
-  useEffect(() => { if(loaded) void saveWealthData(data); },[data,loaded]);
+  useEffect(() => {
+    if(!loaded||!activeSectionReady||storageLoadFailedRef.current||startupReadyReportedRef.current) return;
+    startupReadyReportedRef.current=true;
+    const timeout=window.setTimeout(() => {
+      void reportStartupStage("home-ready","success").then(() => getDesktopBridge()?.markStartupReady());
+    },0);
+    return () => window.clearTimeout(timeout);
+  },[loaded,activeSectionReady]);
+  useEffect(() => {
+    if(!loaded||storageLoadFailedRef.current) return;
+    void saveWealthData(data).catch((error) => {
+      setToast("本地资料保存失败，原有资料未被删除；请重新启动后再试");
+      void reportSafeDiagnostic("indexeddb-save", error);
+    });
+  },[data,loaded]);
   useEffect(() => { if(!toast) return; const timeout=window.setTimeout(() => setToast(null),3200); return () => window.clearTimeout(timeout); },[toast]);
 
   const reportCurrency=data.reportCurrency;
@@ -537,16 +606,20 @@ export default function WealthAtlasV2() {
     }
   };
 
-  const openAccount=(account?: Account) => {
+  const openAccount=(account?: Account,options?: { entryMode?: AccountEntryMode; parentAccount?: Account }) => {
     if(account) {
       setAccountEditingId(account.id);
-      setAccountDraft({ name: account.name,type: account.type,currency: account.currency,balance: String(account.balance),accountGroup: account.accountGroup??"",parentAccountId: account.parentAccountId??"",institution: account.institution??"",includeInNetWorth: account.includeInNetWorth!==false });
+      setAccountDraft({ name: account.name,type: account.type,currency: account.currency,balance: String(account.balance),accountGroup: account.accountGroup??"",parentAccountId: account.parentAccountId??"",institution: account.institution??"",includeInNetWorth: account.includeInNetWorth!==false,entryMode: "default",sourceAccountId: account.id });
     } else {
+      const entryMode=options?.entryMode??"default";
+      const parentAccount=entryMode==="child"? options?.parentAccount:undefined;
       setAccountEditingId(null);
-      setAccountDraft({ name: "",type: "bank",currency: "SGD",balance: "0",accountGroup: "",parentAccountId: "",institution: "",includeInNetWorth: true });
+      setAccountDraft({ name: "",type: "bank",currency: parentAccount?.currency??"SGD",balance: "0",accountGroup: parentAccount?.accountGroup??"",parentAccountId: parentAccount?.id??"",institution: "",includeInNetWorth: true,entryMode });
     }
     setModal("account");
   };
+  const openMainAccount=() => openAccount(undefined,{ entryMode: "main" });
+  const openChildAccount=(parentAccount: Account) => openAccount(undefined,{ entryMode: "child",parentAccount });
 
   const openBudget=(budget?: MonthlyBudget) => {
     if(budget) {
@@ -657,12 +730,15 @@ export default function WealthAtlasV2() {
   const addAccount=() => {
     const balance=Number(accountDraft.balance);
     if(!accountDraft.name.trim()||!Number.isFinite(balance)) return showToast("请填写账户名称和有效余额");
-    const account={ id: accountEditingId??makeId("account"),name: accountDraft.name.trim(),type: accountDraft.type,currency: accountDraft.currency,balance,accountGroup: accountDraft.accountGroup?.trim()||undefined,parentAccountId: accountDraft.parentAccountId||undefined,institution: accountDraft.institution?.trim()||undefined,includeInNetWorth: accountDraft.includeInNetWorth!==false,status: "active" as const };
+    const parentAccountId=accountDraft.entryMode==="main"? null:accountDraft.parentAccountId||null;
+    const parentValidation=validateAccountParent(data.accounts,accountEditingId,parentAccountId);
+    if(!parentValidation.valid) return showToast(parentValidation.message);
+    const account: Account={ id: accountEditingId??makeId("account"),name: accountDraft.name.trim(),type: accountDraft.type,currency: accountDraft.currency,balance,accountGroup: accountDraft.accountGroup?.trim()||undefined,parentAccountId,institution: accountDraft.institution?.trim()||undefined,includeInNetWorth: accountDraft.includeInNetWorth!==false,status: "active" as const };
     setData((current) => ({ ...current,accounts: accountEditingId? current.accounts.map((item) => item.id===accountEditingId? { ...item,...account }:item):[...current.accounts,account] }));
-    setAccountDraft({ name: "",type: "bank",currency: "SGD",balance: "0",accountGroup: "",parentAccountId: "",institution: "",includeInNetWorth: true });
+    setAccountDraft({ name: "",type: "bank",currency: "SGD",balance: "0",accountGroup: "",parentAccountId: "",institution: "",includeInNetWorth: true,entryMode: "default" });
     setModal(null);
     setAccountEditingId(null);
-    showToast(accountEditingId? "账户资料已更新，历史记录未改变":"账户已添加");
+    showToast(accountEditingId? "账户资料已更新，历史记录未改变":accountDraft.entryMode==="child"? "子账户已添加":accountDraft.entryMode==="main"? "主账号已添加":"账户已添加");
   };
 
   const addBudget=() => {
@@ -838,9 +914,12 @@ export default function WealthAtlasV2() {
   const renderHeader=(
     eyebrow: string,
     title: string,
-    action?: { label: string; onClick: () => void; icon?: ElementType; },
+    action?: HeaderAction|HeaderAction[],
     ..._legacyMonthPicker: Array<{ value: string; onChange: (value: string) => void; ariaLabel: string }>
-  ) => <header className="page-header module-header transaction-page-header"><div><div className="breadcrumb">WEALTH ATLAS / {eyebrow}</div><h1>{title}</h1></div><div className="header-actions"><MonthPicker value={selectedMonth} onChange={setSelectedMonth} ariaLabel={`选择${title}查看月份`} />{action&&<button type="button" className="primary-button compact" onClick={action.onClick}>{action.icon&&<action.icon size={17} weight="bold" />}{action.label}</button>}<div className="local-pill"><ShieldCheck size={17} weight="fill" /> 本地数据</div></div></header>;
+  ) => {
+    const actions=action? Array.isArray(action)? action:[action]:[];
+    return <header className="page-header module-header transaction-page-header"><div><div className="breadcrumb">WEALTH ATLAS / {eyebrow}</div><h1>{title}</h1></div><div className="header-actions"><MonthPicker value={selectedMonth} onChange={setSelectedMonth} ariaLabel={`选择${title}查看月份`} />{actions.map(({ label,onClick,icon: ActionIcon,variant }) => <button type="button" key={label} className={(variant==="secondary"? "secondary-button":"primary-button")+" compact"} onClick={onClick} aria-label={label} title={label}>{ActionIcon&&<ActionIcon size={17} weight="bold" />}{label}</button>)}<div className="local-pill"><ShieldCheck size={17} weight="fill" /> 本地数据</div></div></header>;
+  };
 
   const renderHome=() => {
     const watchlistMetrics=data.watchlists.slice(0,3).map((watchlist) => getWatchlistMetrics(data,watchlist,selectedMonth,selectedMonthReference));
@@ -880,11 +959,26 @@ export default function WealthAtlasV2() {
 
   const renderAccounts=() => {
     const archivedAccounts=data.accounts.filter((account) => account.status==="inactive"||account.status==="deleted");
-    const groups=Array.from(new Set(activeAccounts.map((account) => account.accountGroup||"未分组")));
+    const getDisplayGroup=(account: Account) => {
+      const rootAccount=getAccount(data,getAccountRootId(activeAccounts,account.id));
+      return rootAccount?.accountGroup||account.accountGroup||"未分组";
+    };
+    const groups=Array.from(new Set(activeAccounts.map(getDisplayGroup)));
+    const renderAccountActions=(account: Account) => {
+      const hasHistory=getAccountHistoryCount(data,account.id)>0;
+      return <div className="inline-actions account-row-actions">
+        <button type="button" className="text-button" onClick={() => openAccount(account)} aria-label={"编辑账户 "+account.name} title={"编辑账户 "+account.name}><PencilSimple size={15} /> 编辑</button>
+        <button type="button" className="text-button danger-text" onClick={() => archiveAccount(account)} aria-label={(hasHistory? "停用账户 ":"移入回收站 ")+account.name} title={(hasHistory? "停用账户 ":"移入回收站 ")+account.name}>{hasHistory? "停用账户":"移入回收站"}</button>
+        <button type="button" className="text-button" onClick={() => { setActive("transactions"); setTransactionFilter("all"); }} aria-label={"查看账户活动 "+account.name} title={"查看账户活动 "+account.name}>查看活动</button>
+      </div>;
+    };
 
     return <>
       <main className="main-content module-page">
-        {renderHeader("ACCOUNTS","账户管理",{ label: "新增账户",onClick: () => openAccount(),icon: Plus })}
+        {renderHeader("ACCOUNTS","账户管理",[
+          { label: "新增主账号",onClick: openMainAccount,icon: Plus,variant: "secondary" },
+          { label: "新增账户",onClick: () => openAccount(),icon: Plus },
+        ])}
         <section className="module-summary">
           <div><span>可用流动余额</span><strong>{formatMoney(liquidBalance,reportCurrency)}</strong><small>只计入当前启用的银行与现金账户</small></div>
           <div><span>全部账户净值</span><strong>{formatMoney(totalInCurrency(data,reportCurrency),reportCurrency)}</strong><small>按是否计入净资产计算</small></div>
@@ -894,8 +988,9 @@ export default function WealthAtlasV2() {
           <div><div className="panel-kicker">BALANCE LEDGER</div><h2>余额由流水推导</h2></div>
           <p className="account-ledger-explanation">开户余额 + 收入 - 支出 - 转出 + 转入。账户改名只更新显示，不改变历史交易。</p>
         </div>
-        {activeAccounts.length===0 ? <section className="panel empty-module-state"><h2>还没有启用账户</h2><p>新增账户后，这里会按分组与原始货币分别显示余额。</p></section> : groups.map((group) => {
-          const groupAccounts=activeAccounts.filter((account) => (account.accountGroup||"未分组")===group);
+        {activeAccounts.length===0 ? <section className="panel empty-module-state"><h2>还没有启用账户</h2><p>先新增主账号，再按需要把其他账户整理为子账户。</p><button type="button" className="primary-button compact" onClick={openMainAccount}>新增主账号</button></section> : groups.map((group) => {
+          const groupAccounts=activeAccounts.filter((account) => getDisplayGroup(account)===group);
+          const rootAccounts=groupAccounts.filter((account) => getAccountRootId(activeAccounts,account.id)===account.id);
           const groupCurrencies=Array.from(new Set(groupAccounts.map((account) => account.currency)));
           const groupBalanceSummary=groupCurrencies.map((currency) => {
             const balance=groupAccounts.filter((account) => account.currency===currency).reduce((sum,account) => sum+getAccountBalance(data,account.id),0);
@@ -904,28 +999,46 @@ export default function WealthAtlasV2() {
           const groupReportValue=groupAccounts.reduce((sum,account) => sum+(convert(getAccountBalance(data,account.id),account.currency,reportCurrency,data.fxRates)??0),0);
 
           return <section className="account-group-section" key={group}>
-            <div className="section-heading">
+            <div className="section-heading account-group-heading">
               <div><div className="panel-kicker">ACCOUNT GROUP</div><h2>{group}</h2></div>
               <span>{groupAccounts.length} 个账户 · {groupBalanceSummary} · {reportCurrency} 报告价值 {formatMoney(groupReportValue,reportCurrency)}</span>
             </div>
-            <section className="account-grid">
-              {groupAccounts.map((account) => {
+            <section className="account-grid account-hierarchy-grid">
+              {rootAccounts.map((account) => {
                 const balance=getAccountBalance(data,account.id);
-                const hasHistory=getAccountHistoryCount(data,account.id)>0;
-                return <article className="panel account-card" key={account.id}>
-                  <div className="account-card-top"><div className={"account-type-icon "+account.type}><Bank size={20} /></div><span className="currency-badge">{account.currency}</span></div>
-                  <h3>{account.name}</h3>
-                  <div className="account-balance">{formatMoney(balance,account.currency)}</div>
-                  <div className="account-meta"><span>{accountTypeLabels[account.type]}</span><span>{account.institution||"未填写机构"}</span><span>{getAccountActivityCount(data,account.id)} 笔活动</span></div>
-                  <div className="account-card-foot">
-                    <span>{account.parentAccountId? "子账户 · "+(getAccount(data,account.parentAccountId)?.name??"未找到父账户"):"开户余额 "+formatMoney(account.balance,account.currency)}</span>
-                    <div className="inline-actions">
-                      <button type="button" className="text-button" onClick={() => openAccount(account)} aria-label={"编辑账户 "+account.name} title={"编辑账户 "+account.name}><PencilSimple size={15} /> 编辑</button>
-                      <button type="button" className="text-button danger-text" onClick={() => archiveAccount(account)} aria-label={(hasHistory? "停用账户 ":"移入回收站 ")+account.name} title={(hasHistory? "停用账户 ":"移入回收站 ")+account.name}>{hasHistory? "停用账户":"移入回收站"}</button>
-                      <button type="button" className="text-button" onClick={() => { setActive("transactions"); setTransactionFilter("all"); }} aria-label={"查看账户活动 "+account.name} title={"查看账户活动 "+account.name}>查看活动</button>
+                const childAccounts=groupAccounts.filter((candidate) => candidate.id!==account.id&&getAccountRootId(activeAccounts,candidate.id)===account.id);
+                return <div className="account-family" key={account.id}>
+                  <article className="panel account-card main-account-card">
+                    <div className="account-card-top"><div className={"account-type-icon "+account.type}><Bank size={20} /></div><span className="currency-badge">{account.currency}</span></div>
+                    <h3 title={account.name}>{account.name}</h3>
+                    <div className="account-balance">{formatMoney(balance,account.currency)}</div>
+                    <div className="account-meta"><span>{accountTypeLabels[account.type]}</span><span>{account.institution||"未填写机构"}</span><span>{getAccountActivityCount(data,account.id)} 笔活动</span></div>
+                    <div className="account-card-foot">
+                      <span>{account.parentAccountId? "主账号 · "+(getAccount(data,account.parentAccountId)?.name??"未找到主账号"):"开户余额 "+formatMoney(account.balance,account.currency)}</span>
+                      {renderAccountActions(account)}
                     </div>
-                  </div>
-                </article>;
+                  </article>
+                  <section className="child-account-section" aria-label={account.name+" 的子账户"}>
+                    <div className="child-account-heading">
+                      <div><strong>子账户</strong><span>{childAccounts.length>0? childAccounts.length+" 个账户":"还没有子账户"}</span></div>
+                      <button type="button" className="secondary-button compact" onClick={() => openChildAccount(account)} aria-label={"为 "+account.name+" 新增子账户"} title={"为 "+account.name+" 新增子账户"}><Plus size={15} weight="bold" />新增子账户</button>
+                    </div>
+                    {childAccounts.length===0 ? <div className="child-account-empty"><span>可以把日常卡、储蓄或投资账户整理到这个主账号下。</span></div> : <div className="child-account-list">
+                      {childAccounts.map((childAccount) => {
+                        const parentName=getAccount(data,childAccount.parentAccountId??"")?.name??account.name;
+                        return <article className="child-account-row" key={childAccount.id}>
+                          <div className="child-account-copy">
+                            <strong title={childAccount.name}>{childAccount.name}</strong>
+                            <span>{childAccount.institution||"未填写机构"} · {accountTypeLabels[childAccount.type]} · {getAccountActivityCount(data,childAccount.id)} 笔活动</span>
+                            <small>主账号 · {parentName}</small>
+                          </div>
+                          <div className="child-account-value"><span>当前余额</span><b>{formatMoney(getAccountBalance(data,childAccount.id),childAccount.currency)}</b></div>
+                          {renderAccountActions(childAccount)}
+                        </article>;
+                      })}
+                    </div>}
+                  </section>
+                </div>;
               })}
             </section>
           </section>;
@@ -1068,12 +1181,24 @@ export default function WealthAtlasV2() {
   const renderObsidian=() => <ObsidianWorkbench mode="sync" data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} />;
   const renderPlaceholder=() => <main className="main-content placeholder-page"><div className="page-header"><div><div className="breadcrumb">WEALTH ATLAS / MODULE</div><h1>{navItems.find((item) => item.key===active)?.label??"模块"}</h1></div></div><div className="panel empty-module"><Sparkle size={32} weight="fill" /><h2>这个模块保留在你的产品地图里</h2><p>本次版本先把账户、交易和预算闭环跑通，现有目标、资产、保险、报表和提醒结构仍然保留。</p><button type="button" className="primary-button" onClick={() => setActive("home")}>返回首页</button></div></main>;
 
+  if(startupFailure) {
+    return <DiagnosticFailurePanel diagnostic={startupFailure} onRetry={() => setStartupRetryKey((current) => current+1)} />;
+  }
   return <div className="app-shell"><div className="starfield" /><aside className="sidebar"><div className="brand"><div className="brand-mark"><Sparkle size={20} weight="fill" /></div><div><strong>我的财富星图</strong><span>WEALTH ATLAS</span></div></div><nav>{navItems.map(({ label,icon: Icon,key }) => <button type="button" key={key} className={active===key? "active":""} aria-current={active===key? "page":undefined} onClick={() => setActive(key)}><Icon size={20} weight={active===key? "fill":"regular"} /><span>{label}</span></button>)}</nav><div className="sidebar-bottom"><button type="button" className="side-action" onClick={openTransaction}><Plus size={18} weight="bold" /> 记一笔</button><button type="button" className="side-action secondary" onClick={() => openTransfer()}><ArrowsLeftRight size={18} /> 记转账</button><button type="button" className="side-action secondary" onClick={() => setActive("obsidian")}><ShieldCheck size={18} /> 同步 Obsidian</button><button type="button" className="side-action secondary" onClick={() => void exportExcel(data)}><FileXls size={18} /> 导出 Excel</button><button type="button" className="settings-button" onClick={() => setActive("settings")}><GearSix size={18} /> 设置</button></div></aside>{active==="home"? renderHome():active==="accounts"? renderAccounts():active==="reports"? <MoneyReportsCenter data={data} onToast={showToast} onNavigate={setActive} onOpenTransactions={(kind,category) => { setTransactionFilter(kind); setTransactionCategoryFilter(category==="其他"? null:category); setActive("transactions"); }} />:active==="transactions"? renderTransactions():active==="budget"? renderBudget():active==="goals"? renderGoals():active==="cashflow"? <AdvancedWorkbench page="cashflow" data={data} setData={setData} onToast={showToast} onNavigate={setActive} />:active==="watchlists"? <AdvancedWorkbench page="watchlists" data={data} setData={setData} onToast={showToast} onNavigate={setActive} />:active==="insights"? <AdvancedWorkbench page="analysis" data={data} setData={setData} onToast={showToast} onNavigate={setActive} />:active==="insurance"? <AdvancedWorkbench page="integrations" data={data} setData={setData} onToast={showToast} onNavigate={setActive} />:active==="trash"? renderTrash():active==="obsidian"? renderObsidian():active==="assets"||active==="fx"||active==="settings"? renderSettings():renderPlaceholder()}{modal&&<EntryModal type={modal} onClose={() => { setModal(null); setTransactionEditingId(null); setTransferEditingId(null); setAccountEditingId(null); setBudgetEditingId(null); setGoalEditingId(null); }} onTransaction={addTransaction} onTransfer={addTransfer} onAccount={addAccount} onBudget={addBudget} onGoal={addGoal} onAnnualPlan={addAnnualPlan} onFx={saveFxRate} data={data} transactionDraft={transactionDraft} setTransactionDraft={setTransactionDraft} transferDraft={transferDraft} setTransferDraft={setTransferDraft} accountDraft={accountDraft} setAccountDraft={setAccountDraft} budgetDraft={budgetDraft} setBudgetDraft={setBudgetDraft} goalDraft={goalDraft} setGoalDraft={setGoalDraft} annualPlanDraft={annualPlanDraft} setAnnualPlanDraft={setAnnualPlanDraft} fxDraft={fxDraft} setFxDraft={setFxDraft} editingTransaction={Boolean(transactionEditingId)} editingTransfer={Boolean(transferEditingId)} editingAccount={Boolean(accountEditingId)} categories={transactionCategories} onOpenCategoryManager={() => setCategoryManagerOpen(true)} />}{recordDetails&&<RecordDetailsModal data={data} details={recordDetails} onClose={() => setRecordDetails(null)} />}{deleteTarget&&<DeleteConfirmModal target={deleteTarget} data={data} onCancel={() => setDeleteTarget(null)} onConfirm={softDeleteRecord} isProcessing={Boolean(deleteInFlightKey)} />}{permanentTarget&&<PermanentDeleteModal target={permanentTarget} data={data} onCancel={() => setPermanentTarget(null)} onConfirm={permanentlyDeleteRecord} isProcessing={Boolean(deleteInFlightKey)} />}{categoryManagerOpen&&<CategoryManagerModal onClose={() => setCategoryManagerOpen(false)} onSave={saveCategory} onEdit={(category) => { setCategoryEditingId(category.id||null); setCategoryDraft({ name: category.name,kind: category.kind,icon: category.icon??"",color: category.color??"#d7aa6f" }); }} onDeactivate={(category) => requestEntityDelete({ kind: "category",id: category.id,action: "deactivate" })} onPermanentDelete={(category) => requestEntityDelete({ kind: "category",id: category.id,action: "permanent" })} canPermanentlyDelete={(category) => Boolean(category.createdAt)&&!data.transactions.some((item) => item.categoryId===category.id)} onRestore={restoreCategory} categories={transactionCategories} draft={categoryDraft} setDraft={setCategoryDraft} editingId={categoryEditingId} />}{entityDeleteTarget&&<EntityDeleteConfirmModal target={entityDeleteTarget} data={data} onCancel={() => setEntityDeleteTarget(null)} onConfirm={confirmEntityDelete} isProcessing={Boolean(deleteInFlightKey)} />}{accountDeleteTarget&&<AccountArchiveConfirmModal account={accountDeleteTarget} data={data} onCancel={() => setAccountDeleteTarget(null)} onConfirm={confirmArchiveAccount} isProcessing={Boolean(deleteInFlightKey)} />}{toast&&<div className="toast"><Check size={17} weight="bold" /> <span>{toast}</span>{toastAction&&<button type="button" className="toast-action" onClick={() => { toastAction(); setToast(null); setToastAction(null); }}>{toastActionLabel}</button>}<button type="button" onClick={() => { setToast(null); setToastAction(null); }} aria-label="关闭提示"><X size={15} /></button></div>}</div>;
 }
 
 function AccountEntryModal({ onClose,onSave,data,draft,setDraft,editing }: { onClose: () => void; onSave: () => void; data: WealthData; draft: AccountDraft; setDraft: Dispatch<SetStateAction<AccountDraft>>; editing: boolean; }) {
-  const parentAccounts=data.accounts.filter((account) => account.status!=="inactive"&&account.status!=="deleted");
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if(event.currentTarget===event.target) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title"><div className="modal-header"><div><div className="panel-kicker">WEALTH ATLAS / ACCOUNTS</div><h2 id="account-modal-title">{editing? "编辑账户":"新增账户"}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="关闭"><X size={19} /></button></div><div className="form-stack"><label>账户名称<input autoFocus placeholder="例如：日常现金" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current,name: event.target.value }))} /></label><div className="form-grid"><label>账户分组<input placeholder="例如：现金管理" value={draft.accountGroup??""} onChange={(event) => setDraft((current) => ({ ...current,accountGroup: event.target.value }))} /></label><label>机构<input placeholder="例如：DBS / Maybank" value={draft.institution??""} onChange={(event) => setDraft((current) => ({ ...current,institution: event.target.value }))} /></label></div><div className="form-grid"><label>类型<select value={draft.type} onChange={(event) => setDraft((current) => ({ ...current,type: event.target.value as Account["type"] }))}><option value="bank">银行账户</option><option value="cash">现金</option><option value="investment">投资账户</option><option value="credit-card">信用卡</option></select></label><label>币种<select value={draft.currency} onChange={(event) => setDraft((current) => ({ ...current,currency: event.target.value as CurrencyCode }))}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label></div><label>父账户（可选）<select value={draft.parentAccountId??""} onChange={(event) => setDraft((current) => ({ ...current,parentAccountId: event.target.value }))}><option value="">无父账户</option>{parentAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label><label>开户余额<input type="number" step="0.01" value={draft.balance} onChange={(event) => setDraft((current) => ({ ...current,balance: event.target.value }))} /></label><label className="checkbox-label"><input type="checkbox" checked={draft.includeInNetWorth!==false} onChange={(event) => setDraft((current) => ({ ...current,includeInNetWorth: event.target.checked }))} />计入净资产</label><p className="form-help">账户改名、分组和机构信息会同步到所有显示和导出；历史交易、转账与汇率快照不会被重写。</p><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>取消</button><button type="button" className="primary-button" onClick={onSave}>保存账户</button></div></div></div></div>;
+  const availableMainAccounts=getAvailableMainAccounts(data.accounts,draft.sourceAccountId);
+  const currentParent=draft.parentAccountId
+    ? data.accounts.find((account) => account.id===draft.parentAccountId&&account.status!=="inactive"&&account.status!=="deleted")
+    : undefined;
+  const parentAccounts=currentParent&&!availableMainAccounts.some((account) => account.id===currentParent.id)
+    ? [currentParent,...availableMainAccounts]
+    : availableMainAccounts;
+  const isMainCreation=!editing&&draft.entryMode==="main";
+  const modalTitle=editing? "编辑账户":draft.entryMode==="child"? "新增子账户":isMainCreation? "新增主账号":"新增账户";
+
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if(event.currentTarget===event.target) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title"><div className="modal-header"><div><div className="panel-kicker">WEALTH ATLAS / ACCOUNTS</div><h2 id="account-modal-title">{modalTitle}</h2></div><button type="button" className="icon-button" onClick={onClose} aria-label="关闭账户弹窗" title="关闭"><X size={19} /></button></div><div className="form-stack"><label>账户名称<input autoFocus placeholder="例如：日常现金" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current,name: event.target.value }))} /></label><div className="form-grid"><label>账户分组<input placeholder="例如：现金管理" value={draft.accountGroup??""} onChange={(event) => setDraft((current) => ({ ...current,accountGroup: event.target.value }))} /></label><label>机构<input placeholder="例如：DBS / Maybank" value={draft.institution??""} onChange={(event) => setDraft((current) => ({ ...current,institution: event.target.value }))} /></label></div><div className="form-grid"><label>类型<select value={draft.type} onChange={(event) => setDraft((current) => ({ ...current,type: event.target.value as Account["type"] }))}><option value="bank">银行账户</option><option value="cash">现金</option><option value="investment">投资账户</option><option value="credit-card">信用卡</option></select></label><label>币种<select value={draft.currency} onChange={(event) => setDraft((current) => ({ ...current,currency: event.target.value as CurrencyCode }))}>{currencies.map((currency) => <option key={currency}>{currency}</option>)}</select></label></div><label>{isMainCreation? "主账号":"主账号（可选）"}<select value={isMainCreation? "":draft.parentAccountId??""} disabled={isMainCreation} onChange={(event) => setDraft((current) => ({ ...current,parentAccountId: event.target.value }))}><option value="">无主账号</option>{!isMainCreation&&parentAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label>{!isMainCreation&&parentAccounts.length===0&&<div className="account-parent-empty"><span>目前没有可用的主账户，请先新增主账户。</span><button type="button" className="text-button" onClick={() => setDraft((current) => ({ ...current,parentAccountId:"",entryMode:"main",sourceAccountId:undefined }))} aria-label="新增主账户" title="新增主账户">新增主账户</button></div>}<label>开户余额<input type="number" step="0.01" value={draft.balance} onChange={(event) => setDraft((current) => ({ ...current,balance: event.target.value }))} /></label><label className="checkbox-label"><input type="checkbox" checked={draft.includeInNetWorth!==false} onChange={(event) => setDraft((current) => ({ ...current,includeInNetWorth: event.target.checked }))} />计入净资产</label><p className="form-help">主账号只用于整理账户层级，不会产生转账，也不会改变账户余额、历史交易或净资产计算。</p><p className="form-help">账户改名、分组和机构信息会同步到所有显示和导出；历史交易、转账与汇率快照不会被重写。</p><div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>取消</button><button type="button" className="primary-button" onClick={onSave}>保存账户</button></div></div></div></div>;
 }
 
 function CategoryManagerModal({ onClose,onSave,onEdit,onDeactivate,onPermanentDelete,canPermanentlyDelete,onRestore,categories,draft,setDraft,editingId }: { onClose: () => void; onSave: () => void; onEdit: (category: TransactionCategory) => void; onDeactivate: (category: TransactionCategory) => void; onPermanentDelete: (category: TransactionCategory) => void; canPermanentlyDelete: (category: TransactionCategory) => boolean; onRestore: (category: TransactionCategory) => void; categories: TransactionCategory[]; draft: { name: string; kind: TransactionCategory["kind"]; icon: string; color: string; }; setDraft: Dispatch<SetStateAction<{ name: string; kind: TransactionCategory["kind"]; icon: string; color: string; }>>; editingId: string|null; }) {

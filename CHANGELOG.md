@@ -1,4 +1,29 @@
 # Changelog
+## [1.4.4] - 2026-08-14
+
+- Fixed the missing-FX-path recursion that could raise RangeError: Maximum call stack size exceeded during the first desktop render.
+- Added browser clipboard, safe Electron IPC clipboard, selectable manual text, and local diagnostic-file fallbacks without relaxing renderer sandbox permissions.
+- Split IndexedDB open/read failure states into retryable startup stages that never replace an unreadable snapshot with blank data.
+- Added SHA-256 backup manifests and short-window cross-process duplicate-backup prevention while retaining all existing backups.
+- Added synthetic FX, migration, diagnostic fallback, IndexedDB failure, responsive error-page, and v1.4.3 upgrade regression coverage.
+## [1.4.3] - 2026-08-14
+
+- Unified package, Electron, static page, error screen, installer metadata, release notes, and release checks on the package.json application version.
+- Added ten-stage desktop startup reporting with bounded, local-only, privacy-filtered diagnostics.
+- Added local snapshot backup before app-version updates or schema repair/migration, without changing schema version 10 or deleting older backups.
+- Added guarded restart and backup-location actions to the existing dark startup error page.
+- Added independent versioned Windows release directories plus v1.4.2 upgrade and rollback compatibility tests.
+
+## [1.4.2] - 2026-08-14
+
+- Refined the existing Obsidian disconnect action with a protected confirmation flow while preserving Vault files, finance snapshots, and sync logs.
+
+## [1.4.1] - 2026-08-13
+
+- Hardened Windows first launch for missing, empty, partial, and legacy IndexedDB snapshots without deleting the original local data.
+- Added a protected React startup error screen with a non-financial diagnostic ID and copy action.
+- Added bounded UTF-8 main and renderer logs plus startup status under `%APPDATA%\Wealth Atlas\logs\`, created before the first window loads.
+- Added production asset, custom-protocol, localStorage, service-worker, Obsidian-disconnected, migration, process-crash, persistence, and update-install verification.
 
 ## [1.4.0] - 2026-08-13
 

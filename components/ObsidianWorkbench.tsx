@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   ArrowClockwise,
   ArrowLeft,
@@ -60,16 +60,24 @@ function statusIcon(status: SyncFilePlan["status"]) {
 export default function ObsidianWorkbench({ mode, data, setData, onToast, onNavigate }: { mode: WorkbenchMode; data: WealthData; setData: Dispatch<SetStateAction<WealthData>>; onToast: (message: string) => void; onNavigate: (page: "obsidian" | "settings" | "home") => void }) {
   const [vaultHandle, setVaultHandle] = useState<VaultDirectoryHandle | null>(null);
   const [vaultName, setVaultName] = useState(data.obsidian?.vaultName ?? "");
-  const [busy, setBusy] = useState<"connect" | "scan" | "sync" | "download" | null>(null);
+  const [busy, setBusy] = useState<"connect" | "disconnect" | "scan" | "sync" | "download" | null>(null);
   const [error, setError] = useState("");
+  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
+  const [disconnectError, setDisconnectError] = useState("");
   const [plans, setPlans] = useState<SyncFilePlan[] | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<ObsidianTemplateKey>("daily");
   const [templateDraft, setTemplateDraft] = useState("");
+  const disconnectButtonRef = useRef<HTMLButtonElement>(null);
+  const connectButtonRef = useRef<HTMLButtonElement>(null);
+  const disconnectCancelRef = useRef<HTMLButtonElement>(null);
+  const disconnectDialogRef = useRef<HTMLDivElement>(null);
+  const disconnectInFlightRef = useRef(false);
 
   const defaults = useMemo(() => getDefaultObsidianTemplates(), []);
   const logs = data.syncLogs ?? [];
   const latestLog = logs[0];
   const connected = data.obsidian?.status === "connected" && Boolean(vaultName);
+  const visibleVaultName = connected ? vaultName : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +91,37 @@ export default function ObsidianWorkbench({ mode, data, setData, onToast, onNavi
     }).catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
+
+  const closeDisconnectDialog = () => {
+    if (disconnectInFlightRef.current) return;
+    setDisconnectDialogOpen(false);
+    setDisconnectError("");
+    window.requestAnimationFrame(() => disconnectButtonRef.current?.focus());
+  };
+
+  useEffect(() => {
+    if (!disconnectDialogOpen) return;
+    const frame = window.requestAnimationFrame(() => disconnectCancelRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !disconnectInFlightRef.current) {
+        event.preventDefault();
+        closeDisconnectDialog();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(disconnectDialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? []);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [disconnectDialogOpen]);
 
   useEffect(() => {
     setTemplateDraft(data.obsidianTemplates?.[selectedTemplate] ?? defaults[selectedTemplate]);
@@ -140,14 +179,34 @@ export default function ObsidianWorkbench({ mode, data, setData, onToast, onNavi
     }
   };
 
-  const disconnectVault = async () => {
-    await clearObsidianHandle();
-    setVaultHandle(null);
-    setVaultName("");
-    setPlans(null);
-    setError("");
-    persistSettings({ vaultName: "", status: "disconnected" });
-    onToast("Vault 已断开，浏览器不会再访问本地文件夹");
+  const requestDisconnectVault = () => {
+    if (!connected || busy === "disconnect") return;
+    setDisconnectError("");
+    setDisconnectDialogOpen(true);
+  };
+
+  const confirmDisconnectVault = async () => {
+    if (!connected || disconnectInFlightRef.current) return;
+    disconnectInFlightRef.current = true;
+    setBusy("disconnect");
+    setDisconnectError("");
+    try {
+      await clearObsidianHandle();
+      setVaultHandle(null);
+      setVaultName("");
+      setPlans(null);
+      setError("");
+      persistSettings({ vaultName: "", status: "disconnected" });
+      setDisconnectDialogOpen(false);
+      onToast("已断开 Obsidian Vault 连接");
+      window.requestAnimationFrame(() => connectButtonRef.current?.focus());
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "断开连接失败，请稍后重试。";
+      setDisconnectError(`断开连接失败：${message}`);
+    } finally {
+      disconnectInFlightRef.current = false;
+      setBusy(null);
+    }
   };
 
   const scanVault = async () => {
@@ -214,7 +273,9 @@ export default function ObsidianWorkbench({ mode, data, setData, onToast, onNavi
     }
   };
 
-  const renderConnection = () => <section className="panel obsidian-connection-panel"><div className="panel-title-row"><div><div className="panel-kicker">VAULT CONNECTION</div><h2>Obsidian Vault 连接</h2></div><div className={`vault-status ${connected ? "connected" : data.obsidian?.status === "permission-error" ? "error" : "disconnected"}`}><span />{connected ? "已连接" : data.obsidian?.status === "permission-error" ? "权限异常" : "未连接"}</div></div><div className="vault-connection-body"><div className="vault-identity"><div className="vault-icon"><BookOpenText size={22} /></div><div><strong>{vaultName || "还没有选择本地 Vault"}</strong><span>{vaultName ? "仅在你明确扫描或同步时读取文件" : "选择后会创建财富理财师目录，不会删除已有文件"}</span></div></div><div className="vault-actions"><button className="primary-button compact" onClick={connectVault} disabled={busy === "connect"}>{busy === "connect" ? "连接中…" : vaultName ? "选择其他 Vault" : "选择本地 Vault"}</button>{vaultName && <><button className="secondary-button compact" onClick={reconnectVault} disabled={busy === "connect"}><ArrowClockwise size={16} /> 重新连接</button><button className="text-button danger-text" onClick={disconnectVault}><Prohibit size={16} /> 断开连接</button></>}</div></div>{error && <div className="sync-error" role="alert"><WarningCircle size={18} /><div><strong>需要处理</strong><span>{error}</span></div><button className="icon-button" onClick={() => setError("")} aria-label="关闭错误"><X size={16} /></button></div>}</section>;
+  const renderConnection = () => <section className="panel obsidian-connection-panel"><div className="panel-title-row"><div><div className="panel-kicker">VAULT CONNECTION</div><h2>Obsidian Vault 连接</h2></div><div className={`vault-status ${connected ? "connected" : data.obsidian?.status === "permission-error" ? "error" : "disconnected"}`}><span />{connected ? "已连接" : data.obsidian?.status === "permission-error" ? "权限异常" : "未连接"}</div></div><div className="vault-connection-body"><div className="vault-identity"><div className="vault-icon"><BookOpenText size={22} /></div><div><strong>{visibleVaultName || "还没有选择本地 Vault"}</strong><span>{connected ? "仅在你明确扫描或同步时读取文件" : "选择后会创建财富理财师目录，不会删除已有文件"}</span></div></div><div className="vault-actions"><button ref={connectButtonRef} type="button" className="primary-button compact" onClick={connectVault} disabled={busy === "connect" || busy === "disconnect"} aria-label={vaultName ? "选择其他 Obsidian Vault" : "选择本地 Obsidian Vault"} title={vaultName ? "选择其他 Vault" : "选择本地 Vault"}>{busy === "connect" ? "连接中…" : vaultName ? "选择其他 Vault" : "选择本地 Vault"}</button>{vaultName && <button type="button" className="secondary-button compact" onClick={reconnectVault} disabled={busy === "connect" || busy === "disconnect"} aria-label="重新连接 Obsidian Vault" title="重新连接"><ArrowClockwise size={16} /> 重新连接</button>}{connected && <button ref={disconnectButtonRef} type="button" className="secondary-button compact vault-disconnect-button" onClick={requestDisconnectVault} disabled={busy === "disconnect"} aria-label="断开 Obsidian Vault 连接" title="断开连接"><Prohibit size={16} /> 断开连接</button>}</div></div>{error && <div className="sync-error" role="alert"><WarningCircle size={18} /><div><strong>需要处理</strong><span>{error}</span></div><button type="button" className="icon-button" onClick={() => setError("")} aria-label="关闭错误" title="关闭错误"><X size={16} /></button></div>}</section>;
+
+  const renderDisconnectDialog = () => disconnectDialogOpen ? <div className="modal-backdrop obsidian-disconnect-backdrop" role="presentation" onPointerDown={(event) => { if (event.currentTarget === event.target) closeDisconnectDialog(); }}><div ref={disconnectDialogRef} className="modal confirm-modal obsidian-disconnect-modal" role="dialog" aria-modal="true" aria-labelledby="obsidian-disconnect-title" aria-describedby="obsidian-disconnect-description" aria-busy={busy === "disconnect"}><div className="modal-header"><div><div className="panel-kicker">VAULT CONNECTION</div><h2 id="obsidian-disconnect-title">确认断开 Obsidian Vault 连接吗？</h2></div><button type="button" className="icon-button" onClick={closeDisconnectDialog} disabled={busy === "disconnect"} aria-label="关闭断开连接确认弹窗" title="关闭"><X size={19} /></button></div><p id="obsidian-disconnect-description" className="confirm-lead">断开后，Wealth Atlas 将不再连接当前 Vault。不会删除 Vault 内的文件、笔记或文件夹，也不会删除 Wealth Atlas 的财务资料。</p><div className="confirm-record-summary obsidian-disconnect-summary"><div><span>当前 Vault</span><strong>{vaultName}</strong></div><div><span>连接状态</span><strong>已连接</strong></div></div><div className="confirm-warning"><ShieldCheck size={18} /><span>只会移除 Wealth Atlas 保存的连接授权与当前连接状态；同步日志、财务资料和 Vault 内容都会保留。</span></div>{disconnectError && <div className="sync-error obsidian-disconnect-error" role="alert"><WarningCircle size={18} /><div><strong>无法断开连接</strong><span>{disconnectError}</span></div></div>}<div className="confirm-actions"><button ref={disconnectCancelRef} type="button" className="secondary-button" onClick={closeDisconnectDialog} disabled={busy === "disconnect"}>取消</button><button type="button" className="danger-button obsidian-disconnect-confirm" onClick={confirmDisconnectVault} disabled={busy === "disconnect"} aria-label="确认断开 Obsidian Vault 连接" title="确认断开连接">{busy === "disconnect" ? "正在断开…" : <><Prohibit size={17} />确认断开连接</>}</button></div></div></div> : null;
 
   const renderFallbackDownloads = () => <section className="panel fallback-panel"><div className="panel-title-row"><div><div className="panel-kicker">ZIP FALLBACK</div><h2>无法写入时，仍然可以带走数据</h2></div><CloudArrowDown size={20} /></div><p>浏览器没有文件夹权限时，下载的 ZIP 不会写入 Vault，也不会改变原有文件。</p><div className="download-grid"><button onClick={() => downloadScope("daily")} disabled={busy === "download"}><FileText size={18} /><span>每日 ZIP</span><small>当天 Markdown</small></button><button onClick={() => downloadScope("monthly")} disabled={busy === "download"}><FileText size={18} /><span>每月 ZIP</span><small>月度复盘 Markdown</small></button><button onClick={() => downloadScope("yearly")} disabled={busy === "download"}><FileText size={18} /><span>每年 ZIP</span><small>年度复盘 Markdown</small></button><button onClick={() => downloadScope("full")} disabled={busy === "download"}><FolderSimple size={18} /><span>完整文件夹 ZIP</span><small>Folder、模板与三类笔记</small></button></div></section>;
 
@@ -224,7 +285,7 @@ export default function ObsidianWorkbench({ mode, data, setData, onToast, onNavi
 
   const renderTemplates = () => <section className="panel template-panel"><div className="panel-title-row"><div><div className="panel-kicker">TEMPLATE STUDIO</div><h2>模板管理</h2></div><GearSix size={20} /></div><p>模板只用于生成新文件；已经存在并含有用户内容的模板不会被自动覆盖。</p><div className="template-tabs">{(Object.keys(templateLabels) as ObsidianTemplateKey[]).map((key) => <button key={key} className={selectedTemplate === key ? "active" : ""} onClick={() => setSelectedTemplate(key)}>{templateLabels[key]}</button>)}</div><textarea className="template-editor" value={templateDraft} onChange={(event) => setTemplateDraft(event.target.value)} spellCheck={false} aria-label={`${templateLabels[selectedTemplate]}内容`} /><div className="template-editor-foot"><span>支持 `{'{{date}}'}`、`{'{{month}}'}`、`{'{{year}}'}` 和自动区域标记</span><button className="primary-button compact" onClick={saveTemplate}><Check size={16} /> 保存模板</button></div></section>;
 
-  if (mode === "settings") return <main className="main-content module-page obsidian-page"><header className="page-header module-header"><div><div className="breadcrumb">WEALTH ATLAS / SETTINGS</div><h1>设置与模板</h1></div><div className="header-actions"><button className="secondary-button compact" onClick={() => onNavigate("home")}><ArrowLeft size={16} /> 返回首页</button></div></header>{renderConnection()}<div className="obsidian-settings-grid"><div><section className="panel folder-panel"><div className="panel-title-row"><div><div className="panel-kicker">FOLDER MAP</div><h2>连接后自动准备的 Folder</h2></div><FolderSimple size={20} /></div><div className="folder-tree"><strong>财富理财师/</strong>{OBSIDIAN_FOLDERS.map((folder) => <span key={folder}>└─ {folder}/</span>)}</div></section>{renderLogs()}</div>{renderTemplates()}</div></main>;
+  if (mode === "settings") return <><main className="main-content module-page obsidian-page"><header className="page-header module-header"><div><div className="breadcrumb">WEALTH ATLAS / SETTINGS</div><h1>设置与模板</h1></div><div className="header-actions"><button className="secondary-button compact" onClick={() => onNavigate("home")}><ArrowLeft size={16} /> 返回首页</button></div></header>{renderConnection()}<div className="obsidian-settings-grid"><div><section className="panel folder-panel"><div className="panel-title-row"><div><div className="panel-kicker">FOLDER MAP</div><h2>连接后自动准备的 Folder</h2></div><FolderSimple size={20} /></div><div className="folder-tree"><strong>财富理财师/</strong>{OBSIDIAN_FOLDERS.map((folder) => <span key={folder}>└─ {folder}/</span>)}</div></section>{renderLogs()}</div>{renderTemplates()}</div></main>{renderDisconnectDialog()}</>;
 
-  return <main className="main-content module-page obsidian-page"><header className="page-header module-header"><div><div className="breadcrumb">WEALTH ATLAS / OBSIDIAN</div><h1>Obsidian 同步工作台</h1></div><div className="header-actions"><button className="secondary-button compact" onClick={() => onNavigate("settings")}><GearSix size={16} /> 设置与模板</button></div></header>{renderConnection()}<div className="obsidian-workspace"><div>{renderPreview()}{renderFallbackDownloads()}</div>{renderLogs()}</div></main>;
+  return <><main className="main-content module-page obsidian-page"><header className="page-header module-header"><div><div className="breadcrumb">WEALTH ATLAS / OBSIDIAN</div><h1>Obsidian 同步工作台</h1></div><div className="header-actions"><button className="secondary-button compact" onClick={() => onNavigate("settings")}><GearSix size={16} /> 设置与模板</button></div></header>{renderConnection()}<div className="obsidian-workspace"><div>{renderPreview()}{renderFallbackDownloads()}</div>{renderLogs()}</div></main>{renderDisconnectDialog()}</>;
 }

@@ -2,6 +2,11 @@ node_modules/
 .next/
 out/
 desktop-dist/
+certificates/
+*.pfx
+*.p12
+*.pem
+*.key
 data/
 exports/
 private-vault/

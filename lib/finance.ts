@@ -14,24 +14,38 @@ export const formatMoney = (amount: number, currency: CurrencyCode = "MYR") =>
     maximumFractionDigits: 2,
   }).format(amount);
 
-export function getRate(rates: FxRate[], base: CurrencyCode, quote: CurrencyCode): number | null {
-  if (base === quote) return 1;
-  const direct = getRateRecord(rates, base, quote);
-  if (direct) return direct.rate;
-  const reverse = getRateRecord(rates, quote, base);
-  if (reverse) return 1 / reverse.rate;
+const SUPPORTED_CURRENCIES: CurrencyCode[] = ["MYR", "SGD", "USD"];
 
-  // Keep the three supported currencies composable. This makes USD → SGD → MYR
-  // valuation explicit while preserving the original manual rates.
-  const bridge: CurrencyCode = base === "MYR" ? "SGD" : base === "USD" ? "SGD" : "MYR";
-  if (bridge !== base && bridge !== quote) {
-    const first = getRate(rates, base, bridge);
-    const second = getRate(rates, bridge, quote);
-    if (first !== null && second !== null) return first * second;
+function findRatePath(rates: FxRate[], base: CurrencyCode, quote: CurrencyCode, asOfDate?: string) {
+  if (base === quote) return 1;
+
+  const queue: Array<{ currency: CurrencyCode; rate: number }> = [{ currency: base, rate: 1 }];
+  const visited = new Set<CurrencyCode>([base]);
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) break;
+
+    for (const next of SUPPORTED_CURRENCIES) {
+      if (next === current.currency || visited.has(next)) continue;
+      const direct = getRateRecord(rates, current.currency, next, asOfDate, Boolean(asOfDate));
+      const reverse = getRateRecord(rates, next, current.currency, asOfDate, Boolean(asOfDate));
+      const edgeRate = direct?.rate ?? (reverse?.rate && reverse.rate > 0 ? 1 / reverse.rate : null);
+      if (edgeRate === null || !Number.isFinite(edgeRate) || edgeRate <= 0) continue;
+
+      const accumulatedRate = current.rate * edgeRate;
+      if (next === quote) return accumulatedRate;
+      visited.add(next);
+      queue.push({ currency: next, rate: accumulatedRate });
+    }
   }
+
   return null;
 }
 
+export function getRate(rates: FxRate[], base: CurrencyCode, quote: CurrencyCode): number | null {
+  return findRatePath(rates, base, quote);
+}
 export function getRateRecord(rates: FxRate[], base: CurrencyCode, quote: CurrencyCode, asOfDate?: string, includeInactive = false) {
   return [...rates]
     .filter((rate) => rate.baseCurrency === base && rate.quoteCurrency === quote && (includeInactive || rate.active !== false) && (!asOfDate || rate.effectiveDate <= asOfDate))
@@ -39,20 +53,8 @@ export function getRateRecord(rates: FxRate[], base: CurrencyCode, quote: Curren
 }
 
 export function getRateAtDate(rates: FxRate[], base: CurrencyCode, quote: CurrencyCode, asOfDate: string): number | null {
-  if (base === quote) return 1;
-  const direct = getRateRecord(rates, base, quote, asOfDate, true);
-  if (direct) return direct.rate;
-  const reverse = getRateRecord(rates, quote, base, asOfDate, true);
-  if (reverse) return 1 / reverse.rate;
-  const bridge: CurrencyCode = base === "MYR" ? "SGD" : base === "USD" ? "SGD" : "MYR";
-  if (bridge !== base && bridge !== quote) {
-    const first: number | null = getRateAtDate(rates, base, bridge, asOfDate);
-    const second: number | null = getRateAtDate(rates, bridge, quote, asOfDate);
-    if (first !== null && second !== null) return first * second;
-  }
-  return null;
+  return findRatePath(rates, base, quote, asOfDate);
 }
-
 export function getRateAgeDays(rate: FxRate | null, fromDate = getLocalDate()) {
   if (!rate) return null;
   const from = new Date(`${fromDate}T00:00:00Z`).getTime();

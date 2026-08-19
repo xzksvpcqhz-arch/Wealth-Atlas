@@ -4,6 +4,7 @@ import { ArrowRight, Bank, CalendarDots, ChartLineUp, Check, CloudArrowDown, Dow
 import { detectDuplicateTransactions } from "@/lib/adapters";
 import { exportChartPng as exportChartPngFile, exportExcel, exportPdfReport as exportPdfReportFile } from "@/lib/exporters";
 import { formatMoney, getCashFlowForecast, getCashFlowForecastSet, getFinanceAlerts, getLocalDate, getWatchlistMetrics, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "@/lib/finance";
+import { reportSafeDiagnostic } from "@/lib/diagnostics";
 import ProtectedDeleteDialog from "@/components/ProtectedDeleteDialog";
 import { SharedMonthPicker,formatMonthLabel,getMonthReferenceDate,getMonthStart,useSharedMonth } from "@/components/MonthPicker";
 import type { CurrencyCode, FinancialReview, Liability, PlannedPayment, Transaction, Watchlist, WealthData } from "@/lib/types";
@@ -265,7 +266,7 @@ function IntegrationsPageLegacy({ data, setData, onToast }: Pick<Props, "data" |
     const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
     const [installEvent, setInstallEvent] = useState<Event | null>(null);
     const pendingImports = (data.importReviews ?? []).filter((item) => item.status === "pending");
-    useEffect(() => { const onlineHandler = () => setOnline(true); const offlineHandler = () => setOnline(false); window.addEventListener("online", onlineHandler); window.addEventListener("offline", offlineHandler); if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_WEALTH_ATLAS_DESKTOP !== "1") void navigator.serviceWorker?.register("/sw.js"); const handler = (event: Event) => { event.preventDefault(); setInstallEvent(event); }; window.addEventListener("beforeinstallprompt", handler); return () => { window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); window.removeEventListener("beforeinstallprompt", handler); }; }, []);
+    useEffect(() => { const onlineHandler = () => setOnline(true); const offlineHandler = () => setOnline(false); window.addEventListener("online", onlineHandler); window.addEventListener("offline", offlineHandler); if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_WEALTH_ATLAS_DESKTOP !== "1") void navigator.serviceWorker?.register("/sw.js").catch((error) => reportSafeDiagnostic("service-worker-register", error)); const handler = (event: Event) => { event.preventDefault(); setInstallEvent(event); }; window.addEventListener("beforeinstallprompt", handler); return () => { window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); window.removeEventListener("beforeinstallprompt", handler); }; }, []);
     const handleFile = async (file: File) => { const text = await file.text(); const rows = parseCsv(text, data); const duplicates = detectDuplicateTransactions(data.transactions, rows as Transaction[]); if (!rows.length)
         return onToast("CSV 中没有可审核的有效记录"); const review = { id: makeId("import"), fileName: file.name, importedAt: new Date().toISOString(), status: "pending" as const, duplicateCount: duplicates.length, rows }; setData((current) => ({ ...current, importReviews: [...(current.importReviews ?? []), review] })); onToast(duplicates.length ? `CSV 已进入审核，${duplicates.length} 笔可能重复` : "CSV 已进入审核中心"); };
     const applyImport = (id: string) => { const review = (data.importReviews ?? []).find((item) => item.id === id); if (!review || review.status !== "pending")
@@ -305,7 +306,7 @@ function IntegrationsPage({ data, setData, onToast }: Pick<Props, "data" | "setD
         window.addEventListener("offline", offlineHandler);
         window.addEventListener("beforeinstallprompt", promptHandler);
         if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_WEALTH_ATLAS_DESKTOP !== "1") {
-            void navigator.serviceWorker?.register("/sw.js");
+            void navigator.serviceWorker?.register("/sw.js").catch((error) => reportSafeDiagnostic("service-worker-register", error));
         }
         return () => {
             window.removeEventListener("online", onlineHandler);
