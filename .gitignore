@@ -11,6 +11,8 @@ data/
 exports/
 private-vault/
 backups/
+outputs/
+review/
 work/
 *.xlsx
 *.csv
