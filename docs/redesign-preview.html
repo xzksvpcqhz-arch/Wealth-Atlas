@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wealth Atlas 重构预览</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============ 基础 token ============ */
+:root{
+  --radius:14px;
+  --blur:18px;
+  --font-display:'Space Grotesk','Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  --font-body:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+}
+/* ---- 8 主题 ---- */
+body[data-theme="deep-space"]{ --canvas:#040b15; --canvas2:#06101d; --surface:rgba(10,23,40,.90); --surface2:rgba(13,30,51,.68); --surface3:#0d1a2c; --text:#eef6ff; --text2:#8292ab; --text3:#5b6c86; --border:rgba(120,157,198,.14); --glass-fill:rgba(20,38,60,.40); }
+body[data-theme="dsh-glass"]{ --canvas:#0c121b; --canvas2:#0a0f16; --surface:#111a27; --surface2:#162130; --surface3:#1c2a3d; --text:#eaf2fc; --text2:#afc3dc; --text3:#6b829f; --border:rgba(126,164,223,.20); --glass-fill:rgba(34,40,50,.20); }
+body[data-theme="violet"]{ --canvas:#0e0a1f; --canvas2:#141030; --surface:#1b1440; --surface2:#221a4e; --surface3:#2a2058; --text:#f2eeff; --text2:#9a8fc8; --text3:#6f66a0; --border:rgba(150,120,255,.18); --glass-fill:rgba(60,48,120,.30); }
+body[data-theme="emerald"]{ --canvas:#061510; --canvas2:#0a1f18; --surface:#0f2a20; --surface2:#133227; --surface3:#1a4030; --text:#eafbf2; --text2:#7fa897; --text3:#587a6c; --border:rgba(80,200,150,.16); --glass-fill:rgba(30,80,60,.30); }
+body[data-theme="graphite"]{ --canvas:#0b0d10; --canvas2:#13161b; --surface:#1a1e25; --surface2:#20252e; --surface3:#272d38; --text:#f0f3f7; --text2:#8a93a3; --text3:#636c7b; --border:rgba(255,255,255,.08); --glass-fill:rgba(255,255,255,.06); }
+body[data-theme="day-clean"]{ --canvas:#f5f7fa; --canvas2:#eef1f6; --surface:#ffffff; --surface2:#f0f3f8; --surface3:#e7ebf2; --text:#111827; --text2:#64748b; --text3:#94a3b8; --border:rgba(17,24,39,.10); --glass-fill:rgba(255,255,255,.65); }
+body[data-theme="day-warm"]{ --canvas:#fbf6ec; --canvas2:#f4ecdc; --surface:#fffdf7; --surface2:#f6efe2; --surface3:#efe5d2; --text:#3a2f22; --text2:#8a7a63; --text3:#a99b85; --border:rgba(58,47,34,.12); --glass-fill:rgba(255,253,247,.70); }
+body[data-theme="day-glacier"]{ --canvas:#edf4fb; --canvas2:#e2ecf7; --surface:#ffffff; --surface2:#eef4fa; --surface3:#dfeaf5; --text:#0f2a43; --text2:#5e7690; --text3:#86a0bb; --border:rgba(15,42,67,.10); --glass-fill:rgba(255,255,255,.65); }
+/* ---- 8 强调色 ---- */
+body[data-accent="cyan"]{ --accent:#3cd9f5; --accent-h:#2bbfe0; }
+body[data-accent="blue"]{ --accent:#4a7fd9; --accent-h:#5e8fe6; }
+body[data-accent="violet"]{ --accent:#a78bfa; --accent-h:#8b6fe8; }
+body[data-accent="pink"]{ --accent:#f472b6; --accent-h:#e05a9f; }
+body[data-accent="orange"]{ --accent:#fb923c; --accent-h:#e87f2a; }
+body[data-accent="green"]{ --accent:#4ade80; --accent-h:#35c46a; }
+body[data-accent="gold"]{ --accent:#e8bc75; --accent-h:#d9a85c; }
+body[data-accent="red"]{ --accent:#f87171; --accent-h:#e75a5a; }
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:radial-gradient(1200px 700px at 70% -10%, color-mix(in srgb,var(--accent) 12%, transparent), transparent), linear-gradient(180deg,var(--canvas),var(--canvas2));
+  color:var(--text);
+  font-family:var(--font-body);
+  font-size:14px; line-height:1.5;
+  min-height:100vh;
+  transition:background .3s, color .3s;
+}
+.display{font-family:var(--font-display); font-variant-numeric:tabular-nums;}
+
+/* ============ 控制栏 ============ */
+.controlbar{
+  position:sticky; top:0; z-index:50;
+  display:flex; flex-wrap:wrap; gap:16px; align-items:center;
+  padding:14px 20px;
+  background:color-mix(in srgb,var(--surface) 88%, transparent);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.controlbar .group{display:flex; align-items:center; gap:6px;}
+.controlbar label{color:var(--text3); font-size:11px; letter-spacing:.06em; text-transform:uppercase; margin-right:2px;}
+.swatch{width:26px;height:26px;border-radius:8px;border:1px solid var(--border);cursor:pointer;position:relative;display:inline-flex;align-items:center;justify-content:center;transition:transform .15s;}
+.swatch:hover{transform:scale(1.1);}
+.swatch.on::after{content:"";position:absolute;inset:3px;border:2px solid #fff;border-radius:5px;box-shadow:0 0 0 1px rgba(0,0,0,.4);}
+.toggle-btn{
+  padding:6px 12px;border:1px solid var(--border);border-radius:999px;background:transparent;color:var(--text);cursor:pointer;font-size:12px;
+}
+.toggle-btn.on{background:var(--accent);color:#04121f;border-color:transparent;font-weight:600;}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.seg button{padding:6px 12px;background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:12px;border-right:1px solid var(--border);}
+.seg button:last-child{border-right:none;}
+.seg button.on{background:var(--accent);color:#04121f;font-weight:600;}
+
+/* ============ 预览布局 ============ */
+.wrap{max-width:1180px;margin:0 auto;padding:28px 22px 80px;}
+.page-title{font-family:var(--font-display);font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin:26px 0 10px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+@media(max-width:900px){.grid3{grid-template-columns:1fr;}}
+
+.panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;position:relative;overflow:hidden;
+}
+body[data-panels="glass"] .glassable{
+  position:relative;
+  background:
+    radial-gradient(120% 90% at 15% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 45%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, #fff 7%, transparent), transparent 55%),
+    var(--glass-fill);
+  backdrop-filter:blur(26px) saturate(175%) brightness(1.04);
+  -webkit-backdrop-filter:blur(26px) saturate(175%) brightness(1.04);
+  border:1px solid color-mix(in srgb, #fff 18%, transparent);
+  border-radius:20px;
+  box-shadow:
+    0 22px 60px rgba(0,0,0,.5),
+    0 4px 12px rgba(0,0,0,.32),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -1px 0 rgba(255,255,255,.06),
+    inset 0 0 40px color-mix(in srgb, var(--accent) 6%, transparent);
+}
+body[data-panels="glass"] .glassable::before{
+  content:"";
+  position:absolute;inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  opacity:.06;mix-blend-mode:overlay;
+}
+body[data-panels="glass"] .glassable::after{
+  content:"";
+  position:absolute;inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0) 30%),
+    linear-gradient(115deg, transparent 20%, rgba(255,255,255,.12) 42%, rgba(255,255,255,.04) 50%, transparent 62%);
+  opacity:.6;
+}
+
+/* ============ 首页 hero 三种方案 ============ */
+.hero{min-height:300px;display:flex;flex-direction:column;}
+.hero .kicker{font-size:11px;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;}
+.hero .big{font-family:var(--font-display);font-weight:700;line-height:1.05;margin:10px 0 4px;white-space:nowrap;}
+.hero .big .cur{font-size:13px;font-weight:500;color:var(--text2);margin-left:6px;vertical-align:top;}
+.hero .sub{color:var(--text2);font-size:12px;}
+/* 方案A 大数字 */
+.heroA .big{font-size:44px;}
+.heroA .sub{font-size:13px;}
+/* 方案B 紧凑速览 */
+.heroB .big{font-size:26px;}
+.heroB .statrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+.heroB .stat{background:color-mix(in srgb,var(--surface2) 70%, transparent);border:1px solid var(--border);border-radius:10px;padding:9px 11px;}
+.heroB .stat b{font-family:var(--font-display);font-size:15px;display:block;}
+.heroB .stat span{font-size:11px;color:var(--text3);}
+/* 方案C 星座环绕 */
+.heroC{text-align:center;align-items:center;justify-content:center;}
+.heroC .orbit{position:relative;width:170px;height:170px;margin:8px auto;}
+.heroC .orbit .ring{position:absolute;inset:0;border:1px solid var(--border);border-radius:50%;}
+.heroC .orbit .ring.r2{inset:26px;}
+.heroC .orbit .node{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+.heroC .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.heroC .center b{font-family:var(--font-display);font-size:26px;white-space:nowrap;}
+.heroC .center span{font-size:10px;color:var(--text3);}
+/* 方案 B+C 混搭 */
+.heroBC{display:flex;gap:20px;align-items:center;min-height:300px;}
+.heroBC .orbit{flex:0 0 200px;position:relative;height:200px;}
+.heroBC .orbit .ring{position:absolute;inset:0;border:1px solid var(--border);border-radius:50%;}
+.heroBC .orbit .ring.r2{inset:32px;}
+.heroBC .orbit .ring.r3{inset:64px;border-style:dashed;}
+.heroBC .orbit .node{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 9px var(--accent);}
+.heroBC .orbit .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.heroBC .orbit .center b{font-family:var(--font-display);font-size:30px;white-space:nowrap;}
+.heroBC .orbit .center span{font-size:10px;color:var(--text3);}
+.heroBC .statgrid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.heroBC .stat{background:color-mix(in srgb,var(--surface2) 70%, transparent);border:1px solid var(--border);border-radius:12px;padding:11px 13px;}
+.heroBC .stat b{font-family:var(--font-display);font-size:17px;display:block;}
+.heroBC .stat span{font-size:11px;color:var(--text3);}
+@media(max-width:760px){.heroBC{flex-direction:column;align-items:center;}}
+/* 最终 hero：本来的星图（星野 + 星座连线）+ 收入/支出右置 */
+.heroFinal{position:relative;display:flex;gap:26px;align-items:center;min-height:320px;padding:30px 32px;overflow:hidden;}
+.heroFinal .stars{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+@keyframes twinkle{0%,100%{opacity:1}50%{opacity:.3}}
+.heroFinal .const{flex:0 0 250px;position:relative;}
+.heroFinal .const svg{width:100%;height:auto;display:block;transform:rotate(-30deg) scale(.92);transform-origin:50% 50%;}
+.heroFinal .free{flex:1;position:relative;min-width:0;}
+.heroFinal .free .kicker{font-size:11px;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;}
+.heroFinal .free .bignum{font-family:var(--font-display);font-weight:650;font-size:clamp(40px,4vw,56px);line-height:.95;letter-spacing:-.05em;margin:14px 0 6px;color:var(--text);overflow-wrap:anywhere;}
+.heroFinal .free .bignum .cur{font-size:14px;font-weight:500;color:var(--text2);letter-spacing:0;margin-left:8px;}
+.heroFinal .free .calc{display:flex;flex-wrap:wrap;gap:8px 16px;color:var(--text2);font-size:12px;margin-top:6px;}
+.heroFinal .free .calc b{color:var(--text);font-family:var(--font-display);font-variant-numeric:tabular-nums;}
+.heroFinal .stats{flex:0 0 190px;display:flex;flex-direction:column;gap:10px;}
+.heroFinal .stat2{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:color-mix(in srgb,var(--surface2) 60%, transparent);}
+.heroFinal .stat2 span{font-size:11px;color:var(--text3);display:block;}
+.heroFinal .stat2 b{font-family:var(--font-display);font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;}
+.heroFinal .stat2.inc b{color:#4ade80;}
+.heroFinal .stat2.exp b{color:#f87171;}
+@media(max-width:760px){.heroFinal{flex-direction:column;align-items:stretch;}.heroFinal .const{flex:none;max-width:220px;margin:0 auto;}.heroFinal .stats{flex:none;flex-direction:row;}.heroFinal .stat2{flex:1;}}
+
+/* ============ 账户（可折叠分组） ============ */
+.acct-group{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden;background:var(--surface);}
+body[data-panels="glass"] .acct-group{background:var(--glass-fill);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);border-radius:20px;border-color:color-mix(in srgb,#fff 14%, transparent);box-shadow:0 18px 48px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.14);}
+.acct-group-head{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;user-select:none;}
+.acct-group-head .chev{margin-left:auto;transition:transform .2s;color:var(--text2);}
+.acct-group-head.open .chev{transform:rotate(90deg);}
+.acct-group-head h3{margin:0;font-size:14px;font-family:var(--font-display);}
+.acct-group-head .tot{margin-left:10px;font-size:11px;color:var(--text3);}
+.acct-body{display:none;padding:0 16px 16px;}
+.acct-group.open .acct-body{display:block;}
+.main-acct{border:1px solid var(--border);border-radius:12px;padding:14px;background:color-mix(in srgb,var(--surface2) 60%, transparent);}
+.main-acct .row{display:flex;justify-content:space-between;align-items:baseline;}
+.main-acct .nm{font-weight:600;}
+.main-acct .bal{font-family:var(--font-display);font-size:20px;font-weight:700;}
+.sub-acct{display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--border);}
+.sub-acct:last-child{border-bottom:none;}
+.sub-acct .nm{font-size:13px;color:var(--text);}
+.sub-acct .mt{font-size:11px;color:var(--text3);display:block;}
+.sub-acct .bal{font-family:var(--font-display);font-weight:600;font-size:15px;}
+.chip{font-size:11px;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 40%, transparent);border-radius:999px;padding:2px 9px;}
+
+/* ============ 收支 ============ */
+.tx-row{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:4px 1px;border-bottom:1px solid var(--border);}
+.tx-row:last-child{border-bottom:none;}
+.tx-ico{width:22px;height:22px;border-radius:7px;background:color-mix(in srgb,var(--accent) 16%, transparent);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:11px;}
+.tx-ico.exp{background:color-mix(in srgb,#f87171 14%, transparent);color:#f87171;}
+.tx-main b{font-size:11.5px;display:block;font-weight:600;line-height:1.25;}
+.tx-main span{font-size:9.5px;color:var(--text3);}
+.tx-amt{font-family:var(--font-display);font-weight:600;font-size:12px;text-align:right;}
+.tx-amt.pos{color:#4ade80;}
+.tx-amt.neg{color:#f87171;}
+.tx-day{font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);padding:6px 1px 1px;border-bottom:1px solid var(--border);font-family:var(--font-display);}
+/* 收支：账户筛选 + 三币种并排 */
+.tx-toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:0 0 12px;}
+.tx-toolbar .tt{font-size:13px;}
+.tx-toolbar .tt span{color:var(--text3);font-size:11px;margin-left:6px;}
+.acct-filter{display:flex;gap:6px;flex-wrap:wrap;}
+.acct-chip{font-size:11px;padding:3px 10px;border:1px solid var(--border);border-radius:999px;color:var(--text2);cursor:pointer;white-space:nowrap;}
+.acct-chip.on{background:var(--accent);color:#04121f;border-color:transparent;font-weight:600;}
+.tx-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.tx-col{min-width:0;border:1px solid var(--border);border-radius:12px;padding:8px 10px;background:color-mix(in srgb,var(--surface2) 45%, transparent);}
+.tx-col-head{display:flex;justify-content:space-between;align-items:baseline;padding:2px 2px 8px;border-bottom:1px solid var(--border);margin-bottom:2px;}
+.tx-col-head span{font-size:10px;letter-spacing:.06em;color:var(--text3);font-family:var(--font-display);}
+.tx-col-head b{font-family:var(--font-display);font-size:15px;font-variant-numeric:tabular-nums;}
+@media(max-width:700px){.tx-cols{grid-template-columns:1fr;}}
+
+.tag{display:inline-block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 45%, transparent);border-radius:6px;padding:1px 7px;margin-bottom:8px;}
+
+.note{margin-top:30px;color:var(--text3);font-size:12px;line-height:1.7;}
+</style>
+</head>
+<body data-theme="deep-space" data-accent="cyan" data-panels="glass">
+
+<div class="controlbar">
+  <div class="group">
+    <label>主题</label>
+    <span class="swatch" data-theme-set="deep-space" style="background:#06101d" title="深空星图"></span>
+    <span class="swatch" data-theme-set="dsh-glass" style="background:#0c121b" title="DSH 玻璃"></span>
+    <span class="swatch" data-theme-set="violet" style="background:#141030" title="紫罗兰夜"></span>
+    <span class="swatch" data-theme-set="emerald" style="background:#0a1f18" title="墨绿森林"></span>
+    <span class="swatch" data-theme-set="graphite" style="background:#13161b" title="石墨灰"></span>
+    <span class="swatch" data-theme-set="day-clean" style="background:#f5f7fa" title="简约亮白"></span>
+    <span class="swatch" data-theme-set="day-warm" style="background:#fbf6ec" title="暖纸"></span>
+    <span class="swatch" data-theme-set="day-glacier" style="background:#edf4fb" title="冰川浅蓝"></span>
+  </div>
+  <div class="group">
+    <label>强调色</label>
+    <span class="swatch" data-accent-set="cyan" style="background:#3cd9f5"></span>
+    <span class="swatch" data-accent-set="blue" style="background:#4a7fd9"></span>
+    <span class="swatch" data-accent-set="violet" style="background:#a78bfa"></span>
+    <span class="swatch" data-accent-set="pink" style="background:#f472b6"></span>
+    <span class="swatch" data-accent-set="orange" style="background:#fb923c"></span>
+    <span class="swatch" data-accent-set="green" style="background:#4ade80"></span>
+    <span class="swatch" data-accent-set="gold" style="background:#e8bc75"></span>
+    <span class="swatch" data-accent-set="red" style="background:#f87171"></span>
+  </div>
+  <div class="group">
+    <label>玻璃</label>
+    <button class="toggle-btn on" id="glassToggle">开</button>
+  </div>
+  <div class="group">
+    <label>星座</label>
+    <select id="zodiacSel" style="padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px;"></select>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="page-title">① 首页 hero —— 本来的星图 + 收入/支出右置</div>
+  <div class="panel glassable heroFinal">
+    <div class="stars" id="starsBox"></div>
+    <div class="const" id="constBox"></div>
+    <div class="free">
+      <div class="kicker">本月可自由使用</div>
+      <div class="bignum">S$ 12,480<span class="cur">SGD</span></div>
+      <div class="calc"><span>流动余额 <b>S$ 18,240</b></span><span>预算剩余 <b>−S$ 3,460</b></span><span>固定付款 <b>−S$ 2,300</b></span></div>
+    </div>
+    <div class="stats">
+      <div class="stat2 inc"><span>本月收入</span><b>+S$ 5,820</b></div>
+      <div class="stat2 exp"><span>本月支出</span><b>−S$ 4,580</b></div>
+    </div>
+  </div>
+
+  <div class="page-title">② 账户管理 —— 分组可折叠</div>
+  <div class="acct-group glassable open">
+    <div class="acct-group-head"><strong>现金管理</strong><span class="tot">4 账户 · S$ 18.2k / RM 5.4k</span><span class="chev">▶</span></div>
+    <div class="acct-body">
+      <div class="main-acct">
+        <div class="row"><span class="nm">SGD 主账户</span><span class="bal display">S$ 12,480</span></div>
+        <div class="row" style="margin-top:6px"><span class="mt">DBS · 银行账户 · 128 笔活动</span><span class="chip">+ 新增子账户</span></div>
+      </div>
+      <div class="sub-acct"><span class="nm">日常现金<span class="mt">DBS 支票 · 62 笔</span></span><span class="bal display">S$ 3,210</span></div>
+      <div class="sub-acct"><span class="nm">储蓄<span class="mt">OCBC · 34 笔</span></span><span class="bal display">S$ 2,560</span></div>
+    </div>
+  </div>
+  <div class="acct-group glassable">
+    <div class="acct-group-head"><strong>马来西亚</strong><span class="tot">2 账户 · RM 5.4k</span><span class="chev">▶</span></div>
+    <div class="acct-body" style="color:var(--text3)">（折叠态示例，点击展开）</div>
+  </div>
+
+  <div class="page-title">③ 收支记录 —— 账户筛选 + 三币种并排</div>
+  <div class="panel glassable" style="max-width:900px;">
+    <div class="tx-toolbar">
+      <div class="tt">收支记录<span>8月 · 128 笔</span></div>
+      <div class="acct-filter">
+        <span class="acct-chip on">全部账户</span>
+        <span class="acct-chip">SGD 主账户</span>
+        <span class="acct-chip">日常现金</span>
+        <span class="acct-chip">Maybank</span>
+      </div>
+    </div>
+    <div class="tx-cols">
+      <div class="tx-col">
+        <div class="tx-col-head"><span>SGD</span><b>S$ 1,240</b></div>
+        <div class="tx-row"><div class="tx-ico">¥</div><div class="tx-main"><b>工资</b><span>收入 · DBS</span></div><div class="tx-amt pos">+5,820.00</div></div>
+        <div class="tx-row"><div class="tx-ico exp">↓</div><div class="tx-main"><b>房租</b><span>支出 · 住房</span></div><div class="tx-amt neg">−2,400.00</div></div>
+        <div class="tx-row"><div class="tx-ico exp">↓</div><div class="tx-main"><b>外食</b><span>支出 · 餐饮</span></div><div class="tx-amt neg">−86.40</div></div>
+      </div>
+      <div class="tx-col">
+        <div class="tx-col-head"><span>MYR</span><b>RM 860</b></div>
+        <div class="tx-row"><div class="tx-ico exp">↓</div><div class="tx-main"><b>水电</b><span>支出 · 家庭</span></div><div class="tx-amt neg">−220.00</div></div>
+        <div class="tx-row"><div class="tx-ico exp">↓</div><div class="tx-main"><b>杂货</b><span>支出 · 日常</span></div><div class="tx-amt neg">−86.40</div></div>
+        <div class="tx-row"><div class="tx-ico">⇄</div><div class="tx-main"><b>SGD → MYR</b><span>转账 · 3.48</span></div><div class="tx-amt">+6,960.00</div></div>
+      </div>
+      <div class="tx-col">
+        <div class="tx-col-head"><span>USD</span><b>US$ 120</b></div>
+        <div class="tx-row"><div class="tx-ico">↗</div><div class="tx-main"><b>VOO 定投</b><span>投资 · 美股</span></div><div class="tx-amt neg">−120.00</div></div>
+        <div class="tx-row"><div class="tx-ico pos">+</div><div class="tx-main"><b>股息</b><span>收入 · 美股</span></div><div class="tx-amt pos">+8.40</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    提示：顶部栏可切换 8 套主题、8 个强调色、玻璃开/关、<b>星座月份</b>（下拉预览 12 星座本色）；所有区块实时变。<br>
+    本轮改动：背景 ⭐ 加了自然感——随机旋转、大小幂律分布（多数小星少数大星）、轻微成簇、随机闪烁（twinkle）、冷暖色微差、大星带柔光。<br>
+    看看是否更自然了。</div>
+</div>
+
+<script>
+  const body=document.body;
+  // ---- 12 黄道星座（按月，各自本色）----
+  const ZODIAC=[
+    {n:'白羊座 Aries',c:'#FF6B4A',p:[[70,170,2.5],[90,155,2],[115,138,2],[145,120,2],[175,105,3],[200,105,2]],e:[[0,1],[1,2],[2,3],[3,4],[4,5]]},
+    {n:'金牛座 Taurus',c:'#7FB069',p:[[125,120,4],[85,170,2.5],[165,170,2.5],[60,150,2],[35,115,2],[190,150,2],[215,115,2]],e:[[1,0],[0,2],[1,3],[3,4],[2,5],[5,6]]},
+    {n:'双子座 Gemini',c:'#F2C14E',p:[[80,70,3],[80,105,2],[80,140,2],[170,70,3],[170,105,2],[170,140,2],[80,50,2],[170,50,2]],e:[[6,0],[0,1],[1,2],[7,3],[3,4],[4,5]]},
+    {n:'巨蟹座 Cancer',c:'#9EC5E8',p:[[125,60,3],[125,90,2],[125,120,2],[95,155,2],[155,155,2]],e:[[0,1],[1,2],[2,3],[2,4]]},
+    {n:'狮子座 Leo',c:'#F5C542',p:[[150,165,5],[130,140,2.5],[105,120,2.5],[80,105,2],[62,82,2],[52,55,2.5],[185,80,3],[210,130,2.5],[200,185,3.5]],e:[[0,1],[1,2],[2,3],[3,4],[4,5],[0,6],[6,7],[7,8],[8,0]]},
+    {n:'处女座 Virgo',c:'#C8A56A',p:[[125,60,3],[125,90,2],[95,120,2],[155,120,2],[125,150,2],[125,185,2.5]],e:[[0,1],[1,2],[1,3],[1,4],[4,5]]},
+    {n:'天秤座 Libra',c:'#F49AC1',p:[[125,55,3],[150,105,2],[125,155,2.5],[100,105,2],[125,185,2]],e:[[0,1],[1,2],[2,3],[3,0],[2,4]]},
+    {n:'天蝎座 Scorpio',c:'#C0392B',p:[[125,55,3],[125,95,2],[125,130,2],[110,165,2],[120,190,2.5],[155,185,2],[95,95,2],[155,95,2]],e:[[0,1],[1,2],[2,3],[3,4],[4,5],[1,6],[1,7]]},
+    {n:'射手座 Sagittarius',c:'#A06BD6',p:[[80,175,2],[120,135,2],[160,95,2.5],[200,55,3],[150,75,2],[165,50,2]],e:[[0,1],[1,2],[2,3],[2,4],[3,4]]},
+    {n:'摩羯座 Capricorn',c:'#8C7A6B',p:[[85,150,2.5],[125,95,3],[165,150,2.5],[125,130,2],[125,165,2]],e:[[0,1],[1,2],[1,3],[3,4]]},
+    {n:'水瓶座 Aquarius',c:'#3E9DE0',p:[[85,70,2.5],[110,105,2],[85,140,2],[110,175,2.5],[135,155,2],[135,120,2]],e:[[0,1],[1,2],[2,3],[3,4],[4,5]]},
+    {n:'双鱼座 Pisces',c:'#4FB3A9',p:[[125,55,3],[95,125,2],[125,195,2.5],[155,125,2],[175,125,2]],e:[[0,1],[1,2],[0,3],[3,2],[3,4]]},
+  ];
+  function starPath(cx,cy,R){
+    const pts=[];
+    for(let k=0;k<10;k++){
+      const rr=k%2===0?R:R*0.45;
+      const a=-Math.PI/2+k*Math.PI/5;
+      pts.push(`${(cx+rr*Math.cos(a)).toFixed(1)},${(cy+rr*Math.sin(a)).toFixed(1)}`);
+    }
+    return pts.join(' ');
+  }
+  function renderBackgroundStars(){
+    const box=document.getElementById('starsBox');
+    if(!box) return;
+    // 冷暖微差的星色（偏真实夜空）
+    const colors=['#ffffff','#f2f6ff','#dbe9ff','#8fc7ff','#ffedda','#ffe3b0'];
+    // 轻微成簇：4 个簇中心 + 30% 均匀散布
+    const clusters=[[18,26],[68,14],[82,62],[36,78],[55,45]];
+    let html='';
+    for(let i=0;i<34;i++){
+      let x,y;
+      if(Math.random()<0.7){
+        const c=clusters[i%clusters.length];
+        x=Math.min(97,Math.max(2,c[0]+(Math.random()*26-13)));
+        y=Math.min(97,Math.max(2,c[1]+(Math.random()*26-13)));
+      }else{
+        x=Math.random()*96+2; y=Math.random()*96+2;
+      }
+      // 自然大小分布：多数小星、少数大星
+      const r=Math.random();
+      let size=r<0.55? 3+Math.random()*4 : r<0.85? 7+Math.random()*5 : 12+Math.random()*7;
+      size=+size.toFixed(1);
+      const op=+(0.2+Math.random()*0.65).toFixed(2);
+      const rot=Math.round(Math.random()*360);
+      const c=colors[Math.floor(Math.random()*colors.length)];
+      const dur=+(1.6+Math.random()*2.6).toFixed(2);
+      const delay=+(Math.random()*3).toFixed(2);
+      const glow=size>=10?` filter:drop-shadow(0 0 ${(size/4).toFixed(1)}px ${c});`:'';
+      html+=`<span style="position:absolute;left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;opacity:${op}"><svg style="width:${size}px;height:${size}px;transform:rotate(${rot}deg);animation:twinkle ${dur}s ease-in-out ${delay}s infinite${glow}" viewBox="0 0 10 10"><polygon points='${starPath(5,5,4.8)}' fill='${c}'/></svg></span>`;
+    }
+    box.innerHTML=html;
+  }
+  function renderZodiac(z){
+    const lines=z.e.map(([a,b])=>`<line x1='${z.p[a][0]}' y1='${z.p[a][1]}' x2='${z.p[b][0]}' y2='${z.p[b][1]}'/>`).join('');
+    const stars=z.p.map(([x,y,r],i)=>{
+      const R=r*1.7;
+      const b=0.42+((i*37)%10)/10*0.58; // 确定性随机明暗 0.42..1.0
+      const glow=b>0.68?`<circle cx='${x}' cy='${y}' r='${(R*1.9).toFixed(1)}' fill='${z.c}' opacity='${(0.14+ (b-0.68)*0.5).toFixed(2)}'/>`:'';
+      return glow+`<polygon points='${starPath(x,y,R)}' fill='${z.c}' opacity='${b.toFixed(2)}'/>`;
+    }).join('');
+    document.getElementById('constBox').innerHTML=`<svg viewBox='0 0 250 250' fill='none'><g stroke='${z.c}' stroke-width='1.1' opacity='.5'>${lines}</g><g>${stars}</g></svg>`;
+  }
+  const sel=document.getElementById('zodiacSel');
+  ZODIAC.forEach((z,i)=>{const o=document.createElement('option');o.value=i;o.textContent=z.n;sel.appendChild(o);});
+  const thisMonth=new Date().getMonth(); // 0=1月 ... 7=8月
+  sel.value=thisMonth;
+  sel.addEventListener('change',()=>renderZodiac(ZODIAC[+sel.value]));
+  renderZodiac(ZODIAC[thisMonth]);
+  renderBackgroundStars();
+
+  document.querySelectorAll('[data-theme-set]').forEach(s=>s.addEventListener('click',()=>{
+    body.dataset.theme=s.dataset.themeSet;
+    document.querySelectorAll('[data-theme-set]').forEach(x=>x.classList.toggle('on',x===s));
+  }));
+  document.querySelectorAll('[data-accent-set]').forEach(s=>s.addEventListener('click',()=>{
+    body.dataset.accent=s.dataset.accentSet;
+    document.querySelectorAll('[data-accent-set]').forEach(x=>x.classList.toggle('on',x===s));
+  }));
+  const gt=document.getElementById('glassToggle');
+  gt.addEventListener('click',()=>{
+    const on=body.dataset.panels!=='glass';
+    body.dataset.panels=on?'glass':'standard';
+    gt.textContent=on?'开':'关';
+    gt.classList.toggle('on',on);
+  });
+  document.querySelectorAll('.acct-group-head').forEach(h=>h.addEventListener('click',()=>h.parentElement.classList.toggle('open')));
+  // 初始选中态
+  document.querySelector('[data-theme-set="deep-space"]').classList.add('on');
+  document.querySelector('[data-accent-set="cyan"]').classList.add('on');
+</script>
+</body>
+</html>
