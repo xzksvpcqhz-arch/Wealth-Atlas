@@ -33,6 +33,8 @@ import {
   Sun,
   Moon,
   Palette,
+  CaretLeft,
+  CaretRight,
 } from "@phosphor-icons/react";
 import { exportExcel } from "@/lib/exporters";
 import ObsidianWorkbench from "@/components/ObsidianWorkbench";
@@ -89,12 +91,26 @@ import { DiagnosticFailurePanel } from "@/components/AppErrorBoundary";
 import ZodiacHero from "@/components/ZodiacHero";
 import AppearanceModal from "@/components/AppearanceModal";
 import { DEFAULT_APPEARANCE, loadAppearance, saveAppearance, THEMES, themeMode, toggleMode, type Appearance } from "@/lib/appearance";
+import { applyBackgroundToDom, getActiveBackgroundData } from "@/lib/backgrounds";
 import { getDesktopBridge } from "@/lib/desktop";
 import type { Account,AnnualPlan,CurrencyCode,Goal,MonthlyBudget,Transaction,TransactionCategory,Transfer,WealthData } from "@/lib/types";
 
 const today=getLocalDate();
 const currentMonth=today.slice(0,7);
 const currencies: CurrencyCode[]=["SGD","MYR","USD"];
+const ENGLISH_MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const CHINESE_WEEKDAYS=["星期日","星期一","星期二","星期三","星期四","星期五","星期六"];
+function formatHomeDate(dateStr: string) {
+  const [y,m,d]=dateStr.split("-").map(Number);
+  const dt=new Date(y,m-1,d);
+  return `${d} ${ENGLISH_MONTHS[m-1]} ${y} · ${CHINESE_WEEKDAYS[dt.getDay()]}`;
+}
+function shiftDate(dateStr: string, delta: number) {
+  const [y,m,d]=dateStr.split("-").map(Number);
+  const dt=new Date(y,m-1,d);
+  dt.setDate(dt.getDate()+delta);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+}
 
 const approvedBaselineData: WealthData={
   reportCurrency: "MYR",
@@ -355,6 +371,22 @@ export default function WealthAtlasV2() {
   const updateAppearance=(next: Appearance) => { setAppearance(next); saveAppearance(next); };
   const currentMode=themeMode(appearance.theme);
   const [collapsedAccountGroups,setCollapsedAccountGroups]=useState<Record<string,boolean>>({});
+  const [selectedDate,setSelectedDate]=useState<string>(today);
+  const dateInputRef=useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    applyBackgroundToDom(getActiveBackgroundData());
+  },[]);
+  const changeHomeDate=(delta: number) => {
+    const next=shiftDate(selectedDate,delta);
+    setSelectedDate(next);
+    setSelectedMonth(next.slice(0,7));
+  };
+  const setHomeDate=(value: string) => {
+    if(!value) return;
+    setSelectedDate(value);
+    setSelectedMonth(value.slice(0,7));
+  };
   const toggleAccountGroup=(group: string) => setCollapsedAccountGroups((current) => ({ ...current,[group]: !current[group] }));
 
   useEffect(() => {
@@ -961,8 +993,14 @@ export default function WealthAtlasV2() {
     ];
     return <main className="main-content">
       {renderHeader("HOME","我的财富星图",{ label: "记一笔",onClick: openTransaction,icon: Plus })}
+      <div className="home-date-line">
+        <button type="button" className="date-nav-btn" onClick={() => changeHomeDate(-1)} aria-label="前一天" title="前一天"><CaretLeft size={15} weight="bold" /></button>
+        <button type="button" className="date-current" onClick={() => dateInputRef.current?.showPicker()} aria-label="选择日期" title="选择日期">{formatHomeDate(selectedDate)}</button>
+        <input ref={dateInputRef} type="date" value={selectedDate} onChange={(e) => setHomeDate(e.target.value)} className="date-hidden-input" tabIndex={-1} aria-hidden="true" />
+        <button type="button" className="date-nav-btn" onClick={() => changeHomeDate(1)} aria-label="后一天" title="后一天"><CaretRight size={15} weight="bold" /></button>
+      </div>
       <section className="home-quick-toolbar" aria-label="首页快捷操作">
-        <div className="quick-toolbar-intro"><strong>快速记录</strong><span>把常用操作放在数据总览之前；操作只会写入本地设备。</span></div>
+        <div className="quick-toolbar-intro"><strong>快速记录</strong><span>常用操作 · 仅写入本地设备</span></div>
         <div className="quick-toolbar-grid">
           <button type="button" className="quick-toolbar-button primary" onClick={openTransaction} aria-label="记一笔收支" title="记一笔"><Receipt size={17}/><span>记一笔</span></button>
           <button type="button" className="quick-toolbar-button" onClick={() => openTransfer()} aria-label="记录 SGD 转 MYR" title="记录 SGD 转 MYR"><ArrowsLeftRight size={17}/><span>记转账</span></button>

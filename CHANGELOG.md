@@ -1,4 +1,10 @@
 # Changelog
+## [1.6.0] - 2026-08-22
+
+- 首页调整：快速记录工具栏整理、星座左右切换（默认按当日星座，按每星座日期范围显示）、Home Layout 文案整理。
+- Added a selectable home date line (day navigation + native date picker) shown as "DD August YYYY · 星期".
+- Added uploadable background images/GIFs with a 10-item history, applied across the whole app.
+
 ## [1.5.0] - 2026-08-21
 
 - Added a themeable appearance engine: 8 themes (5 dark + 3 light), 8 accent colors, and a glass-panel toggle, applied instantly and persisted locally.

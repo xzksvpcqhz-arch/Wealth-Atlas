@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { getZodiacForDate, starBrightness, starPoints } from "@/lib/zodiac";
+import { useMemo, useState } from "react";
+import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { formatZodiacRange, getZodiacIndex, starBrightness, starPoints, ZODIAC } from "@/lib/zodiac";
 import { formatMoney } from "@/lib/finance";
 import type { CurrencyCode } from "@/lib/types";
 
@@ -71,8 +72,9 @@ function buildBgStars(): BgStar[] {
 export default function ZodiacHero({
   freeToSpend, liquidBalance, budgetRemaining, upcomingTotal, reportCurrency, monthlyIncome, monthlyExpenses,
 }: ZodiacHeroProps) {
-  const zodiac = useMemo(() => getZodiacForDate(new Date()), []);
+  const [zodiacIndex, setZodiacIndex] = useState<number>(() => getZodiacIndex(new Date()));
   const bgStars = useMemo(buildBgStars, []);
+  const zodiac = ZODIAC[zodiacIndex];
 
   const lines = zodiac.edges
     .map(([a, b]) => {
@@ -89,6 +91,9 @@ export default function ZodiacHero({
       return glow + `<polygon points='${starPoints(s.x, s.y, R)}' fill='${zodiac.color}' opacity='${b.toFixed(2)}'/>`;
     })
     .join("");
+
+  const prev = () => setZodiacIndex((i) => (i - 1 + ZODIAC.length) % ZODIAC.length);
+  const next = () => setZodiacIndex((i) => (i + 1) % ZODIAC.length);
 
   return (
     <section className="panel zodiac-hero" aria-label={`${zodiac.name}星座 · 本月可自由使用`}>
@@ -115,7 +120,11 @@ export default function ZodiacHero({
           <g stroke={zodiac.color} strokeWidth="1.1" opacity="0.5" dangerouslySetInnerHTML={{ __html: lines }} />
           <g dangerouslySetInnerHTML={{ __html: stars }} />
         </svg>
-        <div className="zodiac-caption"><span>{zodiac.name}</span><em>{zodiac.latin}</em></div>
+        <div className="zodiac-caption">
+          <span>{zodiac.name}</span>
+          <em>{zodiac.latin}</em>
+          <small>{formatZodiacRange(zodiac)}</small>
+        </div>
       </div>
       <div className="zodiac-free">
         <div className="panel-kicker">本月可自由使用</div>
@@ -127,6 +136,10 @@ export default function ZodiacHero({
         </div>
       </div>
       <div className="zodiac-side">
+        <div className="zodiac-nav" aria-label="切换星座">
+          <button type="button" className="zodiac-nav-btn" onClick={prev} aria-label="上一个星座" title="上一个星座"><CaretLeft size={16} weight="bold" /></button>
+          <button type="button" className="zodiac-nav-btn" onClick={next} aria-label="下一个星座" title="下一个星座"><CaretRight size={16} weight="bold" /></button>
+        </div>
         <div className="zodiac-stat income"><span>本月收入</span><b>{formatMoney(monthlyIncome, reportCurrency)}</b></div>
         <div className="zodiac-stat expense"><span>本月支出</span><b>{formatMoney(monthlyExpenses, reportCurrency)}</b></div>
       </div>

@@ -179,7 +179,7 @@ export default function HomeLayoutGrid({ items, onNotify }: { items: HomeLayoutI
       <div className="home-layout-toolbar-copy">
         <div className="panel-kicker">HOME LAYOUT</div>
         <h2>把首页排成你的工作台</h2>
-        <p>{isMobile ? "手机端保持单栏浏览，拖动和调整大小已关闭。" : layoutEditing ? "拖动模块改变顺序，使用右下角手柄调整大小。" : "首页偏好只保存模块位置和尺寸，不会保存财务金额。"}</p>
+        <p>{isMobile ? "手机端保持单栏浏览" : layoutEditing ? "拖动模块改变顺序，拖右下角手柄调整大小" : "拖动模块调整位置与尺寸 · 只保存排版，不保存金额"}</p>
       </div>
       <div className="home-layout-toolbar-actions">
         {isEditing && <button type="button" className="secondary-button compact" onClick={resetLayouts} aria-label="恢复默认首页排版" title="恢复默认排版"><Sparkle size={16} />恢复默认排版</button>}
