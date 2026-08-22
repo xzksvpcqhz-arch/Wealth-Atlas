@@ -1129,6 +1129,7 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
   outline-offset: 2px;
 }
 .month-select.month-select-control {
+  position: relative;
   max-width: 100%;
   cursor: pointer;
   transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease;
@@ -1141,9 +1142,19 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
   border-color: var(--cyan);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 14%, transparent);
 }
+.month-label {
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .month-input {
-  width: 128px;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
   border: 0;
   outline: 0;
   padding: 0;
@@ -1151,7 +1162,6 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
   background: transparent;
   color-scheme: dark;
   font: inherit;
-  font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 .month-input::-webkit-calendar-picker-indicator {
@@ -1348,10 +1358,13 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .zodiac-stars { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
 .zodiac-stars > span { position: absolute; }
 .zodiac-const { flex: 0 0 250px; position: relative; z-index: 1; }
-.zodiac-const svg { width: 100%; height: auto; display: block; transform: rotate(-30deg) scale(.92); transform-origin: 50% 50%; }
-.zodiac-caption { margin-top: 2px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--font-display); }
-.zodiac-caption span { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: .04em; }
-.zodiac-caption em { font-style: normal; font-size: 10px; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); }
+.zodiac-name-block { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 6px; }
+.zodiac-name { font-family: var(--font-display); font-size: 17px; font-weight: 600; color: var(--text); letter-spacing: .04em; }
+.zodiac-arrows { display: flex; justify-content: space-between; width: 100%; gap: 6px; }
+.zodiac-latin { font-style: normal; font-family: var(--font-display); font-size: 10px; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); }
+.zodiac-visual { width: 100%; height: 200px; }
+.zodiac-visual svg { width: 100%; height: 100%; display: block; }
+.zodiac-range { text-align: center; margin-top: 4px; font-size: 11px; color: var(--muted); font-family: var(--font-display); letter-spacing: .02em; }
 .zodiac-free { flex: 1; position: relative; min-width: 0; z-index: 1; }
 .zodiac-free .hero-number { margin-top: 14px; }
 .zodiac-calc { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; font-size: 12px; color: var(--muted-strong); }
@@ -1363,6 +1376,7 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .zodiac-stat.income b { color: var(--green); }
 .zodiac-stat.expense b { color: var(--danger); }
 @keyframes zodiac-twinkle { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+@keyframes zodiac-star-twinkle { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 @media (max-width: 760px) { .zodiac-hero { flex-direction: column; align-items: stretch; } .zodiac-const { flex: none; max-width: 220px; margin: 0 auto; } .zodiac-side { flex: none; flex-direction: row; } .zodiac-stat { flex: 1; } }
 
 /* 外观弹窗 */
@@ -1418,9 +1432,11 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .group-chevron { font-style: normal; margin-left: 8px; color: var(--cyan); }
 
 /* ============ 首页调整 v1.6 ============ */
-/* 自定义背景（全应用） */
-[data-custom-bg] .app-shell { background-image: var(--custom-bg); background-size: cover; background-position: center; background-repeat: no-repeat; }
-[data-custom-bg] .starfield { opacity: .28; }
+/* 自定义背景（全应用，媒体层） */
+.custom-bg-layer { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
+.custom-bg-layer img, .custom-bg-layer video { width: 100%; height: 100%; object-fit: cover; }
+.app-shell.has-custom-bg { background: transparent; }
+.app-shell.has-custom-bg .starfield { opacity: .28; }
 
 /* 首页日期行 */
 .home-date-line { display: flex; align-items: center; gap: 6px; margin: -4px 0 20px; }
@@ -1431,10 +1447,8 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .date-hidden-input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
 
 /* 星座导航 + 日期范围 */
-.zodiac-nav { display: flex; gap: 6px; margin-bottom: 4px; }
-.zodiac-nav-btn { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); background: var(--btn-bg); color: var(--muted-strong); border-radius: 9px; cursor: pointer; }
+.zodiac-nav-btn { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line); background: var(--btn-bg); color: var(--muted-strong); border-radius: 9px; cursor: pointer; flex: 0 0 auto; }
 .zodiac-nav-btn:hover { color: var(--cyan); border-color: var(--line-strong); }
-.zodiac-caption small { font-size: 10px; color: var(--muted); letter-spacing: .02em; text-transform: none; }
 
 /* 背景上传 / 历史 */
 .bg-history { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

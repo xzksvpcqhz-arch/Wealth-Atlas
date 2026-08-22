@@ -69,6 +69,24 @@ function buildBgStars(): BgStar[] {
   return stars;
 }
 
+/** Catmull-Rom → 三次贝塞尔，生成平滑曲线路径。 */
+function smoothPathD(points: Array<[number, number]>): string {
+  if (points.length < 2) return "";
+  let d = `M ${points[0][0]} ${points[0][1]}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 4;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 4;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 4;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 4;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2[0]} ${p2[1]}`;
+  }
+  return d;
+}
+
 export default function ZodiacHero({
   freeToSpend, liquidBalance, budgetRemaining, upcomingTotal, reportCurrency, monthlyIncome, monthlyExpenses,
 }: ZodiacHeroProps) {
@@ -76,20 +94,24 @@ export default function ZodiacHero({
   const bgStars = useMemo(buildBgStars, []);
   const zodiac = ZODIAC[zodiacIndex];
 
-  const lines = zodiac.edges
-    .map(([a, b]) => {
-      const s1 = zodiac.stars[a];
-      const s2 = zodiac.stars[b];
-      return `<line x1='${s1.x}' y1='${s1.y}' x2='${s2.x}' y2='${s2.y}'/>`;
-    })
-    .join("");
-  const stars = zodiac.stars
-    .map((s, i) => {
-      const b = starBrightness(i);
-      const R = s.r * 1.7;
-      const glow = b > 0.68 ? `<circle cx='${s.x}' cy='${s.y}' r='${(R * 1.9).toFixed(1)}' fill='${zodiac.color}' opacity='${(0.14 + (b - 0.68) * 0.5).toFixed(2)}'/>` : "";
-      return glow + `<polygon points='${starPoints(s.x, s.y, R)}' fill='${zodiac.color}' opacity='${b.toFixed(2)}'/>`;
-    })
+  // 平滑曲线路径（细线）
+  const paths = zodiac.glyph.map((poly) => `<path d='${smoothPathD(poly)}'/>`).join("");
+  // 星点：轻微抖动 + 首尾亮（带光圈）+ 中间随机有无光圈，更自然
+  const stars = zodiac.glyph
+    .flatMap((poly, pi) => poly.map(([x, y], i) => {
+      const idx = pi * 20 + i;
+      const isEdge = i === 0 || i === poly.length - 1;
+      const base = starBrightness(idx);
+      const b = isEdge ? Math.max(base, 0.9) : base;
+      const jx = +(x + ((idx * 13) % 9) - 4.5).toFixed(1);
+      const jy = +(y + ((idx * 7) % 9) - 4.5).toFixed(1);
+      const R = isEdge ? +(9.5 + (idx % 3)).toFixed(1) : +(4 + b * 6).toFixed(1);
+      const dur = +(2.2 + (idx % 4) * 0.5).toFixed(2);
+      const delay = +((idx * 0.37) % 2.4).toFixed(2);
+      const hasGlow = isEdge || ((idx * 11) % 3 === 0);
+      const glow = hasGlow ? `<circle cx='${jx}' cy='${jy}' r='${(R * 1.9).toFixed(1)}' fill='${zodiac.color}' opacity='${(0.16 + (b - 0.6) * 0.4).toFixed(2)}'/>` : "";
+      return glow + `<polygon points='${starPoints(jx, jy, R)}' fill='${zodiac.color}' fill-opacity='${b.toFixed(2)}' style='animation:zodiac-star-twinkle ${dur}s ease-in-out ${delay}s infinite'/>`;
+    }))
     .join("");
 
   const prev = () => setZodiacIndex((i) => (i - 1 + ZODIAC.length) % ZODIAC.length);
@@ -116,15 +138,25 @@ export default function ZodiacHero({
         ))}
       </div>
       <div className="zodiac-const">
-        <svg viewBox="0 0 250 250" fill="none" aria-hidden="true">
-          <g stroke={zodiac.color} strokeWidth="1.1" opacity="0.5" dangerouslySetInnerHTML={{ __html: lines }} />
-          <g dangerouslySetInnerHTML={{ __html: stars }} />
-        </svg>
-        <div className="zodiac-caption">
-          <span>{zodiac.name}</span>
-          <em>{zodiac.latin}</em>
-          <small>{formatZodiacRange(zodiac)}</small>
+        <div className="zodiac-visual">
+          <svg viewBox="0 0 250 250" fill="none" aria-hidden="true">
+            <defs>
+              <radialGradient id="zodiac-nebula"><stop offset="0%" stopColor={zodiac.color} stopOpacity="0.22" /><stop offset="100%" stopColor={zodiac.color} stopOpacity="0" /></radialGradient>
+            </defs>
+            <circle cx="125" cy="125" r="105" fill="url(#zodiac-nebula)" />
+            <g stroke={zodiac.color} strokeWidth="0.9" opacity="0.72" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: paths }} />
+            <g dangerouslySetInnerHTML={{ __html: stars }} />
+          </svg>
         </div>
+        <div className="zodiac-name-block">
+          <span className="zodiac-name">{zodiac.name}</span>
+          <div className="zodiac-arrows">
+            <button type="button" className="zodiac-nav-btn" onClick={prev} aria-label="上一个星座" title="上一个星座"><CaretLeft size={15} weight="bold" /></button>
+            <button type="button" className="zodiac-nav-btn" onClick={next} aria-label="下一个星座" title="下一个星座"><CaretRight size={15} weight="bold" /></button>
+          </div>
+          <em className="zodiac-latin">{zodiac.latin}</em>
+        </div>
+        <div className="zodiac-range">{formatZodiacRange(zodiac)}</div>
       </div>
       <div className="zodiac-free">
         <div className="panel-kicker">本月可自由使用</div>
@@ -136,10 +168,6 @@ export default function ZodiacHero({
         </div>
       </div>
       <div className="zodiac-side">
-        <div className="zodiac-nav" aria-label="切换星座">
-          <button type="button" className="zodiac-nav-btn" onClick={prev} aria-label="上一个星座" title="上一个星座"><CaretLeft size={16} weight="bold" /></button>
-          <button type="button" className="zodiac-nav-btn" onClick={next} aria-label="下一个星座" title="下一个星座"><CaretRight size={16} weight="bold" /></button>
-        </div>
         <div className="zodiac-stat income"><span>本月收入</span><b>{formatMoney(monthlyIncome, reportCurrency)}</b></div>
         <div className="zodiac-stat expense"><span>本月支出</span><b>{formatMoney(monthlyExpenses, reportCurrency)}</b></div>
       </div>

@@ -12,6 +12,13 @@ export function formatMonthLabel(month: string) {
   return monthValuePattern.test(month) ? `${month.slice(0, 4)}年${month.slice(5, 7)}月` : month;
 }
 
+const EN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+export function formatMonthLabelEn(month: string) {
+  if (!monthValuePattern.test(month)) return month;
+  const [year, monthNumber] = month.split("-").map(Number);
+  return `${EN_MONTHS[monthNumber - 1]} ${year}`;
+}
+
 export function shiftMonth(month: string, offset: number) {
   if (!monthValuePattern.test(month)) return month;
   const [year, monthNumber] = month.split("-").map(Number);
@@ -89,6 +96,7 @@ export default function MonthPicker({ value, onChange, ariaLabel = "选择查看
     </button>
     <label className="month-select month-select-control">
       <CalendarDots size={18} aria-hidden="true" />
+      <span className="month-label" aria-hidden="true">{formatMonthLabelEn(value)}</span>
       <input
         className="month-input"
         type="month"
