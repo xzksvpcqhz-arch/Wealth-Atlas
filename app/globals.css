@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+/* Space Grotesk（自托管，桌面离线可用） */
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-400.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-600.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-700.ttf") format("truetype");
+}
+
 :root {
   --bg: #06101d;
   --bg-deep: #040b15;
@@ -27,7 +57,7 @@
   --panel-grad-b: rgba(7, 18, 32, 0.88);
   --glass-fill: rgba(20, 38, 60, 0.42);
   --glass-blur: 20px;
-  --font-display: var(--font-space-grotesk), "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-display: "Space Grotesk", "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 /* ---- 8 套主题 ---- */
