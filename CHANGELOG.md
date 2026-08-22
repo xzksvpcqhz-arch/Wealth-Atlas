@@ -1,4 +1,14 @@
 # Changelog
+## [1.5.0] - 2026-08-21
+
+- Added a themeable appearance engine: 8 themes (5 dark + 3 light), 8 accent colors, and a glass-panel toggle, applied instantly and persisted locally.
+- Added a day/night quick toggle in the sidebar and an appearance modal (theme / accent / glass).
+- Added Space Grotesk for headings and amounts (self-hosted for offline desktop use).
+- Redesigned the home hero as a current-month zodiac constellation with native color and bilingual caption, plus income/expense summaries.
+- Made account groups collapsible.
+- Redesigned the transactions view with per-account filter chips and SGD / MYR / USD three-column grouping.
+- Migrated hardcoded colors to themed CSS variables so every theme renders correctly in dark and light modes.
+
 ## [1.4.4] - 2026-08-14
 
 - Fixed the missing-FX-path recursion that could raise RangeError: Maximum call stack size exceeded during the first desktop render.
