@@ -38,14 +38,17 @@ export function serializeSnapshot(data: WealthData): string {
  */
 export function parseSnapshot(input: unknown): WealthData {
   const parsed = typeof input === "string" ? JSON.parse(input) : input;
-  if (parsed && typeof parsed === "object") {
-    const candidate = parsed as Record<string, unknown>;
-    if (candidate.format === SNAPSHOT_FORMAT && candidate.data && typeof candidate.data === "object") {
-      return candidate.data as WealthData;
+  let candidate: Record<string, unknown> | null = null;
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const obj = parsed as Record<string, unknown>;
+    if (obj.format === SNAPSHOT_FORMAT && obj.data && typeof obj.data === "object" && !Array.isArray(obj.data)) {
+      candidate = obj.data as Record<string, unknown>;
+    } else {
+      candidate = obj;
     }
-    if (Array.isArray(candidate.accounts) && typeof candidate.reportCurrency === "string") {
-      return candidate as WealthData;
-    }
+  }
+  if (candidate && Array.isArray(candidate.accounts) && typeof candidate.reportCurrency === "string") {
+    return candidate as unknown as WealthData;
   }
   throw new Error("不是有效的 Wealth Atlas 快照文件。");
 }

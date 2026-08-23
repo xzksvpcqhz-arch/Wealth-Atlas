@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { ArrowClockwise, Database, ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 import { getDesktopBridge, type BackupEntry } from "@/lib/desktop";
+import { normalizeAssets } from "@/lib/asset-normalization";
 import { getWealthDataSchemaVersion, migrateWealthData } from "@/lib/migrations";
 import { parseSnapshot } from "@/lib/snapshot-backup";
 import type { WealthData } from "@/lib/types";
@@ -55,7 +56,15 @@ export default function BackupRestorePanel({ data, setData, onToast }: {
       await bridge.writeAutosave({ snapshot: data, schemaVersion: getWealthDataSchemaVersion(data) });
       const snapshot = await bridge.readBackup(confirmTarget.id, confirmTarget.kind);
       const next = migrateWealthData(parseSnapshot(snapshot));
-      setData(next);
+      const assetMigration = normalizeAssets(next.assets);
+      setData({
+        ...next,
+        assets: assetMigration.normalized,
+        assetMigrationBackups: [
+          ...(next.assetMigrationBackups ?? []),
+          ...assetMigration.backups.filter((backup) => !(next.assetMigrationBackups ?? []).some((item) => item.assetId === backup.assetId)),
+        ],
+      });
       setConfirmTarget(null);
       onToast("已从备份恢复，资料已重新载入");
     } catch (cause) {

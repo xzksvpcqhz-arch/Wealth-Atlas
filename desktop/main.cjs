@@ -411,7 +411,7 @@ async function listBackups() {
     for (const entry of entries.filter((item) => item.isDirectory()).sort((a, b) => b.name.localeCompare(a.name))) {
       const folder = path.join(directory, entry.name);
       let metadata = null;
-      try { metadata = JSON.parse(await fs.readFile(path.join(folder, "metadata.json"), "utf8")); } catch { /* incomplete folder is skipped */ }
+      try { metadata = JSON.parse(await fs.readFile(path.join(folder, "metadata.json"), "utf8")); } catch { continue; }
       let hasSnapshot = false;
       try { await fs.stat(path.join(folder, "wealth-data.json")); hasSnapshot = true; } catch { /* no snapshot */ }
       if (!hasSnapshot) continue;
@@ -433,8 +433,18 @@ async function readBackup(payload) {
   const kind = payload?.kind === "autosave" ? "autosave" : "backup";
   if (!id || /[^A-Za-z0-9._-]/.test(id)) throw new Error("Backup id is invalid.");
   const directory = kind === "autosave" ? autosavesDirectory() : backupsDirectory();
-  const raw = await fs.readFile(path.join(directory, id, "wealth-data.json"), "utf8");
-  return JSON.parse(raw);
+  const buffer = await fs.readFile(path.join(directory, id, "wealth-data.json"));
+  try {
+    const metadata = JSON.parse(await fs.readFile(path.join(directory, id, "metadata.json"), "utf8"));
+    if (typeof metadata?.snapshotSha256 === "string") {
+      const actual = createHash("sha256").update(buffer).digest("hex");
+      if (actual !== metadata.snapshotSha256) throw new Error("Backup file integrity check failed.");
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message === "Backup file integrity check failed.") throw error;
+    // Missing/unparseable metadata: keep compatibility with older backup folders without a hash.
+  }
+  return JSON.parse(buffer.toString("utf8"));
 }
 
 async function writeSmokeLog(message) {
