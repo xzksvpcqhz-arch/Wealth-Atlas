@@ -1,4 +1,7 @@
 const { app, BrowserWindow, clipboard, dialog, ipcMain, protocol, session, shell } = require("electron");
+// electron-updater 仅桌面版需要，未打包时静默跳过（不阻断启动）
+let autoUpdater = null;
+try { autoUpdater = require("electron-updater").autoUpdater; } catch { /* 开发/未打包 electron-updater 时忽略 */ }
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
@@ -1271,6 +1274,18 @@ async function runSmoke(window, mode) {
   return window.webContents.executeJavaScript(snapshotScript(mode));
 }
 
+function setupAutoUpdater() {
+  if (!app.isPackaged || !autoUpdater) return; // 开发模式或未打包 updater 时不检查
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-downloaded", () => {
+    writeMainLog("update-downloaded");
+    autoUpdater.quitAndInstall();
+  });
+  autoUpdater.on("error", (error) => writeMainLog("update-error", { message: String(error?.message ?? error) }));
+  autoUpdater.checkForUpdatesAndNotify().catch(() => { /* 静默失败，不影响使用 */ });
+}
+
 app.whenReady().then(async () => {
   await writeSmokeLog("app-ready");
   writeMainLog("app-ready");
@@ -1292,6 +1307,7 @@ app.whenReady().then(async () => {
   recordStartupStage("logs-directory", "success");
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   const window = createMainWindow();
+  setupAutoUpdater();
   await writeSmokeLog("window-created");
   writeMainLog("browser-window-created");
   recordStartupStage("browser-window", "success");

@@ -16,6 +16,7 @@
     "desktop:test": "node scripts/desktop-persistence-test.mjs",
     "desktop:package": "node scripts/windows-release.mjs",
     "release:windows": "node scripts/windows-release.mjs",
+    "release:publish": "set WEALTH_ATLAS_PUBLISH=1&& node scripts/windows-release.mjs",
     "release:check": "node scripts/windows-release-check.mjs",
     "release:test-installed": "node scripts/windows-installed-release-test.mjs",
     "ai:review": "node scripts/deepseek-review.mjs",
@@ -23,8 +24,17 @@
     "read:review": "node scripts/read-hermes-review.mjs"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
     "@phosphor-icons/react": "^2.1.7",
+    "@tailwindcss/postcss": "^4.1.11",
+    "@types/node": "^24.2.1",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
     "dexie": "^4.0.11",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
     "motion": "^13.0.0",
@@ -33,17 +43,9 @@
     "react-dom": "^19.1.1",
     "react-grid-layout": "^2.2.4",
     "recharts": "^3.1.2",
-    "zod": "^4.0.17"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.11",
-    "@types/node": "^24.2.1",
-    "@types/react": "^19.1.9",
-    "@types/react-dom": "^19.1.7",
-    "electron": "^43.4.0",
-    "electron-builder": "^26.15.3",
     "tailwindcss": "^4.1.11",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "zod": "^4.0.17"
   },
   "build": {
     "appId": "com.wealthatlas.desktop",
@@ -53,7 +55,6 @@
       "output": "desktop-dist"
     },
     "files": [
-      "!node_modules/**/*",
       "out/**/*",
       "desktop/**/*",
       "build/icon.svg",
@@ -62,6 +63,11 @@
     "asar": true,
     "npmRebuild": false,
     "artifactName": "Wealth-Atlas-Setup.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "xzksvpcqhz-arch",
+      "repo": "wealth-atlas"
+    },
     "win": {
       "target": "nsis",
       "icon": "build/icon.svg",

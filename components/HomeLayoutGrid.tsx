@@ -5,7 +5,7 @@ import { ArrowsOutCardinal, Check, DotsSixVertical, Sparkle } from "@phosphor-ic
 import { Responsive, WidthProvider, type LayoutItem, type ResponsiveLayouts } from "react-grid-layout/legacy";
 
 const ResponsiveGrid = WidthProvider(Responsive);
-const STORAGE_KEY = "wealth-atlas.home-layout";
+const STORAGE_KEY = "wealth-atlas.home-layout-v2";
 const BREAKPOINTS = ["lg", "md", "sm"] as const;
 type HomeBreakpoint = (typeof BREAKPOINTS)[number];
 type HomeLayouts = ResponsiveLayouts<HomeBreakpoint>;
@@ -14,46 +14,37 @@ const COLUMNS: Record<HomeBreakpoint, number> = { lg: 12, md: 8, sm: 1 };
 
 export const DEFAULT_HOME_LAYOUTS: HomeLayouts = {
   lg: [
-    { i: "free", x: 0, y: 0, w: 5, h: 5 },
-    { i: "income", x: 5, y: 0, w: 3, h: 3 },
-    { i: "expense", x: 8, y: 0, w: 4, h: 3 },
-    { i: "net-worth", x: 5, y: 3, w: 3, h: 2 },
-    { i: "budget", x: 8, y: 3, w: 4, h: 2 },
-    { i: "accounts", x: 0, y: 5, w: 5, h: 5 },
-    { i: "sgd-myr", x: 5, y: 5, w: 2, h: 3 },
-    { i: "usd-sgd", x: 7, y: 5, w: 2, h: 3 },
-    { i: "currency", x: 9, y: 5, w: 3, h: 3 },
-    { i: "recent", x: 0, y: 10, w: 6, h: 6 },
-    { i: "watchlist", x: 6, y: 10, w: 3, h: 5 },
-    { i: "reminders", x: 9, y: 10, w: 3, h: 5 },
+    { i: "net-worth", x: 0, y: 0, w: 4, h: 4 },
+    { i: "budget", x: 4, y: 0, w: 4, h: 4 },
+    { i: "accounts", x: 8, y: 0, w: 4, h: 4 },
+    { i: "sgd-myr", x: 0, y: 4, w: 4, h: 4 },
+    { i: "usd-sgd", x: 4, y: 4, w: 4, h: 4 },
+    { i: "currency", x: 8, y: 4, w: 4, h: 4 },
+    { i: "recent", x: 0, y: 8, w: 8, h: 7 },
+    { i: "watchlist", x: 8, y: 8, w: 4, h: 5 },
+    { i: "reminders", x: 8, y: 13, w: 4, h: 5 },
   ],
   md: [
-    { i: "free", x: 0, y: 0, w: 8, h: 5 },
-    { i: "income", x: 0, y: 5, w: 4, h: 3 },
-    { i: "expense", x: 4, y: 5, w: 4, h: 3 },
-    { i: "net-worth", x: 0, y: 8, w: 4, h: 3 },
-    { i: "budget", x: 4, y: 8, w: 4, h: 3 },
-    { i: "accounts", x: 0, y: 11, w: 8, h: 5 },
-    { i: "sgd-myr", x: 0, y: 16, w: 4, h: 3 },
-    { i: "usd-sgd", x: 4, y: 16, w: 4, h: 3 },
-    { i: "currency", x: 0, y: 19, w: 8, h: 3 },
-    { i: "recent", x: 0, y: 22, w: 8, h: 5 },
-    { i: "watchlist", x: 0, y: 27, w: 8, h: 5 },
-    { i: "reminders", x: 0, y: 32, w: 8, h: 5 },
+    { i: "net-worth", x: 0, y: 0, w: 4, h: 4 },
+    { i: "budget", x: 4, y: 0, w: 4, h: 4 },
+    { i: "accounts", x: 0, y: 4, w: 8, h: 5 },
+    { i: "sgd-myr", x: 0, y: 9, w: 4, h: 4 },
+    { i: "usd-sgd", x: 4, y: 9, w: 4, h: 4 },
+    { i: "currency", x: 0, y: 13, w: 4, h: 4 },
+    { i: "recent", x: 4, y: 13, w: 4, h: 6 },
+    { i: "watchlist", x: 0, y: 19, w: 8, h: 5 },
+    { i: "reminders", x: 0, y: 24, w: 8, h: 5 },
   ],
   sm: [
-    { i: "free", x: 0, y: 0, w: 1, h: 5 },
-    { i: "income", x: 0, y: 5, w: 1, h: 3 },
-    { i: "expense", x: 0, y: 8, w: 1, h: 3 },
-    { i: "net-worth", x: 0, y: 11, w: 1, h: 3 },
-    { i: "budget", x: 0, y: 14, w: 1, h: 3 },
-    { i: "accounts", x: 0, y: 17, w: 1, h: 5 },
-    { i: "sgd-myr", x: 0, y: 22, w: 1, h: 3 },
-    { i: "usd-sgd", x: 0, y: 25, w: 1, h: 3 },
-    { i: "currency", x: 0, y: 28, w: 1, h: 3 },
-    { i: "recent", x: 0, y: 31, w: 1, h: 5 },
-    { i: "watchlist", x: 0, y: 36, w: 1, h: 5 },
-    { i: "reminders", x: 0, y: 41, w: 1, h: 5 },
+    { i: "net-worth", x: 0, y: 0, w: 1, h: 4 },
+    { i: "budget", x: 0, y: 4, w: 1, h: 4 },
+    { i: "accounts", x: 0, y: 8, w: 1, h: 5 },
+    { i: "sgd-myr", x: 0, y: 13, w: 1, h: 4 },
+    { i: "usd-sgd", x: 0, y: 17, w: 1, h: 4 },
+    { i: "currency", x: 0, y: 21, w: 1, h: 4 },
+    { i: "recent", x: 0, y: 25, w: 1, h: 6 },
+    { i: "watchlist", x: 0, y: 31, w: 1, h: 5 },
+    { i: "reminders", x: 0, y: 36, w: 1, h: 5 },
   ],
 };
 
@@ -187,7 +178,7 @@ export default function HomeLayoutGrid({ items, onNotify }: { items: HomeLayoutI
       </div>
     </div>
     {layoutEditing && <div className="home-layout-edit-notice" role="status"><DotsSixVertical size={17} /><span>编辑模式已开启，完成后点击“完成排版”才会退出。</span></div>}
-    {isLoading ? <div className="home-layout-loading" role="status"><div className="home-layout-skeleton skeleton-wide" /><div className="home-layout-skeleton" /><div className="home-layout-skeleton" /><span>正在读取首页排版…</span></div> : visibleItems.length === 0 ? <div className="panel home-layout-empty"><Sparkle size={28} /><strong>暂无可调整的首页模块</strong><span>首页模块加载后会出现在这里。</span></div> : <ResponsiveGrid className="home-layout-grid" layouts={layouts} breakpoints={{ lg: 1100, md: 760, sm: 0 }} cols={COLUMNS} rowHeight={56} margin={[14, 14]} containerPadding={[0, 0]} compactType="vertical" preventCollision={false} isDraggable={layoutEditing} isResizable={layoutEditing} resizeHandles={layoutEditing ? ["se"] : []} draggableHandle=".home-layout-drag-handle" onBreakpointChange={(breakpoint) => setActiveBreakpoint(breakpoint as HomeBreakpoint)} onLayoutChange={handleLayoutChange}>
+    {isLoading ? <div className="home-layout-loading" role="status"><div className="home-layout-skeleton skeleton-wide" /><div className="home-layout-skeleton" /><div className="home-layout-skeleton" /><span>正在读取首页排版…</span></div> : visibleItems.length === 0 ? <div className="panel home-layout-empty"><Sparkle size={28} /><strong>暂无可调整的首页模块</strong><span>首页模块加载后会出现在这里。</span></div> : <ResponsiveGrid className="home-layout-grid" layouts={layouts} breakpoints={{ lg: 1100, md: 760, sm: 0 }} cols={COLUMNS} rowHeight={52} margin={[24, 24]} containerPadding={[0, 0]} compactType="vertical" preventCollision={false} isDraggable={layoutEditing} isResizable={layoutEditing} resizeHandles={layoutEditing ? ["se"] : []} draggableHandle=".home-layout-drag-handle" onBreakpointChange={(breakpoint) => setActiveBreakpoint(breakpoint as HomeBreakpoint)} onLayoutChange={handleLayoutChange}>
       {visibleItems.map((item) => <div key={item.id} className="home-layout-item" data-editing={layoutEditing ? "true" : "false"} data-home-module={item.id} aria-label={item.label}>
         {layoutEditing && <span className="home-layout-drag-handle" aria-label={`拖动${item.label}模块`} role="img"><DotsSixVertical size={16} weight="bold" /></span>}
         {item.children}

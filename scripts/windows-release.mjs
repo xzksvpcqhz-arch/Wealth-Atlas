@@ -88,7 +88,8 @@ Object.assign(process.env, signingEnv);
 await build({
   targets: Platform.WINDOWS.createTarget(["nsis"], Arch.x64),
   config: buildConfig,
-  publish: "never",
+  // 设为 "always" 会上传到 GitHub Releases（需 GH_TOKEN 环境变量），默认只本地构建 + 生成 latest.yml
+  publish: process.env.WEALTH_ATLAS_PUBLISH === "1" ? "always" : "never",
 });
 
 await run(process.execPath, ["scripts/windows-release-check.mjs"], {

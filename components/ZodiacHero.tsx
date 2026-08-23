@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { formatZodiacRange, getZodiacIndex, starBrightness, starPoints, ZODIAC } from "@/lib/zodiac";
 import { formatMoney } from "@/lib/finance";
@@ -14,6 +14,13 @@ interface ZodiacHeroProps {
   reportCurrency: CurrencyCode;
   monthlyIncome: number;
   monthlyExpenses: number;
+  selectedDate?: string;
+}
+
+function parseDate(dateStr: string | undefined): Date {
+  if (!dateStr) return new Date();
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
 }
 
 interface BgStar {
@@ -88,11 +95,16 @@ function smoothPathD(points: Array<[number, number]>): string {
 }
 
 export default function ZodiacHero({
-  freeToSpend, liquidBalance, budgetRemaining, upcomingTotal, reportCurrency, monthlyIncome, monthlyExpenses,
+  freeToSpend, liquidBalance, budgetRemaining, upcomingTotal, reportCurrency, monthlyIncome, monthlyExpenses, selectedDate,
 }: ZodiacHeroProps) {
-  const [zodiacIndex, setZodiacIndex] = useState<number>(() => getZodiacIndex(new Date()));
+  const [zodiacIndex, setZodiacIndex] = useState<number>(() => getZodiacIndex(parseDate(selectedDate)));
   const bgStars = useMemo(buildBgStars, []);
   const zodiac = ZODIAC[zodiacIndex];
+
+  // 日期变化时，星座自动切换到该日所属星座（手动 ◀▶ 浏览也可覆盖）
+  useEffect(() => {
+    if (selectedDate) setZodiacIndex(getZodiacIndex(parseDate(selectedDate)));
+  }, [selectedDate]);
 
   // 平滑曲线路径（细线）
   const paths = zodiac.glyph.map((poly) => `<path d='${smoothPathD(poly)}'/>`).join("");
