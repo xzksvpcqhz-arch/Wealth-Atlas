@@ -99,6 +99,29 @@ await build({
   publish: process.env.WEALTH_ATLAS_PUBLISH === "1" ? "always" : "never",
 });
 
+// 发布后确保只有一个已发布（非草稿）的 release，避免 electron-builder 重复创建
+async function ensureSingleGithubRelease() {
+  if (process.env.WEALTH_ATLAS_PUBLISH !== "1") return;
+  const token = process.env.GH_TOKEN;
+  if (!token) return;
+  const owner = buildConfig.publish?.owner;
+  const repo = buildConfig.publish?.repo;
+  const tag = `v${packageJson.version}`;
+  const api = `https://api.github.com/repos/${owner}/${repo}/releases`;
+  const headers = { "Authorization": `Bearer ${token}`, "User-Agent": "wealth-atlas", "Accept": "application/vnd.github+json" };
+  let releases;
+  try { releases = await fetch(api, { headers }).then((r) => r.json()); } catch { return; }
+  const same = (releases ?? []).filter((rel) => rel.tag_name === tag);
+  if (same.length <= 1) {
+    if (same[0]?.draft) await fetch(`${api}/${same[0].id}`, { method: "PATCH", headers, body: JSON.stringify({ draft: false }) });
+    return;
+  }
+  same.sort((a, b) => b.assets.length - a.assets.length);
+  for (const extra of same.slice(1)) await fetch(`${api}/${extra.id}`, { method: "DELETE", headers });
+  await fetch(`${api}/${same[0].id}`, { method: "PATCH", headers, body: JSON.stringify({ draft: false }) });
+}
+await ensureSingleGithubRelease();
+
 await run(process.execPath, ["scripts/windows-release-check.mjs"], {
   WEALTH_ATLAS_RELEASE_DIR: releaseDirectory,
   WEALTH_ATLAS_RELEASE_SIGNING: signedRelease ? "SIGNED" : "UNSIGNED",
