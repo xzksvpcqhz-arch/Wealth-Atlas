@@ -15,6 +15,7 @@ outputs/
 review/
 work/
 desktop/update-token.json
+.gh-token
 *.xlsx
 *.csv
 *.zip
