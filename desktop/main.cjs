@@ -244,6 +244,12 @@ function backupsDirectory() {
   return path.join(app.getPath("userData"), "backups");
 }
 
+function autosavesDirectory() {
+  return path.join(app.getPath("userData"), "autosaves");
+}
+
+const MAX_AUTOSAVES = 10;
+
 function releaseStatePath() {
   return path.join(app.getPath("userData"), "release-state.json");
 }
@@ -350,6 +356,87 @@ async function createDataBackup(payload) {
   writeMainLog("data-backup-created", { folder: folderName, schemaVersion, reason: payload.reason });
   return sessionBackup;
 }
+
+async function pruneAutosaves() {
+  const root = autosavesDirectory();
+  let entries;
+  try { entries = await fs.readdir(root, { withFileTypes: true }); } catch { return; }
+  const folders = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+    .reverse();
+  for (const name of folders.slice(MAX_AUTOSAVES)) {
+    await fs.rm(path.join(root, name), { recursive: true, force: true });
+  }
+}
+
+async function writeAutosave(payload) {
+  const schemaVersion = Number(payload?.schemaVersion);
+  if (!Number.isInteger(schemaVersion) || schemaVersion < 1) throw new Error("Autosave schema version is invalid.");
+  const snapshotJson = JSON.stringify(payload.snapshot ?? null, null, 2) + "\n";
+  const snapshotBuffer = Buffer.from(snapshotJson, "utf8");
+  const snapshotSha256 = createHash("sha256").update(snapshotBuffer).digest("hex");
+  const root = autosavesDirectory();
+  await fs.mkdir(root, { recursive: true });
+
+  const createdAt = new Date();
+  const milliseconds = String(createdAt.getUTCMilliseconds()).padStart(3, "0");
+  const folderName = backupFolderStamp(createdAt) + milliseconds + "-v" + app.getVersion() + "-schema-" + schemaVersion;
+  const destination = path.join(root, folderName);
+  await fs.mkdir(destination, { recursive: false });
+
+  const metadata = {
+    backupVersion: 3,
+    kind: "autosave",
+    createdAt: createdAt.toISOString(),
+    appVersion: app.getVersion(),
+    schemaVersion,
+    source: "wealth-atlas-desktop",
+    networkUpload: false,
+    snapshotSha256,
+  };
+  await fs.writeFile(path.join(destination, "wealth-data.json"), snapshotBuffer);
+  await fs.writeFile(path.join(destination, "metadata.json"), JSON.stringify(metadata, null, 2) + "\n", "utf8");
+  await pruneAutosaves();
+  writeMainLog("autosave-created", { folder: folderName, schemaVersion });
+  return { path: destination, createdAt: metadata.createdAt };
+}
+
+async function listBackups() {
+  const results = [];
+  for (const [kind, directory] of [["autosave", autosavesDirectory()], ["backup", backupsDirectory()]]) {
+    let entries;
+    try { entries = await fs.readdir(directory, { withFileTypes: true }); } catch { continue; }
+    for (const entry of entries.filter((item) => item.isDirectory()).sort((a, b) => b.name.localeCompare(a.name))) {
+      const folder = path.join(directory, entry.name);
+      let metadata = null;
+      try { metadata = JSON.parse(await fs.readFile(path.join(folder, "metadata.json"), "utf8")); } catch { /* incomplete folder is skipped */ }
+      let hasSnapshot = false;
+      try { await fs.stat(path.join(folder, "wealth-data.json")); hasSnapshot = true; } catch { /* no snapshot */ }
+      if (!hasSnapshot) continue;
+      results.push({
+        id: entry.name,
+        kind,
+        path: folder,
+        createdAt: metadata?.createdAt ?? null,
+        appVersion: metadata?.appVersion ?? "",
+        schemaVersion: metadata?.schemaVersion ?? metadata?.backupVersion ?? null,
+      });
+    }
+  }
+  return results.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
+}
+
+async function readBackup(payload) {
+  const id = String(payload?.id ?? "");
+  const kind = payload?.kind === "autosave" ? "autosave" : "backup";
+  if (!id || /[^A-Za-z0-9._-]/.test(id)) throw new Error("Backup id is invalid.");
+  const directory = kind === "autosave" ? autosavesDirectory() : backupsDirectory();
+  const raw = await fs.readFile(path.join(directory, id, "wealth-data.json"), "utf8");
+  return JSON.parse(raw);
+}
+
 async function writeSmokeLog(message) {
   if (!smokeMode) return;
   await fs.mkdir(app.getPath("userData"), { recursive: true });
@@ -475,6 +562,26 @@ function registerDesktopIpc() {
       writeMainLog("data-backup-failed", { name: error?.name, message: error?.message });
       throw error;
     }
+  });
+
+  ipcMain.handle("desktop:write-autosave", async (event, payload) => {
+    assertTrustedSender(event);
+    try {
+      return await writeAutosave(payload);
+    } catch (error) {
+      writeMainLog("autosave-failed", { name: error?.name, message: error?.message });
+      throw error;
+    }
+  });
+
+  ipcMain.handle("desktop:list-backups", async (event) => {
+    assertTrustedSender(event);
+    return await listBackups();
+  });
+
+  ipcMain.handle("desktop:read-backup", async (event, payload) => {
+    assertTrustedSender(event);
+    return await readBackup(payload);
   });
 
   ipcMain.handle("desktop:mark-startup-ready", async (event) => {

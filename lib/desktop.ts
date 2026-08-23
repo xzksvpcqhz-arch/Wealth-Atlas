@@ -7,6 +7,15 @@ export type DiagnosticFileResult = {
   fileName: string;
 };
 
+export type BackupEntry = {
+  id: string;
+  kind: "autosave" | "backup";
+  path: string;
+  createdAt: string | null;
+  appVersion: string;
+  schemaVersion: number | null;
+};
+
 export type WealthAtlasDesktopBridge = {
   isDesktop: true;
   appVersion: string;
@@ -19,6 +28,9 @@ export type WealthAtlasDesktopBridge = {
   getStartupContext: () => Promise<{ appVersion: string; previousAppVersion: string | null; requiresUpdateBackup: boolean; backupsPath: string }>;
   reportStartupStage: (stage: { stage: string; status: "running" | "success" | "failed"; errorId?: string }) => Promise<boolean>;
   createDataBackup: (payload: { snapshot: unknown; schemaVersion: number; reason: "app-update" | "migration" | "app-update-and-migration" }) => Promise<{ path: string; createdAt: string; reused?: boolean }>;
+  writeAutosave: (payload: { snapshot: unknown; schemaVersion: number }) => Promise<{ path: string; createdAt: string }>;
+  listBackups: () => Promise<BackupEntry[]>;
+  readBackup: (id: string, kind: "autosave" | "backup") => Promise<unknown>;
   markStartupReady: () => Promise<boolean>;
   restartApp: () => Promise<boolean>;
   openBackupsLocation: () => Promise<boolean>;
