@@ -1276,6 +1276,11 @@ async function runSmoke(window, mode) {
 
 function setupAutoUpdater() {
   if (!app.isPackaged || !autoUpdater) return; // 开发模式或未打包 updater 时不检查
+  // 私有仓库自动更新需要 token（从 gitignored 的 update-token.json 读取，源码不含）
+  try {
+    const token = JSON.parse(fsSync.readFileSync(path.join(__dirname, "update-token.json"), "utf8")).token;
+    if (token) process.env.GH_TOKEN = token;
+  } catch { /* 无 token 文件（公开仓库或开发）则跳过 */ }
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on("update-downloaded", () => {

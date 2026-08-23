@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -6,6 +6,13 @@ import { Arch, Platform, build } from "electron-builder";
 import packageJson from "../package.json" with { type: "json" };
 
 const projectRoot = process.cwd();
+
+// 把 GitHub token（GH_TOKEN 环境变量）注入构建产物（gitignored 的 update-token.json），
+// 供已安装应用从私有仓库自动更新使用。源码/提交中不包含 token。
+if (process.env.GH_TOKEN) {
+  writeFileSync(path.join(projectRoot, "desktop", "update-token.json"), JSON.stringify({ token: process.env.GH_TOKEN }), "utf8");
+}
+
 const certificatePath = process.env.WINDOWS_CERTIFICATE_PATH?.trim() ?? "";
 const certificatePassword = process.env.WINDOWS_CERTIFICATE_PASSWORD ?? "";
 const timestampUrl = process.env.WINDOWS_TIMESTAMP_URL?.trim() ?? "";

@@ -14,6 +14,7 @@ backups/
 outputs/
 review/
 work/
+desktop/update-token.json
 *.xlsx
 *.csv
 *.zip
