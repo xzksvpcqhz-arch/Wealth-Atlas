@@ -16,7 +16,8 @@
 
 ## 桌面版发布（GitHub 自动更新）—— 每次发布都要记住
 
-> 仓库现在是**公开**的：`xzksvpcqhz-arch/Wealth-Atlas`。公开仓库的自动更新**不需要 token**（electron-updater 走 GitHub 公开 feed + 下载 URL）；token 只在发布上传时需要。
+> **完整 Step-by-step 流程见 `RELEASE.md`，发布前先读它。**
+> 仓库是**公开**的：`xzksvpcqhz-arch/Wealth-Atlas`。公开仓库的自动更新**不需要 token**（electron-updater 走 GitHub 公开 feed + 下载 URL）；token 只在发布上传时需要。
 
 1. 先验证：`npm test` + `npm run build`。
 2. 版本号必须比当前已发布版本高（否则已安装应用不会触发更新）。
