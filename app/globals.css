@@ -1433,10 +1433,18 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .tx-mini-btn.danger:hover { color: var(--danger); }
 @media (max-width: 700px) { .tx-currency-cols { grid-template-columns: 1fr; } }
 
-/* 账户分组折叠 */
-.account-group-heading { cursor: pointer; }
-.account-group-heading:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; border-radius: 8px; }
-.group-chevron { font-style: normal; margin-left: 8px; color: var(--cyan); }
+/* 账户总览：按币种分栏 + 每列可折叠 */
+.account-ccy-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.account-ccy-toolbar > span { color: var(--muted); font-size: 11px; }
+.account-ccy-toolbar .secondary-button { min-height: 34px; padding: 0 12px; }
+.account-ccy-head { border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; width: 100%; text-align: left; }
+.account-ccy-chevron { font-style: normal; margin-left: 6px; color: var(--cyan); font-size: 10px; }
+.account-ccy-col { padding: 12px 12px 6px; }
+.account-ccy-row.sub { padding-left: 30px; }
+.account-ccy-row .tx-row-ico { flex: 0 0 auto; }
+.account-ccy-family { margin-bottom: 2px; }
+.account-ccy-family:last-child { margin-bottom: 0; }
+.account-ccy-actions { display: inline-flex; gap: 3px; }
 
 /* ============ 首页调整 v1.6 ============ */
 /* 自定义背景（全应用，媒体层） */

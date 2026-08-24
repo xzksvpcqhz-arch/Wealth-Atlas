@@ -4,6 +4,7 @@ import { useEffect,useMemo,useRef,useState,type Dispatch,type ElementType,type S
 import {
   ArrowsLeftRight,
   ArrowRight,
+  Archive,
   Bank,
   Bell,
   Briefcase,
@@ -343,7 +344,7 @@ export default function WealthAtlasV2() {
   },[appearance]);
   const updateAppearance=(next: Appearance) => { setAppearance(next); saveAppearance(next); };
   const currentMode=themeMode(appearance.theme);
-  const [collapsedAccountGroups,setCollapsedAccountGroups]=useState<Record<string,boolean>>({});
+  const [collapsedCurrency,setCollapsedCurrency]=useState<Record<string,boolean>>({});
   const [selectedDate,setSelectedDate]=useState<string>(today);
   const dateInputRef=useRef<HTMLInputElement>(null);
   const [customBg,setCustomBg]=useState<string|null>(null);
@@ -364,7 +365,9 @@ export default function WealthAtlasV2() {
     setSelectedDate(value);
     setSelectedMonth(value.slice(0,7));
   };
-  const toggleAccountGroup=(group: string) => setCollapsedAccountGroups((current) => ({ ...current,[group]: !current[group] }));
+  const toggleCurrencyCol=(currency: string) => setCollapsedCurrency((current) => ({ ...current,[currency]: !current[currency] }));
+  const allCurrencyCollapsed=currencies.every((currency) => collapsedCurrency[currency]);
+  const toggleAllCurrencyCols=() => setCollapsedCurrency(allCurrencyCollapsed? {} : Object.fromEntries(currencies.map((currency) => [currency,true])));
 
   useEffect(() => {
     let cancelled=false;
@@ -660,7 +663,6 @@ export default function WealthAtlasV2() {
     setModal("account");
   };
   const openMainAccount=() => openAccount(undefined,{ entryMode: "main" });
-  const openChildAccount=(parentAccount: Account) => openAccount(undefined,{ entryMode: "child",parentAccount });
 
   const openBudget=(budget?: MonthlyBudget) => {
     if(budget) {
@@ -1004,17 +1006,12 @@ export default function WealthAtlasV2() {
 
   const renderAccounts=() => {
     const archivedAccounts=data.accounts.filter((account) => account.status==="inactive"||account.status==="deleted");
-    const getDisplayGroup=(account: Account) => {
-      const rootAccount=getAccount(data,getAccountRootId(activeAccounts,account.id));
-      return rootAccount?.accountGroup||account.accountGroup||"未分组";
-    };
-    const groups=Array.from(new Set(activeAccounts.map(getDisplayGroup)));
-    const renderAccountActions=(account: Account) => {
+    const renderAccountMiniActions=(account: Account) => {
       const hasHistory=getAccountHistoryCount(data,account.id)>0;
-      return <div className="inline-actions account-row-actions">
-        <button type="button" className="text-button" onClick={() => openAccount(account)} aria-label={"编辑账户 "+account.name} title={"编辑账户 "+account.name}><PencilSimple size={15} /> 编辑</button>
-        <button type="button" className="text-button danger-text" onClick={() => archiveAccount(account)} aria-label={(hasHistory? "停用账户 ":"移入回收站 ")+account.name} title={(hasHistory? "停用账户 ":"移入回收站 ")+account.name}>{hasHistory? "停用账户":"移入回收站"}</button>
-        <button type="button" className="text-button" onClick={() => { setActive("transactions"); setTransactionFilter("all"); }} aria-label={"查看账户活动 "+account.name} title={"查看账户活动 "+account.name}>查看活动</button>
+      return <div className="account-ccy-actions">
+        <button type="button" className="tx-mini-btn" onClick={() => openAccount(account)} aria-label={`编辑账户 ${account.name}`} title="编辑"><PencilSimple size={13} /></button>
+        <button type="button" className="tx-mini-btn danger" onClick={() => archiveAccount(account)} aria-label={`${hasHistory? "停用":"移入回收站"} ${account.name}`} title={hasHistory? "停用":"移入回收站"}><Archive size={13} /></button>
+        <button type="button" className="tx-mini-btn" onClick={() => { setActive("transactions"); setTransactionFilter("all"); }} aria-label={`查看账户活动 ${account.name}`} title="查看活动"><MagnifyingGlass size={13} /></button>
       </div>;
     };
 
@@ -1033,61 +1030,44 @@ export default function WealthAtlasV2() {
           <div><div className="panel-kicker">BALANCE LEDGER</div><h2>余额由流水推导</h2></div>
           <p className="account-ledger-explanation">开户余额 + 收入 - 支出 - 转出 + 转入。账户改名只更新显示，不改变历史交易。</p>
         </div>
-        {activeAccounts.length===0 ? <section className="panel empty-module-state"><h2>还没有启用账户</h2><p>先新增主账号，再按需要把其他账户整理为子账户。</p><button type="button" className="primary-button compact" onClick={openMainAccount}>新增主账号</button></section> : groups.map((group) => {
-          const groupAccounts=activeAccounts.filter((account) => getDisplayGroup(account)===group);
-          const rootAccounts=groupAccounts.filter((account) => getAccountRootId(activeAccounts,account.id)===account.id);
-          const groupCurrencies=Array.from(new Set(groupAccounts.map((account) => account.currency)));
-          const groupBalanceSummary=groupCurrencies.map((currency) => {
-            const balance=groupAccounts.filter((account) => account.currency===currency).reduce((sum,account) => sum+getAccountBalance(data,account.id),0);
-            return formatMoney(balance,currency);
-          }).join(" / ");
-          const groupReportValue=groupAccounts.reduce((sum,account) => sum+(convert(getAccountBalance(data,account.id),account.currency,reportCurrency,data.fxRates)??0),0);
-
-          return <section className="account-group-section" key={group}>
-            <div className="section-heading account-group-heading" role="button" tabIndex={0} aria-expanded={!collapsedAccountGroups[group]} onClick={() => toggleAccountGroup(group)} onKeyDown={(event) => { if(event.key==="Enter"||event.key===" "){ event.preventDefault(); toggleAccountGroup(group); } }}>
-              <div><div className="panel-kicker">ACCOUNT GROUP</div><h2>{group}</h2></div>
-              <span>{groupAccounts.length} 个账户 · {groupBalanceSummary} · {reportCurrency} 报告价值 {formatMoney(groupReportValue,reportCurrency)}<i className="group-chevron" aria-hidden="true">{collapsedAccountGroups[group]? "▸":"▾"}</i></span>
-            </div>
-            {!collapsedAccountGroups[group]&&<section className="account-grid account-hierarchy-grid">
-              {rootAccounts.map((account) => {
-                const balance=getAccountBalance(data,account.id);
-                const childAccounts=groupAccounts.filter((candidate) => candidate.id!==account.id&&getAccountRootId(activeAccounts,candidate.id)===account.id);
-                return <div className="account-family" key={account.id}>
-                  <article className="panel account-card main-account-card">
-                    <div className="account-card-top"><div className={"account-type-icon "+account.type}><Bank size={20} /></div><span className="currency-badge">{account.currency}</span></div>
-                    <h3 title={account.name}>{account.name}</h3>
-                    <div className="account-balance">{formatMoney(balance,account.currency)}</div>
-                    <div className="account-meta"><span>{accountTypeLabels[account.type]}</span><span>{account.institution||"未填写机构"}</span><span>{getAccountActivityCount(data,account.id)} 笔活动</span></div>
-                    <div className="account-card-foot">
-                      <span>{account.parentAccountId? "主账号 · "+(getAccount(data,account.parentAccountId)?.name??"未找到主账号"):"开户余额 "+formatMoney(account.balance,account.currency)}</span>
-                      {renderAccountActions(account)}
-                    </div>
-                  </article>
-                  <section className="child-account-section" aria-label={account.name+" 的子账户"}>
-                    <div className="child-account-heading">
-                      <div><strong>子账户</strong><span>{childAccounts.length>0? childAccounts.length+" 个账户":"还没有子账户"}</span></div>
-                      <button type="button" className="secondary-button compact" onClick={() => openChildAccount(account)} aria-label={"为 "+account.name+" 新增子账户"} title={"为 "+account.name+" 新增子账户"}><Plus size={15} weight="bold" />新增子账户</button>
-                    </div>
-                    {childAccounts.length===0 ? <div className="child-account-empty"><span>可以把日常卡、储蓄或投资账户整理到这个主账号下。</span></div> : <div className="child-account-list">
-                      {childAccounts.map((childAccount) => {
-                        const parentName=getAccount(data,childAccount.parentAccountId??"")?.name??account.name;
-                        return <article className="child-account-row" key={childAccount.id}>
-                          <div className="child-account-copy">
-                            <strong title={childAccount.name}>{childAccount.name}</strong>
-                            <span>{childAccount.institution||"未填写机构"} · {accountTypeLabels[childAccount.type]} · {getAccountActivityCount(data,childAccount.id)} 笔活动</span>
-                            <small>主账号 · {parentName}</small>
-                          </div>
-                          <div className="child-account-value"><span>当前余额</span><b>{formatMoney(getAccountBalance(data,childAccount.id),childAccount.currency)}</b></div>
-                          {renderAccountActions(childAccount)}
-                        </article>;
-                      })}
-                    </div>}
-                  </section>
-                </div>;
-              })}
-            </section>}
-          </section>;
-        })}
+        {activeAccounts.length===0 ? <section className="panel empty-module-state"><h2>还没有启用账户</h2><p>先新增主账号，再按需要把其他账户整理为子账户。</p><button type="button" className="primary-button compact" onClick={openMainAccount}>新增主账号</button></section> : <>
+          <div className="account-ccy-toolbar">
+            <span>按币种查看账户，点表头折叠</span>
+            <button type="button" className="secondary-button compact" onClick={toggleAllCurrencyCols} aria-label={allCurrencyCollapsed? "全部展开":"全部收起"} title={allCurrencyCollapsed? "全部展开":"全部收起"}>{allCurrencyCollapsed? "全部展开":"全部收起"}</button>
+          </div>
+          <section className="tx-currency-cols account-currency-grid">
+            {currencies.map((currency) => {
+              const colAccounts=activeAccounts.filter((account) => account.currency===currency);
+              const colTotal=colAccounts.reduce((sum,account) => sum+getAccountBalance(data,account.id),0);
+              const roots=colAccounts.filter((account) => getAccountRootId(activeAccounts,account.id)===account.id);
+              const collapsed=Boolean(collapsedCurrency[currency]);
+              return <div className="tx-currency-col account-ccy-col" key={currency}>
+                <button type="button" className="tx-currency-head account-ccy-head" onClick={() => toggleCurrencyCol(currency)} aria-expanded={!collapsed} aria-label={(collapsed? "展开":"收起")+currency+" 账户"} title={(collapsed? "展开":"收起")+currency+" 账户"}>
+                  <span>{currency}</span><b>{formatMoney(colTotal,currency)} <i className="account-ccy-chevron" aria-hidden="true">{collapsed? "▸":"▾"}</i></b>
+                </button>
+                {!collapsed&&(roots.length? <div className="account-ccy-list">
+                  {roots.map((root) => {
+                    const children=colAccounts.filter((account) => account.id!==root.id&&getAccountRootId(activeAccounts,account.id)===root.id);
+                    return <div className="account-ccy-family" key={root.id}>
+                      <div className="tx-row account-ccy-row">
+                        <div className="tx-row-ico"><Bank size={13} /></div>
+                        <div className="tx-row-main"><strong title={root.name}>{root.name}</strong><span>{root.currency} · {accountTypeLabels[root.type]}{root.institution? " · "+root.institution:""} · {getAccountActivityCount(data,root.id)} 笔活动</span></div>
+                        <b className="tx-row-amt">{formatMoney(getAccountBalance(data,root.id),root.currency)}</b>
+                        <div className="tx-row-actions">{renderAccountMiniActions(root)}</div>
+                      </div>
+                      {children.map((child) => <div className="tx-row account-ccy-row sub" key={child.id}>
+                        <div className="tx-row-ico"><Bank size={13} /></div>
+                        <div className="tx-row-main"><strong title={child.name}>{child.name}</strong><span>{child.currency} · {accountTypeLabels[child.type]}{child.institution? " · "+child.institution:""} · {getAccountActivityCount(data,child.id)} 笔活动</span></div>
+                        <b className="tx-row-amt">{formatMoney(getAccountBalance(data,child.id),child.currency)}</b>
+                        <div className="tx-row-actions">{renderAccountMiniActions(child)}</div>
+                      </div>)}
+                    </div>;
+                  })}
+                </div> : <div className="tx-col-empty">暂无 {currency} 账户</div>)}
+              </div>;
+            })}
+          </section>
+        </>}
         {archivedAccounts.length>0&&<section className="panel archived-records account-recovery-panel">
           <div className="panel-title-row account-recovery-header"><div><div className="panel-kicker">ACCOUNT RECOVERY</div><h2>停用与回收账户</h2><span>恢复后账户会重新启用；有历史记录的账户会保留资料。</span></div></div>
           <div className="account-recovery-list">
