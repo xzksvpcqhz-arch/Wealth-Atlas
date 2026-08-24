@@ -143,6 +143,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .side-action { border: 1px solid color-mix(in srgb, var(--cyan) 42%, transparent); display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; border-radius: 10px; color: var(--text); background: linear-gradient(135deg, var(--cyan), color-mix(in srgb, var(--cyan) 70%, #0a1f3c)); box-shadow: 0 10px 24px rgba(10, 63, 128, .22); }
 .side-action:hover { filter: brightness(1.1); transform: translateY(-1px); }
 .side-action.secondary { border-color: var(--line); color: var(--muted-strong); background: var(--btn-bg); box-shadow: none; }
+.side-action.obsidian-connected,
+.quick-toolbar-button.obsidian-connected {
+  color: var(--atlas-accent) !important;
+  border-color: color-mix(in srgb, var(--cyan) 42%, transparent) !important;
+  background: color-mix(in srgb, var(--cyan) 10%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cyan) 22%, transparent), 0 0 16px color-mix(in srgb, var(--cyan) 28%, transparent), inset 0 0 10px color-mix(in srgb, var(--cyan) 8%, transparent) !important;
+}
 .settings-button { margin-top: 10px; padding-left: 14px; color: var(--muted); font-size: 13px; }
 
 .main-content { position: relative; z-index: 1; width: calc(100% - 242px); max-width: 1500px; margin: 0 auto; padding: 34px 34px 54px; }
