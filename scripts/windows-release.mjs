@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -7,10 +7,15 @@ import packageJson from "../package.json" with { type: "json" };
 
 const projectRoot = process.cwd();
 
-// 把 GitHub token（GH_TOKEN 环境变量）注入构建产物（gitignored 的 update-token.json），
-// 供已安装应用从私有仓库自动更新使用。源码/提交中不包含 token。
-if (process.env.GH_TOKEN) {
-  writeFileSync(path.join(projectRoot, "desktop", "update-token.json"), JSON.stringify({ token: process.env.GH_TOKEN }), "utf8");
+// 更新令牌（GH_TOKEN）默认不再嵌入安装包：
+// - 公开仓库的自动更新走 GitHub 公开 feed + 下载 URL，不需要 token。
+// - 只有显式设置 WEALTH_ATLAS_EMBED_TOKEN=1 时才嵌入（用于私有仓库场景）。
+// 源码/提交中不包含 token；每次构建前清理可能残留的本地 token 文件，避免被打进 asar。
+const embedTokenFile = path.join(projectRoot, "desktop", "update-token.json");
+if (process.env.WEALTH_ATLAS_EMBED_TOKEN === "1" && process.env.GH_TOKEN) {
+  writeFileSync(embedTokenFile, JSON.stringify({ token: process.env.GH_TOKEN }), "utf8");
+} else {
+  try { rmSync(embedTokenFile, { force: true }); } catch { /* best-effort cleanup */ }
 }
 
 const certificatePath = process.env.WINDOWS_CERTIFICATE_PATH?.trim() ?? "";

@@ -1,6 +1,6 @@
 {
   "name": "wealth-atlas",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "Local-first multi-currency personal finance workspace",
   "author": "Wealth Atlas",
   "private": true,
@@ -58,7 +58,8 @@
       "out/**/*",
       "desktop/**/*",
       "build/icon.svg",
-      "package.json"
+      "package.json",
+      "!desktop/update-token.json"
     ],
     "asar": true,
     "npmRebuild": false,
