@@ -1393,7 +1393,8 @@ async function runSmoke(window, mode) {
 
 function setupAutoUpdater() {
   if (!app.isPackaged || !autoUpdater) return; // 开发模式或未打包 updater 时不检查
-  // 私有仓库自动更新需要 token（从 gitignored 的 update-token.json 读取，源码不含）
+  // 公开仓库自动更新不需要 token；仅私有仓库场景（构建时显式 WEALTH_ATLAS_EMBED_TOKEN=1）
+  // 才会嵌入 update-token.json，这里读到就设置，读不到（默认）则跳过。
   try {
     const token = JSON.parse(fsSync.readFileSync(path.join(__dirname, "update-token.json"), "utf8")).token;
     if (token) process.env.GH_TOKEN = token;

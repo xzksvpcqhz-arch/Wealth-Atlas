@@ -16,12 +16,14 @@
 
 ## 桌面版发布（GitHub 自动更新）—— 每次发布都要记住
 
+> 仓库现在是**公开**的：`xzksvpcqhz-arch/Wealth-Atlas`。公开仓库的自动更新**不需要 token**（electron-updater 走 GitHub 公开 feed + 下载 URL）；token 只在发布上传时需要。
+
 1. 先验证：`npm test` + `npm run build`。
-2. `npm run release:windows` → 生成 `desktop-dist/vX.Y.Z/` 下的：
-   - `Wealth-Atlas-Setup.exe`（安装包）
-   - **`latest.yml`**（自动更新元数据，必须随安装包上传）
-   - `Wealth-Atlas-Setup.exe.blockmap`（增量更新块）
-3. 发布到 GitHub（让应用自动更新）：先设 `GH_TOKEN` 环境变量，再运行 **`npm run release:publish`**，electron-builder 会把安装包 + `latest.yml` + `.blockmap` 一起上传到 GitHub Releases 作为该 tag 的资产。
-   - 若构建时报 GH_TOKEN 缺失/无效，属正常（需要先配置 token）。
+2. 版本号必须比当前已发布版本高（否则已安装应用不会触发更新）。
+3. 发布到 GitHub：先设 `GH_TOKEN` 环境变量，再运行 **`npm run release:publish`**，electron-builder 会上传安装包 + `latest.yml` 到 GitHub Releases 作为该 tag 的资产。
+   - **token 不会嵌入安装包**（默认关闭；只有显式设 `WEALTH_ATLAS_EMBED_TOKEN=1` 才嵌入，仅私有仓库场景需要）。
+   - 发布用 token 建议每次临时创建 fine-grained token（只授权 `Wealth-Atlas`、Contents 读写），发布完即吊销，绝不嵌进包或发到聊天。
    - 未签名包（UNSIGNED）Windows 会显示 SmartScreen"未知发布者"警告，属预期。
-4. 发布成功后，已安装应用会在下次启动时自动检查并下载更新（electron-updater）。
+4. **已知坑：electron-builder 偶尔不上传 `.blockmap`**。发布后必须核对 release 资产，缺 blockmap 就手动补传（endpoint 用 `uploads.github.com`，不是 `api.github.com`）：
+   `curl -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/octet-stream" --data-binary "@desktop-dist/vX.Y.Z/Wealth-Atlas-Setup.exe.blockmap" "https://uploads.github.com/repos/xzksvpcqhz-arch/wealth-atlas/releases/<release_id>/assets?name=Wealth-Atlas-Setup.exe.blockmap"`
+5. 发布成功后，已安装应用会在下次启动时自动检查并下载更新（electron-updater）。
