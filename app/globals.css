@@ -95,7 +95,7 @@ button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 
-.app-shell { min-height: 100dvh; display: flex; position: relative; overflow: hidden; background: radial-gradient(circle at 72% 12%, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 28%), var(--bg-deep); }
+.app-shell { min-height: 100dvh; display: flex; position: relative; overflow: clip; background: radial-gradient(circle at 72% 12%, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 28%), var(--bg-deep); }
 .starfield { position: fixed; inset: 0; pointer-events: none; opacity: .55; background-image: radial-gradient(circle at 12% 22%, rgba(255,255,255,.8) 0 1px, transparent 1.5px), radial-gradient(circle at 71% 15%, rgba(126,215,255,.7) 0 1px, transparent 1.5px), radial-gradient(circle at 87% 43%, rgba(255,255,255,.5) 0 1px, transparent 1.5px), radial-gradient(circle at 47% 84%, rgba(255,255,255,.45) 0 1px, transparent 1.5px), radial-gradient(circle at 24% 67%, rgba(126,215,255,.35) 0 1px, transparent 1.5px); background-size: 290px 230px, 370px 310px, 260px 290px, 330px 280px, 410px 370px; }
 .app-failure-shell { position: relative; display: grid; place-items: center; min-height: 100dvh; padding: 24px; overflow: hidden; background: radial-gradient(circle at 72% 12%, color-mix(in srgb, var(--cyan) 10%, transparent), transparent 28%), var(--bg-deep); }
 .app-failure-panel { position: relative; z-index: 1; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 18px 16px; width: min(620px,100%); padding: 28px; }
@@ -130,16 +130,16 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .app-failure-icon { width: 44px; height: 44px; }
   .app-failure-manual textarea { min-height: 210px; }
 }
-.sidebar { position: relative; z-index: 2; width: 242px; min-height: 100dvh; display: flex; flex-direction: column; padding: 28px 20px 22px; background: var(--sidebar-bg); border-right: 1px solid var(--line); backdrop-filter: blur(18px); }
+.sidebar { position: sticky; top: 0; z-index: 2; width: 242px; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; padding: 28px 20px 22px; background: var(--sidebar-bg); border-right: 1px solid var(--line); backdrop-filter: blur(18px); }
 .brand { display: flex; align-items: center; gap: 12px; padding: 0 5px 30px; }
 .brand-mark { width: 34px; height: 34px; display: grid; place-items: center; color: var(--cyan); background: radial-gradient(circle, color-mix(in srgb, var(--cyan) 28%, transparent), color-mix(in srgb, var(--cyan) 4%, transparent) 65%); border: 1px solid color-mix(in srgb, var(--cyan) 35%, transparent); border-radius: 50%; box-shadow: 0 0 22px color-mix(in srgb, var(--cyan) 12%, transparent); }
 .brand strong { display: block; font-size: 15px; letter-spacing: .02em; }
 .brand span { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; letter-spacing: .18em; }
-.sidebar nav { display: grid; gap: 5px; }
+.sidebar nav { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: grid; gap: 5px; align-content: start; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--cyan) 28%, transparent) transparent; }
 .sidebar nav button, .settings-button { border: 0; display: flex; align-items: center; gap: 13px; width: 100%; padding: 12px 13px; color: var(--muted-strong); background: transparent; border-radius: 10px; text-align: left; transition: background .22s ease, color .22s ease, transform .22s ease; }
 .sidebar nav button:hover, .settings-button:hover { color: var(--text); background: color-mix(in srgb, var(--cyan) 46%, transparent); transform: translateX(2px); }
 .sidebar nav button.active { color: var(--text); background: linear-gradient(100deg, color-mix(in srgb, var(--cyan) 86%, transparent), color-mix(in srgb, var(--cyan) 68%, transparent)); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 8px 20px rgba(7, 54, 107, .2); }
-.sidebar-bottom { margin-top: auto; display: grid; gap: 8px; }
+.sidebar-bottom { flex: 0 0 auto; display: grid; gap: 8px; }
 .side-action { border: 1px solid color-mix(in srgb, var(--cyan) 42%, transparent); display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; border-radius: 10px; color: var(--text); background: linear-gradient(135deg, var(--cyan), color-mix(in srgb, var(--cyan) 70%, #0a1f3c)); box-shadow: 0 10px 24px rgba(10, 63, 128, .22); }
 .side-action:hover { filter: brightness(1.1); transform: translateY(-1px); }
 .side-action.secondary { border-color: var(--line); color: var(--muted-strong); background: var(--btn-bg); box-shadow: none; }
