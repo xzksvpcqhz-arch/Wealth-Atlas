@@ -1219,7 +1219,7 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
 
 /* v1.3 report center extends the approved dark atlas language without changing
    the shared navigation, panels, controls, or financial entry surfaces. */
-.reports-center-page { gap: 18px; min-width: 0; }
+.reports-center-page { gap: 24px; min-width: 0; }
 .reports-header { align-items: flex-start; margin-bottom: 2px; }
 .reports-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; max-width: 660px; }
 .report-currency-control { display: inline-flex; align-items: center; min-height: 42px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--btn-bg); font-size: 10px; }
@@ -1228,7 +1228,7 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
 .report-currency-control:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cyan) 14%, transparent); }
 .report-compare-button { min-height: 42px; white-space: nowrap; }
 .report-compare-button.active { border-color: color-mix(in srgb, var(--cyan) 34%, transparent); color: var(--cyan); background: color-mix(in srgb, var(--cyan) 9%, transparent); }
-.reports-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; min-width: 0; }
+.reports-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 24px; min-width: 0; }
 .reports-summary article { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 5px 10px; min-width: 0; padding: 18px 19px; border: 1px solid var(--line); border-radius: var(--atlas-radius-card); background: var(--strip-bg); }
 .reports-summary svg { grid-row: 1 / span 3; align-self: start; margin-top: 1px; color: var(--cyan); }
 .reports-summary article:nth-child(2) svg { color: var(--amber); }
@@ -1240,8 +1240,8 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
 .report-warning { color: var(--amber) !important; }
 .report-data-notice { display: flex; align-items: flex-start; gap: 9px; padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--amber) 22%, transparent); border-radius: 10px; color: var(--amber); background: color-mix(in srgb, var(--amber) 16%, transparent); font-size: 10px; line-height: 1.55; }
 .report-data-notice svg { flex: 0 0 auto; margin-top: 1px; }
-.reports-split-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; min-width: 0; }
-.report-breakdown,.currency-distribution,.report-suggestions { min-width: 0; padding: 22px 23px; }
+.reports-split-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; min-width: 0; }
+.report-breakdown,.currency-distribution,.report-suggestions { min-width: 0; padding: 22px; }
 .report-breakdown > .panel-title-row,.currency-distribution > .panel-title-row,.report-suggestions > .panel-title-row,.money-constellation-panel > .panel-title-row { align-items: flex-start; }
 .report-breakdown > .panel-title-row > svg,.currency-distribution > .panel-title-row > svg,.report-suggestions > .panel-title-row > svg,.money-constellation-panel > .panel-title-row > svg { flex: 0 0 auto; color: var(--cyan); }
 .report-ranked-list { display: grid; gap: 15px; margin-top: 21px; }
@@ -1255,7 +1255,7 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
 .report-bar { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--muted) 25%, transparent); }
 .report-bar i { display: block; height: 100%; border-radius: inherit; background: var(--cyan); }
 .report-ranked-row > small { color: var(--muted); font-size: 9px; line-height: 1.35; }
-.money-constellation-panel { min-width: 0; padding: 22px 23px 25px; overflow: hidden; }
+.money-constellation-panel { min-width: 0; padding: 22px; overflow: hidden; }
 .money-constellation { display: grid; grid-template-columns: minmax(130px,1fr) 28px minmax(150px,1fr) 28px minmax(130px,1fr) 28px minmax(120px,.8fr); align-items: center; gap: 10px; min-width: 0; margin-top: 21px; }
 .constellation-column { display: grid; align-content: center; gap: 8px; min-width: 0; }
 .constellation-column h3 { margin: 0 0 3px; color: var(--muted); font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
