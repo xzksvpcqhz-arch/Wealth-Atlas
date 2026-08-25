@@ -1219,7 +1219,7 @@ textarea:focus-visible { outline: 2px solid var(--atlas-accent); outline-offset:
 
 /* v1.3 report center extends the approved dark atlas language without changing
    the shared navigation, panels, controls, or financial entry surfaces. */
-.reports-center-page { gap: 24px; min-width: 0; }
+.reports-center-page { display: grid; grid-template-columns: minmax(0,1fr); gap: 24px; min-width: 0; }
 .reports-header { align-items: flex-start; margin-bottom: 2px; }
 .reports-filters { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; max-width: 660px; }
 .report-currency-control { display: inline-flex; align-items: center; min-height: 42px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: var(--btn-bg); font-size: 10px; }
