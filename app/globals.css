@@ -247,6 +247,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .budget-page .archived-records .panel-title-row { gap: 28px; margin-bottom: 18px; }
 .budget-page .archived-records .panel-title-row > div { min-width: 0; max-width: calc(100% - 44px); }
 .budget-page .archived-records .panel-title-row > div > span { font-size: 13px; line-height: 1.7; margin-top: 8px; max-width: 60ch; }
+.goals-page .archived-records { padding: 24px; }
+.goals-page .archived-records .panel-title-row { gap: 28px; margin-bottom: 20px; }
+.goals-page .archived-records .panel-title-row > div > span { font-size: 13px; line-height: 1.7; margin-top: 10px; max-width: 64ch; }
+.goals-page .archived-records .archived-row { padding: 18px 0; gap: 16px; }
+.goals-page .archived-records .empty-state.compact-empty { padding: 26px 20px; }
 .budget-hero-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr); gap: 24px; }.budget-free-panel, .budget-side-panel { padding: 22px; }.budget-free-panel > strong { display: block; margin-top: 22px; color: var(--text); font-size: clamp(38px, 4vw, 54px); letter-spacing: -.055em; }.budget-free-panel p { max-width: 550px; margin: 17px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }.budget-formula { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 23px; border: 1px solid var(--line); background: var(--line); }.budget-formula span { display: grid; gap: 6px; padding: 12px; color: var(--muted); background: var(--strip-bg); font-size: 10px; }.budget-formula b { color: var(--muted-strong); font-size: 12px; }.budget-side-panel { display: grid; align-content: start; gap: 14px; }.budget-side-row { display: flex; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }.budget-side-row strong { color: var(--text); font-size: 13px; }.budget-list { display: grid; gap: 9px; }.budget-row { display: grid; grid-template-columns: auto minmax(120px,1fr) auto auto; grid-template-areas: "cat cat rem rem" "prog prog prog prog" ". . act act"; align-items: center; gap: 8px 16px; padding: 15px; }
 .budget-category { grid-area: cat; }
 .budget-progress { grid-area: prog; }
