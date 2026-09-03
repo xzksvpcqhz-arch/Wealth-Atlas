@@ -11,7 +11,7 @@
     "build:web": "node scripts/web-build.mjs",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --experimental-strip-types --test tests/finance-regression.test.mjs tests/migration-diagnostics.test.mjs tests/account-hierarchy.test.mjs && tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/finance-regression.test.mjs tests/migration-diagnostics.test.mjs tests/account-hierarchy.test.mjs tests/cloud-merge.test.mjs && tsc --noEmit",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "desktop:build": "node scripts/desktop-build.mjs",
     "desktop:test": "node scripts/desktop-persistence-test.mjs",
