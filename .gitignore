@@ -20,4 +20,5 @@ desktop/update-token.json
 *.csv
 *.zip
 .env*
+!.env.example
 *.tsbuildinfo
