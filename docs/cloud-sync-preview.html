@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wealth Atlas · 登录/同步界面预览</title>
+<style>
+  :root{
+    --bg:#040b15; --panel:#0a1524; --panel-2:#0e1c30;
+    --border:rgba(255,255,255,.07); --border-strong:rgba(255,255,255,.14);
+    --text:#e8eef6; --muted:#8ea3b8; --faint:#64758a;
+    --accent:#d7aa6f; --accent-2:#e8c692;
+    --green:#4dd58a; --danger:#e0705e;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(215,170,111,.08), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    padding:40px 16px 80px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:.5px}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 28px}
+  .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+  .tab{
+    appearance:none;border:1px solid var(--border);background:var(--panel);
+    color:var(--muted);padding:10px 16px;border-radius:10px;cursor:pointer;
+    font-size:13.5px;transition:.15s;
+  }
+  .tab.active{background:rgba(215,170,111,.12);border-color:var(--accent);color:var(--accent-2)}
+  .stage{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}
+  /* phone frame */
+  .phone{
+    width:390px;border-radius:34px;border:1px solid var(--border-strong);
+    background:var(--bg);box-shadow:0 24px 60px rgba(0,0,0,.5);
+    overflow:hidden;flex:0 0 auto;
+  }
+  .notch{height:22px}
+  .appbar{
+    display:flex;align-items:center;gap:12px;padding:12px 18px;
+    border-bottom:1px solid var(--border);
+  }
+  .appbar .back{color:var(--muted);font-size:18px}
+  .appbar h2{font-size:16px;margin:0;font-weight:600}
+  .content{padding:22px;display:grid;gap:24px}
+  /* card */
+  .card{
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:16px;padding:22px;display:grid;gap:16px;
+  }
+  .card-head{display:flex;align-items:center;gap:12px}
+  .card-head .ic{
+    width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+    background:rgba(215,170,111,.14);color:var(--accent-2);font-size:18px;
+  }
+  .card-head h3{font-size:15px;margin:0;font-weight:600;flex:1}
+  .pill{
+    font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--border-strong);
+    color:var(--muted);white-space:nowrap;
+  }
+  .pill.on{color:var(--green);border-color:rgba(77,213,138,.35);background:rgba(77,213,138,.08)}
+  .divider{height:1px;background:var(--border)}
+  .note{font-size:13px;line-height:1.7;color:var(--muted);margin:0}
+  .field{display:grid;gap:6px}
+  .field label{font-size:12px;color:var(--muted)}
+  input{
+    width:100%;background:var(--panel-2);border:1px solid var(--border);
+    border-radius:10px;padding:11px 12px;color:var(--text);font-size:14px;outline:none;
+  }
+  input:focus{border-color:var(--accent)}
+  .btn{
+    width:100%;appearance:none;border:none;border-radius:10px;padding:12px;
+    font-size:14px;font-weight:600;cursor:pointer;transition:.15s;
+  }
+  .btn.primary{background:var(--accent);color:#20160a}
+  .btn.ghost{background:transparent;border:1px solid var(--border-strong);color:var(--muted)}
+  .btn.ghost.danger{color:var(--danger);border-color:rgba(224,112,94,.35)}
+  .row{display:flex;align-items:center;gap:10px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:0 0 auto}
+  .email{font-size:13.5px;color:var(--text)}
+  .status{font-size:12.5px;color:var(--muted)}
+  .spinner{
+    width:13px;height:13px;border:2px solid var(--accent);border-top-color:transparent;
+    border-radius:50%;animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .btnrow{display:grid;gap:10px}
+  .caption{
+    flex:1;min-width:260px;max-width:420px;
+    background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px;
+  }
+  .caption h4{margin:0 0 8px;font-size:14px;color:var(--accent-2)}
+  .caption p{margin:0;font-size:13px;line-height:1.7;color:var(--muted)}
+  .caption ul{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.9}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>登录 / 同步界面预览</h1>
+  <p class="sub">「设置」页里新增一个「云端同步」卡片。点下面的标签看三种状态。</p>
+
+  <div class="tabs">
+    <button class="tab active" data-state="login">① 未登录</button>
+    <button class="tab" data-state="syncing">② 已登录 · 同步中</button>
+    <button class="tab" data-state="done">③ 已登录 · 已同步</button>
+  </div>
+
+  <div class="stage">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="appbar"><span class="back">‹</span><h2>设置</h2></div>
+      <div class="content" id="screen"><!-- injected --></div>
+    </div>
+    <div class="caption" id="caption"></div>
+  </div>
+</div>
+
+<script>
+const SCREENS = {
+  login: `
+    <div class="card">
+      <div class="card-head">
+        <div class="ic">☁</div><h3>云端同步</h3><span class="pill">未登录</span>
+      </div>
+      <div class="divider"></div>
+      <p class="note">登录后，手机和电脑的资料会自动同步、保持一致。</p>
+      <div class="field"><label>邮箱</label><input placeholder="you@example.com"></div>
+      <div class="field"><label>密码</label><input type="password" placeholder="••••••••"></div>
+      <div class="btnrow">
+        <button class="btn primary">登录</button>
+        <button class="btn ghost">注册新账号</button>
+      </div>
+      <p class="note">每个账号只看得到自己的资料，朋友之间互不相通。</p>
+    </div>
+    <div class="card" style="opacity:.45">
+      <div class="card-head"><div class="ic" style="background:rgba(255,255,255,.08);color:var(--muted)">◐</div><h3>外观</h3></div>
+    </div>`,
+  syncing: `
+    <div class="card">
+      <div class="card-head">
+        <div class="ic">☁</div><h3>云端同步</h3><span class="pill on">已连接</span>
+      </div>
+      <div class="divider"></div>
+      <div class="row"><span class="dot"></span><span class="email">you@example.com</span></div>
+      <div class="row"><span class="spinner"></span><span class="status">正在同步…</span></div>
+      <p class="note">每次改动会自动上传；其他设备的改动会自动拉回。</p>
+      <button class="btn ghost">登出</button>
+    </div>
+    <div class="card" style="opacity:.45">
+      <div class="card-head"><div class="ic" style="background:rgba(255,255,255,.08);color:var(--muted)">◐</div><h3>外观</h3></div>
+    </div>`,
+  done: `
+    <div class="card">
+      <div class="card-head">
+        <div class="ic">☁</div><h3>云端同步</h3><span class="pill on">已连接</span>
+      </div>
+      <div class="divider"></div>
+      <div class="row"><span class="dot"></span><span class="email">you@example.com</span></div>
+      <div class="row"><span class="status">✓ 已是最新 · 今天 14:32</span></div>
+      <div class="btnrow">
+        <button class="btn primary">立即同步</button>
+        <button class="btn ghost danger">登出</button>
+      </div>
+      <p class="note">本机改动自动上传；其他设备的改动自动拉回并合并。</p>
+    </div>
+    <div class="card" style="opacity:.45">
+      <div class="card-head"><div class="ic" style="background:rgba(255,255,255,.08);color:var(--muted)">◐</div><h3>外观</h3></div>
+    </div>`
+};
+const CAPTIONS = {
+  login: {
+    h: "未登录状态",
+    p: "第一次用时输入邮箱和密码，点「登录」；没有账号就点「注册新账号」。",
+    ul: [
+      "注册 = 创建你自己的私人云端空间",
+      "登录成功后，本机已有资料会自动上传",
+      "同一账号在手机和电脑登录，两边数据一致"
+    ]
+  },
+  syncing: {
+    h: "已登录 · 同步中",
+    p: "登录后卡片顶部显示绿色「已连接」和你的邮箱，改动时会短暂显示「正在同步…」。",
+    ul: [
+      "每次记账/修改后自动上传（无需手动）",
+      "云端有更新时自动拉回并合并",
+      "全程后台进行，不打断你操作"
+    ]
+  },
+  done: {
+    h: "已登录 · 已同步",
+    p: "同步完成后显示「已是最新」和时间，也可手动点「立即同步」。想换账号就「登出」。",
+    ul: [
+      "「立即同步」= 手动触发一次完整同步",
+      "「登出」= 断开云端，本地资料仍保留",
+      "两个账号的资料完全隔离"
+    ]
+  }
+};
+function render(state){
+  document.getElementById("screen").innerHTML = SCREENS[state];
+  document.getElementById("caption").innerHTML =
+    `<h4>${CAPTIONS[state].h}</h4><p>${CAPTIONS[state].p}</p><ul>${CAPTIONS[state].ul.map(x=>`<li>${x}</li>`).join("")}</ul>`;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.state===state));
+}
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>render(t.dataset.state)));
+render("login");
+</script>
+</body>
+</html>

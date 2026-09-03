@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:web": "node scripts/web-build.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "node --experimental-strip-types --test tests/finance-regression.test.mjs tests/migration-diagnostics.test.mjs tests/account-hierarchy.test.mjs && tsc --noEmit",
