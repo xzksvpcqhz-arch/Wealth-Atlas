@@ -62,16 +62,14 @@ export async function pushSnapshot(data: WealthData): Promise<void> {
 export function subscribeToRemote(onData: (data: WealthData) => void): () => void {
   const sb = getSupabaseClient();
   if (!sb) return () => undefined;
+  const handle = (payload: { new?: { data?: WealthData } | null }) => {
+    const next = payload.new?.data;
+    if (next) onData(next);
+  };
   const channel = sb
     .channel("user_data_changes")
-    .on(
-      "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "user_data" },
-      (payload) => {
-        const next = (payload.new as { data?: WealthData } | undefined)?.data;
-        if (next) onData(next);
-      },
-    )
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "user_data" }, handle)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "user_data" }, handle)
     .subscribe();
   return () => {
     void sb.removeChannel(channel);

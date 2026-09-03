@@ -24,9 +24,19 @@
    - **anon / public** key（形如 `eyJhbGciOi...`，很长一串）
 3. 把这两个值发给我（**只发 URL 和 anon key**，不要发 `service_role` 那个）
 
-## 第 4 步：我会做
-- 把这两个值接进 app 的环境变量（`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`）
-- 写登录 + 同步代码
+## 第 4 步：验证（可选，推荐跑一下）
+在 SQL Editor 新建一个 query，粘下面这段，点 Run。能正常返回一行（显示 `user_data`）就说明表建好了：
+
+```sql
+select table_name, row_security from information_schema.tables
+where table_schema = 'public' and table_name = 'user_data';
+```
+
+> `schema.sql` 是**幂等**的：如果不小心运行了两次也没关系，不会报错。
+
+## 第 5 步：我会做
+- 把这两个值接进 app 的环境变量（`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`，写进本地 `.env.local`，同时配到 Cloudflare Pages 构建变量）
+- 写登录 + 同步界面（会先给你看预览再动手）
 - 你的桌面 App + 手机 PWA 登录同一个账号后，数据就互通了
 
 ## 注意
