@@ -46,6 +46,7 @@ function jsonEqual(a: unknown, b: unknown): boolean {
 export function useCloudSync(
   data: WealthData,
   setData: Dispatch<SetStateAction<WealthData>>,
+  ready: boolean,
 ): CloudSyncController {
   const configured = isCloudConfigured();
   const [user, setUser] = useState<CloudUser | null>(null);
@@ -145,9 +146,9 @@ export function useCloudSync(
     setError(null);
   }, []);
 
-  // 挂载时恢复已有登录会话
+  // 挂载时恢复已有登录会话（等本地数据 ready 后再同步，避免用种子数据覆盖真实数据）
   useEffect(() => {
-    if (!configured) return;
+    if (!configured || !ready) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -163,11 +164,11 @@ export function useCloudSync(
     return () => {
       cancelled = true;
     };
-  }, [configured, subscribe, syncNow]);
+  }, [configured, ready, subscribe, syncNow]);
 
   // 本地数据变化 → 防抖自动上传（合并来自云端的改动不重复上传）
   useEffect(() => {
-    if (!configured || !user) return;
+    if (!configured || !ready || !user) return;
     if (suppressPushRef.current) {
       suppressPushRef.current = false;
       return;
@@ -185,7 +186,7 @@ export function useCloudSync(
         pushTimerRef.current = null;
       }
     };
-  }, [data, configured, user]);
+  }, [data, configured, ready, user]);
 
   // 卸载时退订
   useEffect(() => () => unsubscribeRef.current?.(), []);

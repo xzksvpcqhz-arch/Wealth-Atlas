@@ -1516,3 +1516,19 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .bg-upload { width: 56px; height: 56px; border: 1px dashed var(--line-strong); border-radius: 10px; background: transparent; color: var(--muted-strong); cursor: pointer; display: grid; place-items: center; }
 .bg-upload:hover { color: var(--cyan); border-color: var(--cyan); }
 .bg-error { display: block; margin-top: 6px; color: var(--danger); font-size: 11px; }
+
+/* 云端同步（设置页卡片） */
+.cloud-sync-page { max-width: 860px; }
+.cloud-sync-page .panel { padding: 22px 24px; }
+.cloud-sync-page .primary-button,
+.cloud-sync-page .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.cloud-intro, .cloud-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.cloud-intro { margin-bottom: 18px; }
+.cloud-note { margin-top: 16px; }
+.cloud-form { max-width: 420px; }
+.cloud-account { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 14px 16px; background: var(--btn-bg); border: 1px solid var(--line); border-radius: 10px; }
+.cloud-dot { width: 10px; height: 10px; flex: 0 0 auto; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+.cloud-account strong { display: block; color: var(--text); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.cloud-account span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+.cloud-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+@media (max-width: 620px) { .cloud-sync-page .panel { padding: 18px; } }
