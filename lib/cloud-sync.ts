@@ -13,6 +13,10 @@ export async function signUp(email: string, password: string): Promise<CloudUser
   const { data, error } = await sb.auth.signUp({ email, password });
   if (error) throw error;
   if (!data.user) throw new Error("注册未返回用户，请重试。");
+  // 若项目开启了「邮箱确认」，注册后不会立即建立会话；提示用户去邮箱确认。
+  if (!data.session) {
+    throw new Error("注册成功！请到邮箱点开确认链接，再回来点「登录」。");
+  }
   return { id: data.user.id, email: data.user.email };
 }
 

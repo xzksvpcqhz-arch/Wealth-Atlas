@@ -11,6 +11,9 @@
    - **Region**：选离你近的（如 **Southeast Asia (Singapore)**）
 4. 等 1~2 分钟项目初始化完成
 
+> **建议顺手关掉「邮箱确认」（省去注册后还要去邮箱点链接这一步）：**
+> 左侧 **Authentication → Providers → Email**，把 **Confirm email** 关掉（OFF）。这样在 App 里注册后立刻就能用。
+
 ## 第 2 步：运行建表脚本
 1. 左侧菜单 **SQL Editor** → **New query**
 2. 把本目录下的 `schema.sql` **整段复制粘贴**进去
