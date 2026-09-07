@@ -77,7 +77,7 @@ const forbiddenPackagedFiles = packagedFiles.filter((entry) => forbiddenPackageS
 check("Packaged private-data paths", forbiddenPackagedFiles.length === 0, forbiddenPackagedFiles.join(", ") || "none");
 
 const trackedFiles = execFileSync("git", ["ls-files"], { cwd: projectRoot, encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
-const trackedSecrets = trackedFiles.filter((entry) => /(^|\/)(?:\.env(?:\.|$)|data\/|exports\/|private-vault\/|backups\/|outputs\/)|\.(?:pfx|p12|pem|key)$/i.test(entry));
+const trackedSecrets = trackedFiles.filter((entry) => /(^|\/)(?:\.env(?!\.example)(?:\.|$)|data\/|exports\/|private-vault\/|backups\/|outputs\/)|\.(?:pfx|p12|pem|key)$/i.test(entry));
 check("Tracked secret containers", trackedSecrets.length === 0, trackedSecrets.join(", ") || "none");
 
 const changedFiles = execFileSync("git", ["ls-files", "--modified", "--others", "--exclude-standard"], { cwd: projectRoot, encoding: "utf8" })
