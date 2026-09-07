@@ -7,6 +7,7 @@ import {
   getCurrentUser,
   pullSnapshot,
   pushSnapshot,
+  resetPassword as cloudResetPassword,
   signIn as cloudSignIn,
   signOut as cloudSignOut,
   signUp as cloudSignUp,
@@ -26,6 +27,7 @@ export interface CloudSyncController {
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 function nowClock(): string {
@@ -146,6 +148,11 @@ export function useCloudSync(
     setError(null);
   }, []);
 
+  const resetPassword = useCallback(async (email: string) => {
+    setError(null);
+    await cloudResetPassword(email);
+  }, []);
+
   // 挂载时恢复已有登录会话（等本地数据 ready 后再同步，避免用种子数据覆盖真实数据）
   useEffect(() => {
     if (!configured || !ready) return;
@@ -191,5 +198,5 @@ export function useCloudSync(
   // 卸载时退订
   useEffect(() => () => unsubscribeRef.current?.(), []);
 
-  return { user, status, lastSyncedAt, error, signIn, signUp, signOut, syncNow };
+  return { user, status, lastSyncedAt, error, signIn, signUp, signOut, syncNow, resetPassword };
 }

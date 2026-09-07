@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wealth Atlas · 设置页排版 + 忘记密码 预览</title>
+<style>
+  :root{
+    --bg:#040b15; --bg-deep:#06101d; --panel:#0a1524; --panel-2:#0e1c30;
+    --line:rgba(255,255,255,.07); --line-strong:rgba(255,255,255,.14);
+    --text:#e8eef6; --muted:#8ea3b8; --cyan:#3cd9f5; --green:#8fe1b4; --amber:#e8bc75;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%, rgba(60,217,245,.08), transparent 60%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;padding:36px 16px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 8px}
+  .note{color:var(--amber);font-size:12.5px;margin:0 0 24px;line-height:1.6}
+  .frame{display:flex;border:1px solid var(--line-strong);border-radius:16px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  /* sidebar */
+  .sidebar{width:220px;flex:0 0 auto;background:rgba(10,21,36,.7);border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:4px}
+  .brand{display:flex;align-items:center;gap:9px;padding:0 6px 18px;font-size:13px}
+  .brand .dot{width:22px;height:22px;border-radius:7px;background:var(--cyan);color:#04121e;display:grid;place-items:center;font-weight:700}
+  .nav{display:flex;flex-direction:column;gap:3px}
+  .nav div{padding:9px 10px;border-radius:8px;color:var(--muted);font-size:12.5px}
+  .nav div.on{background:rgba(60,217,245,.12);color:var(--text)}
+  /* content */
+  .content{flex:1;min-width:0;padding:30px 30px 40px;display:grid;gap:24px;align-content:start}
+  .page-head .crumb{font-size:10px;letter-spacing:.15em;color:var(--muted);text-transform:uppercase}
+  .page-head h2{font-size:30px;margin:7px 0 0;letter-spacing:-.03em}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
+  .card-head .kicker{font-size:10px;letter-spacing:.15em;color:var(--muted);text-transform:uppercase}
+  .card-head h3{margin:7px 0 0;font-size:17px;font-weight:600}
+  .pill{font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted);white-space:nowrap}
+  .pill.on{color:var(--green);border-color:rgba(143,225,180,.35);background:rgba(143,225,180,.08)}
+  .intro{color:var(--muted);font-size:13px;line-height:1.7;margin:0 0 16px}
+  .form{display:grid;gap:14px;max-width:440px}
+  .field{display:grid;gap:7px}
+  .field label{font-size:12px;color:var(--muted)}
+  .field input{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:11px 12px;color:var(--text);font-size:14px}
+  .seg{display:grid;grid-template-columns:1fr 1fr;padding:4px;border:1px solid var(--line);background:var(--panel-2);border-radius:10px}
+  .seg button{border:0;padding:9px;color:var(--muted);background:transparent;border-radius:7px;font-size:13px}
+  .seg button.sel{color:var(--text);background:rgba(60,217,245,.3)}
+  .primary{border:1px solid rgba(60,217,245,.45);min-height:42px;padding:0 18px;color:#04121e;background:var(--cyan);border-radius:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-size:14px}
+  .forgot{color:var(--cyan);font-size:12px;cursor:pointer;background:none;border:0;padding:0;text-align:left;width:fit-content}
+  .foot{color:var(--muted);font-size:12px;line-height:1.6;margin:14px 0 0}
+  .ghost{border:1px solid var(--line-strong);color:var(--muted);background:transparent;border-radius:10px;min-height:40px;padding:0 14px;font-size:13px;display:inline-flex;align-items:center;gap:7px}
+  .tabs{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:22px}
+  .tab{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--muted);padding:9px 15px;border-radius:10px;cursor:pointer;font-size:13px}
+  .tab.active{background:rgba(60,217,245,.12);border-color:var(--cyan);color:var(--text)}
+  .reset-box{background:rgba(232,188,117,.08);border:1px solid rgba(232,188,117,.25);border-radius:10px;padding:14px 16px;font-size:12.5px;color:var(--amber);line-height:1.6;margin-top:12px;max-width:440px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>设置页排版 + 忘记密码 · 预览</h1>
+  <p class="sub">改动：① 三块从「并排 3 窄列」改成「上下全宽排列」；② 登录框加「忘记密码」。</p>
+  <p class="note">原来：3 列并排，每列只有 391px，内容被压扁。现在：上下排列、每块全宽，内容不再压缩。</p>
+
+  <div class="tabs">
+    <button class="tab active" data-s="login">云端同步 · 登录</button>
+    <button class="tab" data-s="reset">云端同步 · 忘记密码</button>
+  </div>
+
+  <div class="frame">
+    <aside class="sidebar">
+      <div class="brand"><span class="dot">◆</span>我的财富星图</div>
+      <div class="nav"><div>首页</div><div>账户总览</div><div>报表中心</div><div>收支记录</div><div>预算管理</div><div class="on">设置</div></div>
+    </aside>
+    <div class="content">
+      <div class="page-head"><div class="crumb">WEALTH ATLAS / SETTINGS</div><h2>设置</h2></div>
+
+      <section class="card" id="cloudCard">
+        <div class="card-head">
+          <div><div class="kicker">CLOUD SYNC</div><h3>云端同步</h3></div>
+          <span class="pill" id="cloudPill">未登录</span>
+        </div>
+        <p class="intro">登录后，手机和电脑的资料会自动同步、保持一致。</p>
+        <div id="cloudBody"></div>
+        <p class="foot">每个账号只看得到自己的资料，朋友之间互不相通。登录后本机已有资料会自动上传。</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div><div class="kicker">OBSIDIAN</div><h3>设置与模板</h3></div></div>
+        <p class="intro">Obsidian 文件夹映射、同步日志与导出模板（内容保持不变，仅重新排列）。</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div><div class="kicker">LOCAL RECOVERY</div><h3>备份与恢复</h3></div></div>
+        <p class="intro">本地快照与更新备份，可随时完整还原（内容保持不变，仅重新排列）。</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const LOGIN = `
+  <form class="form" onsubmit="return false">
+    <div class="seg"><button class="sel">登录</button><button>注册新账号</button></div>
+    <div class="field"><label>邮箱</label><input placeholder="you@example.com"></div>
+    <div class="field"><label>密码</label><input type="password" placeholder="••••••••"></div>
+    <button class="primary">登录</button>
+    <button class="forgot" id="forgotBtn">忘记密码？</button>
+  </form>`;
+const RESET = `
+  <div class="reset-box">输入注册时的邮箱，Supabase 会发一封重置邮件，点邮件里的链接即可重设密码。</div>
+  <form class="form" style="margin-top:14px" onsubmit="return false">
+    <div class="field"><label>邮箱</label><input placeholder="you@example.com"></div>
+    <button class="primary">发送重置邮件</button>
+    <button class="forgot" id="backBtn">← 返回登录</button>
+  </form>`;
+function render(s){
+  const body = document.getElementById("cloudBody");
+  body.innerHTML = s === "login" ? LOGIN : RESET;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.s===s));
+}
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>render(t.dataset.s)));
+document.addEventListener("click",(e)=>{ if(e.target.id==="forgotBtn") render("reset"); if(e.target.id==="backBtn") render("login"); });
+render("login");
+</script>
+</body>
+</html>

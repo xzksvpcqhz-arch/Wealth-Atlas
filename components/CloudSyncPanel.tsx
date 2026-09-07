@@ -3,8 +3,10 @@
 import { useState, type FormEvent } from "react";
 import {
   ArrowsClockwise,
+  CheckCircle,
   CloudArrowUp,
   CloudSlash,
+  Envelope,
   SignIn,
   SignOut,
   UserCirclePlus,
@@ -17,6 +19,10 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [busy, setBusy] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -27,6 +33,21 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
       else await cloud.signUp(email.trim(), password);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const submitReset = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!email.trim()) return;
+    setResetBusy(true);
+    setResetError(null);
+    try {
+      await cloud.resetPassword(email.trim());
+      setResetSent(true);
+    } catch (cause) {
+      setResetError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setResetBusy(false);
     }
   };
 
@@ -119,39 +140,82 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
           </div>
         )}
 
-        <form className="form-stack cloud-form" onSubmit={submit}>
-          <div className="segmented" role="tablist" aria-label="登录或注册">
-            <button type="button" className={mode === "signin" ? "selected" : ""} onClick={() => setMode("signin")}>登录</button>
-            <button type="button" className={mode === "signup" ? "selected" : ""} onClick={() => setMode("signup")}>注册新账号</button>
-          </div>
-          <label>
-            邮箱
-            <input
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            密码
-            <input
-              type="password"
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              placeholder="••••••••"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              minLength={6}
-            />
-          </label>
-          <button type="submit" className="primary-button full" disabled={inFlight}>
-            {mode === "signin" ? <SignIn size={16} /> : <UserCirclePlus size={16} />}
-            {inFlight ? "处理中…" : mode === "signin" ? "登录" : "注册并上传"}
-          </button>
-        </form>
+        {resetMode ? (
+          <>
+            {resetSent ? (
+              <div className="reset-sent" role="status">
+                <CheckCircle size={18} />
+                <div><strong>重置邮件已发送</strong><span>请到邮箱查收邮件，点里面的链接重设密码，然后回到这里用新密码登录。</span></div>
+              </div>
+            ) : (
+              <form className="form-stack cloud-form" onSubmit={submitReset}>
+                <p className="cloud-intro" style={{ margin: 0 }}>输入注册时的邮箱，我们会发一封重置邮件给你。</p>
+                {resetError && (
+                  <div className="sync-error" role="alert">
+                    <WarningCircle size={18} />
+                    <div><strong>需要处理</strong><span>{resetError}</span></div>
+                  </div>
+                )}
+                <label>
+                  邮箱
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
+                </label>
+                <button type="submit" className="primary-button full" disabled={resetBusy}>
+                  <Envelope size={16} /> {resetBusy ? "发送中…" : "发送重置邮件"}
+                </button>
+              </form>
+            )}
+            <button type="button" className="cloud-back-link" onClick={() => { setResetMode(false); setResetSent(false); setResetError(null); }}>
+              ← 返回登录
+            </button>
+          </>
+        ) : (
+          <>
+            <form className="form-stack cloud-form" onSubmit={submit}>
+              <div className="segmented" role="tablist" aria-label="登录或注册">
+                <button type="button" className={mode === "signin" ? "selected" : ""} onClick={() => setMode("signin")}>登录</button>
+                <button type="button" className={mode === "signup" ? "selected" : ""} onClick={() => setMode("signup")}>注册新账号</button>
+              </div>
+              <label>
+                邮箱
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                密码
+                <input
+                  type="password"
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  minLength={6}
+                />
+              </label>
+              <button type="submit" className="primary-button full" disabled={inFlight}>
+                {mode === "signin" ? <SignIn size={16} /> : <UserCirclePlus size={16} />}
+                {inFlight ? "处理中…" : mode === "signin" ? "登录" : "注册并上传"}
+              </button>
+            </form>
+            <button type="button" className="cloud-back-link" onClick={() => { setResetMode(true); setResetError(null); }}>
+              忘记密码？
+            </button>
+          </>
+        )}
 
         <p className="cloud-note">每个账号只看得到自己的资料，朋友之间互不相通。登录后本机已有资料会自动上传。</p>
       </section>

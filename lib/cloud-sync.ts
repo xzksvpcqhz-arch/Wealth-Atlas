@@ -34,6 +34,17 @@ export async function signOut(): Promise<void> {
   await sb?.auth.signOut();
 }
 
+/** 发送密码重置邮件。网页版会带回跳地址；桌面版（file://）交给 Supabase 默认流程。 */
+export async function resetPassword(email: string): Promise<void> {
+  const sb = getSupabaseClient();
+  if (!sb) throw new Error("尚未配置云端（缺少 Supabase 环境变量）。");
+  const redirectTo = typeof window !== "undefined" && window.location.protocol.startsWith("http")
+    ? window.location.origin
+    : undefined;
+  const { error } = await sb.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : {});
+  if (error) throw error;
+}
+
 export async function getCurrentUser(): Promise<CloudUser | null> {
   const sb = getSupabaseClient();
   if (!sb) return null;

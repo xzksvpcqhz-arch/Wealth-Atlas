@@ -1518,7 +1518,6 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .bg-error { display: block; margin-top: 6px; color: var(--danger); font-size: 11px; }
 
 /* 云端同步（设置页卡片） */
-.cloud-sync-page { max-width: 860px; }
 .cloud-sync-page .panel { padding: 22px 24px; }
 .cloud-sync-page .primary-button,
 .cloud-sync-page .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
@@ -1531,4 +1530,30 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .cloud-account strong { display: block; color: var(--text); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .cloud-account span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
 .cloud-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.cloud-back-link { margin-top: 14px; padding: 0; border: 0; background: none; color: var(--cyan); font-size: 12px; cursor: pointer; width: fit-content; }
+.cloud-back-link:hover { text-decoration: underline; }
+.reset-sent { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; color: var(--green); background: color-mix(in srgb, var(--green) 8%, transparent); border: 1px solid color-mix(in srgb, var(--green) 26%, transparent); border-radius: 10px; }
+.reset-sent svg { flex: 0 0 auto; }
+.reset-sent div { display: grid; gap: 4px; }
+.reset-sent strong { color: var(--text); font-size: 12px; }
+.reset-sent span { color: var(--green); font-size: 11px; line-height: 1.6; }
+
+/* 设置页：多个模块上下全宽排列（不再并排挤成窄列） */
+.settings-stack {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: calc(100% - 242px);
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 34px 34px 54px;
+  display: grid;
+  gap: 24px;
+  align-content: start;
+}
+.settings-stack > .main-content { width: 100%; min-height: 0; margin: 0; padding: 0; }
+.settings-stack > .main-content .page-header { margin-bottom: 16px; }
+.settings-stack > .main-content .page-header h1 { font-size: 22px; }
+.settings-stack > .main-content .page-header .breadcrumb { display: none; }
+@media (max-width: 820px) { .settings-stack { width: calc(100% - 76px); padding: 27px 20px 44px; } }
+@media (max-width: 620px) { .settings-stack { width: 100%; padding: 25px 14px 90px; } }
 @media (max-width: 620px) { .cloud-sync-page .panel { padding: 18px; } }
