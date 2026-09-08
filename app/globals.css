@@ -1569,3 +1569,13 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .backup-row-main strong { display: block; color: var(--text); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 .backup-row-main span { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 @media (max-width: 620px) { .backup-restore-page .panel { padding: 18px; } }
+
+/* 物品资产 · 已删除物品资产：给足内边距和留白（不再贴边紧凑） */
+.archived-assets-page .archived-records { padding: 22px 24px; }
+.archived-assets-page .archived-records .panel-title-row { gap: 28px; margin-bottom: 18px; }
+.archived-assets-page .archived-records .panel-title-row > div > span { font-size: 13px; line-height: 1.7; margin-top: 8px; max-width: 64ch; }
+.archived-assets-page .archived-records .archived-row { padding: 16px 0; gap: 16px; }
+.archived-assets-page .archived-records .archived-row > div { gap: 6px; }
+.archived-assets-page .archived-records .archived-row strong { font-size: 13px; }
+.archived-assets-page .archived-records .archived-row span { font-size: 12px; line-height: 1.6; }
+@media (max-width: 620px) { .archived-assets-page .archived-records { padding: 18px; } }
