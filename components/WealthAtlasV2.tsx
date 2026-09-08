@@ -437,6 +437,11 @@ export default function WealthAtlasV2() {
     finally { setActiveSectionReady(true); }
   },[]);
 
+  // 从重置密码邮件链接回来时，自动跳到设置页，展示「设置新密码」表单
+  useEffect(() => {
+    if (cloud.recovering) setActive("settings");
+  },[cloud.recovering]);
+
   useEffect(() => {
     if(typeof window!=="undefined"&&activeSectionReady) {
       try { window.localStorage.setItem("wealth-atlas.active-section",active); }
