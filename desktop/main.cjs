@@ -467,7 +467,7 @@ protocol.registerSchemesAsPrivileged([
       standard: true,
       secure: true,
       supportFetchAPI: true,
-      corsEnabled: false,
+      corsEnabled: true,
       stream: true,
       codeCache: true,
     },
