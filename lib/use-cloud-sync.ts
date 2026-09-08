@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import type { WealthData } from "@/lib/types";
 import { isCloudConfigured } from "@/lib/supabase-client";
 import {
+  completePasswordReset as cloudCompletePasswordReset,
   getCurrentUser,
+  isRecoveryLink,
   pullSnapshot,
   pushSnapshot,
   resetPassword as cloudResetPassword,
@@ -23,11 +25,13 @@ export interface CloudSyncController {
   status: SyncStatus;
   lastSyncedAt: string | null;
   error: string | null;
+  recovering: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   syncNow: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  completePasswordReset: (newPassword: string) => Promise<void>;
 }
 
 function nowClock(): string {
@@ -55,6 +59,7 @@ export function useCloudSync(
   const [status, setStatus] = useState<SyncStatus>(configured ? "signed-out" : "unconfigured");
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [recovering, setRecovering] = useState<boolean>(() => typeof window !== "undefined" && isRecoveryLink());
 
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -153,6 +158,19 @@ export function useCloudSync(
     await cloudResetPassword(email);
   }, []);
 
+  const completePasswordReset = useCallback(async (newPassword: string) => {
+    setError(null);
+    setStatus("syncing");
+    try {
+      await cloudCompletePasswordReset(newPassword);
+      setRecovering(false);
+      setStatus("ready");
+    } catch (e) {
+      setStatus("error");
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
   // 挂载时恢复已有登录会话（等本地数据 ready 后再同步，避免用种子数据覆盖真实数据）
   useEffect(() => {
     if (!configured || !ready) return;
@@ -198,5 +216,5 @@ export function useCloudSync(
   // 卸载时退订
   useEffect(() => () => unsubscribeRef.current?.(), []);
 
-  return { user, status, lastSyncedAt, error, signIn, signUp, signOut, syncNow, resetPassword };
+  return { user, status, lastSyncedAt, error, recovering, signIn, signUp, signOut, syncNow, resetPassword, completePasswordReset };
 }

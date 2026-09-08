@@ -23,6 +23,11 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
   const [resetBusy, setResetBusy] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryDone, setRecoveryDone] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -51,6 +56,28 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
     }
   };
 
+  const submitRecovery = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      setRecoveryError("新密码至少 6 位。");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setRecoveryError("两次输入的密码不一致。");
+      return;
+    }
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      await cloud.completePasswordReset(newPassword);
+      setRecoveryDone(true);
+    } catch (cause) {
+      setRecoveryError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
+
   const inFlight = busy || cloud.status === "syncing";
 
   // 未配置 Supabase
@@ -66,6 +93,67 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
             <CloudSlash size={20} />
           </div>
           <p className="cloud-intro">需要在 Supabase 建好项目并填入 Project URL 与 anon key 后，才能登录并跨设备同步。</p>
+        </section>
+      </main>
+    );
+  }
+
+  // 重置密码（从邮件链接回来，设置新密码）
+  if (cloud.recovering) {
+    return (
+      <main className="main-content module-page cloud-sync-page">
+        <header className="page-header module-header">
+          <div><div className="breadcrumb">WEALTH ATLAS / SETTINGS</div><h1>重置密码</h1></div>
+        </header>
+        <section className="panel">
+          <div className="panel-title-row">
+            <div><div className="panel-kicker">CLOUD SYNC</div><h2>设置新密码</h2></div>
+            <CloudArrowUp size={20} />
+          </div>
+
+          {recoveryDone ? (
+            <div className="reset-sent" role="status">
+              <CheckCircle size={18} />
+              <div><strong>密码已重置</strong><span>请用新密码回到「设置 → 云端同步」登录。</span></div>
+            </div>
+          ) : (
+            <form className="form-stack cloud-form" onSubmit={submitRecovery}>
+              <p className="cloud-intro" style={{ margin: 0 }}>输入你的新密码（至少 6 位），提交后即可用新密码登录。</p>
+              {recoveryError && (
+                <div className="sync-error" role="alert">
+                  <WarningCircle size={18} />
+                  <div><strong>需要处理</strong><span>{recoveryError}</span></div>
+                </div>
+              )}
+              <label>
+                新密码
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  required
+                  minLength={6}
+                />
+              </label>
+              <label>
+                确认新密码
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  required
+                  minLength={6}
+                />
+              </label>
+              <button type="submit" className="primary-button full" disabled={recoveryBusy}>
+                <CheckCircle size={16} /> {recoveryBusy ? "提交中…" : "设置新密码"}
+              </button>
+            </form>
+          )}
         </section>
       </main>
     );

@@ -34,15 +34,41 @@ export async function signOut(): Promise<void> {
   await sb?.auth.signOut();
 }
 
-/** 发送密码重置邮件。网页版会带回跳地址；桌面版（file://）交给 Supabase 默认流程。 */
+/** 发送密码重置邮件。优先跳回当前网页地址；桌面版（file://）回退到 NEXT_PUBLIC_APP_URL。 */
 export async function resetPassword(email: string): Promise<void> {
   const sb = getSupabaseClient();
   if (!sb) throw new Error("尚未配置云端（缺少 Supabase 环境变量）。");
   const redirectTo = typeof window !== "undefined" && window.location.protocol.startsWith("http")
     ? window.location.origin
-    : undefined;
+    : process.env.NEXT_PUBLIC_APP_URL;
   const { error } = await sb.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : {});
   if (error) throw error;
+}
+
+/** 当前 URL 是否携带「重置密码」的回跳令牌（type=recovery）。 */
+export function isRecoveryLink(): boolean {
+  if (typeof window === "undefined") return false;
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  return params.get("type") === "recovery" && Boolean(params.get("access_token"));
+}
+
+/** 用重置邮件里的令牌建立会话并设置新密码；完成后清掉 URL 里的 hash。 */
+export async function completePasswordReset(newPassword: string): Promise<void> {
+  const sb = getSupabaseClient();
+  if (!sb) throw new Error("尚未配置云端（缺少 Supabase 环境变量）。");
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const access_token = params.get("access_token");
+  const refresh_token = params.get("refresh_token");
+  if (params.get("type") !== "recovery" || !access_token || !refresh_token) {
+    throw new Error("没有检测到重置链接的令牌，请从邮件里的链接重新进入。");
+  }
+  const { error: sessionError } = await sb.auth.setSession({ access_token, refresh_token });
+  if (sessionError) throw sessionError;
+  const { error } = await sb.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+  if (typeof window !== "undefined") {
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
 }
 
 export async function getCurrentUser(): Promise<CloudUser | null> {
