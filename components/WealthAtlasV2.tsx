@@ -484,7 +484,8 @@ export default function WealthAtlasV2() {
     } else if(active==="assets") {
       setFxMode(false);
       setAssetMode(true);
-    } else if(active!=="settings") {
+    } else {
+      // 设置页或其它页面：清掉 assets/fx 子视图，确保能正常回到设置
       setFxMode(false);
       setAssetMode(false);
     }
