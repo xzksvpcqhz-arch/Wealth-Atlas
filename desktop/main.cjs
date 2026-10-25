@@ -6,6 +6,7 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
+const { setupAutoUpdates } = require("./updater.cjs");
 
 const SCHEME = "wealth-atlas";
 const APP_ORIGIN = `${SCHEME}://app`;
@@ -1392,21 +1393,12 @@ async function runSmoke(window, mode) {
 }
 
 function setupAutoUpdater() {
-  if (!app.isPackaged || !autoUpdater) return; // 开发模式或未打包 updater 时不检查
-  // 公开仓库自动更新不需要 token；仅私有仓库场景（构建时显式 WEALTH_ATLAS_EMBED_TOKEN=1）
-  // 才会嵌入 update-token.json，这里读到就设置，读不到（默认）则跳过。
-  try {
-    const token = JSON.parse(fsSync.readFileSync(path.join(__dirname, "update-token.json"), "utf8")).token;
-    if (token) process.env.GH_TOKEN = token;
-  } catch { /* 无 token 文件（公开仓库或开发）则跳过 */ }
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on("update-downloaded", () => {
-    writeMainLog("update-downloaded");
-    autoUpdater.quitAndInstall();
+  return setupAutoUpdates({
+    updater: autoUpdater,
+    isPackaged: app.isPackaged,
+    isolated: Boolean(smokeMode || explicitTestProfile),
+    log: writeMainLog,
   });
-  autoUpdater.on("error", (error) => writeMainLog("update-error", { message: String(error?.message ?? error) }));
-  autoUpdater.checkForUpdatesAndNotify().catch(() => { /* 静默失败，不影响使用 */ });
 }
 
 app.whenReady().then(async () => {
@@ -1430,7 +1422,8 @@ app.whenReady().then(async () => {
   recordStartupStage("logs-directory", "success");
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   const window = createMainWindow();
-  setupAutoUpdater();
+  const updateController = setupAutoUpdater();
+  window.on("focus", () => { void updateController.check(); });
   await writeSmokeLog("window-created");
   writeMainLog("browser-window-created");
   recordStartupStage("browser-window", "success");

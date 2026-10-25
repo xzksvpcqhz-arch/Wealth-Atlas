@@ -1,22 +1,19 @@
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
 import { Arch, Platform, build } from "electron-builder";
 import packageJson from "../package.json" with { type: "json" };
+import { assertCloudBuildConfigured, prepareGithubPublish, publishCheckedRelease } from "./github-release.mjs";
 
 const projectRoot = process.cwd();
+assertCloudBuildConfigured(process.env);
 
-// 更新令牌（GH_TOKEN）默认不再嵌入安装包：
-// - 公开仓库的自动更新走 GitHub 公开 feed + 下载 URL，不需要 token。
-// - 只有显式设置 WEALTH_ATLAS_EMBED_TOKEN=1 时才嵌入（用于私有仓库场景）。
-// 源码/提交中不包含 token；每次构建前清理可能残留的本地 token 文件，避免被打进 asar。
+// Public update feeds do not require a token inside the application.
+// Refuse a leftover secret without reading or deleting it.
 const embedTokenFile = path.join(projectRoot, "desktop", "update-token.json");
-if (process.env.WEALTH_ATLAS_EMBED_TOKEN === "1" && process.env.GH_TOKEN) {
-  writeFileSync(embedTokenFile, JSON.stringify({ token: process.env.GH_TOKEN }), "utf8");
-} else {
-  try { rmSync(embedTokenFile, { force: true }); } catch { /* best-effort cleanup */ }
-}
+if (process.env.WEALTH_ATLAS_EMBED_TOKEN === "1" || existsSync(embedTokenFile)) throw new Error("Token embedding is disabled. Remove any leftover token file manually before building; it has not been read or deleted.");
+const publishContext = process.env.WEALTH_ATLAS_PUBLISH === "1" ? await prepareGithubPublish(projectRoot, packageJson) : null;
 
 const certificatePath = process.env.WINDOWS_CERTIFICATE_PATH?.trim() ?? "";
 const certificatePassword = process.env.WINDOWS_CERTIFICATE_PASSWORD ?? "";
@@ -100,35 +97,17 @@ Object.assign(process.env, signingEnv);
 await build({
   targets: Platform.WINDOWS.createTarget(["nsis"], Arch.x64),
   config: buildConfig,
-  // 设为 "always" 会上传到 GitHub Releases（需 GH_TOKEN 环境变量），默认只本地构建 + 生成 latest.yml
-  publish: process.env.WEALTH_ATLAS_PUBLISH === "1" ? "always" : "never",
+  // Build and validate locally before any remote write.
+  publish: "never",
 });
-
-// 发布后确保只有一个已发布（非草稿）的 release，避免 electron-builder 重复创建
-async function ensureSingleGithubRelease() {
-  if (process.env.WEALTH_ATLAS_PUBLISH !== "1") return;
-  const token = process.env.GH_TOKEN;
-  if (!token) return;
-  const owner = buildConfig.publish?.owner;
-  const repo = buildConfig.publish?.repo;
-  const tag = `v${packageJson.version}`;
-  const api = `https://api.github.com/repos/${owner}/${repo}/releases`;
-  const headers = { "Authorization": `Bearer ${token}`, "User-Agent": "wealth-atlas", "Accept": "application/vnd.github+json" };
-  let releases;
-  try { releases = await fetch(api, { headers }).then((r) => r.json()); } catch { return; }
-  const same = (releases ?? []).filter((rel) => rel.tag_name === tag);
-  if (same.length <= 1) {
-    if (same[0]?.draft) await fetch(`${api}/${same[0].id}`, { method: "PATCH", headers, body: JSON.stringify({ draft: false }) });
-    return;
-  }
-  same.sort((a, b) => b.assets.length - a.assets.length);
-  for (const extra of same.slice(1)) await fetch(`${api}/${extra.id}`, { method: "DELETE", headers });
-  await fetch(`${api}/${same[0].id}`, { method: "PATCH", headers, body: JSON.stringify({ draft: false }) });
-}
-await ensureSingleGithubRelease();
 
 await run(process.execPath, ["scripts/windows-release-check.mjs"], {
   WEALTH_ATLAS_RELEASE_DIR: releaseDirectory,
   WEALTH_ATLAS_RELEASE_SIGNING: signedRelease ? "SIGNED" : "UNSIGNED",
   WINDOWS_PUBLISHER_NAME: signedRelease ? publisherName : "",
 });
+if (publishContext) {
+  const rechecked = await prepareGithubPublish(projectRoot, packageJson);
+  if (rechecked.head !== publishContext.head) throw new Error("Publish blocked: source changed during the build.");
+  await publishCheckedRelease(rechecked, path.resolve(projectRoot, releaseDirectory), packageJson.version);
+}

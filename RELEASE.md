@@ -1,89 +1,62 @@
-# Wealth Atlas 发布流程（每次发布照做）
+# Wealth Atlas GitHub 自动更新与发布
 
-> 仓库已公开：`xzksvpcqhz-arch/Wealth-Atlas`。**自动更新不需要 token**（公开仓库走公开 feed + 下载 URL）；token 只在"上传发布"时需要。
+发布仓库：`xzksvpcqhz-arch/Wealth-Atlas`（公开）。GitHub 只分发代码和安装包，不保存个人财务资料。跨设备财务同步属于独立功能，本流程不会触发它。
 
-## 发布前必须知道的 3 件事
+## 使用者如何更新
 
-1. **版本号必须比已发布的高**（如当前最新 1.6.3 → 下一个 1.6.4），否则已安装应用不会触发更新。
-2. **token 永远不会被嵌进安装包**（只有显式设 `WEALTH_ATLAS_EMBED_TOKEN=1` 才嵌入，仅私有仓库场景需要）。
-3. **已知坑**：electron-builder 偶尔不上传 `.blockmap`，发布后必须核对，缺了就手动补传（命令见步骤 8）。
+- 正式 Windows 应用启动时后台检查稳定版本，联网且存在更高版本时下载。
+- 下载完成不会强制关闭页面；正常退出后由现有 NSIS 更新器安装，随后重新打开查看新版本。
+- 焦点回到应用时可重试：正常检查间隔 30 分钟，失败后的重试间隔至少 1 分钟。
+- 不自动降级，不接收预发布版本。离线或检查失败不阻断启动。
+- 使用者无需 GitHub Token；公开更新源不会携带发布凭据。
+- 开发运行和隔离测试 profile 不连接线上更新器。
+- 已有 v1.7.3 使用旧更新器；必须安装本候选后，新行为才生效。
 
----
+## 发布前确认
 
-## Step-by-step
+1. 检查 Git 状态、当前分支、HEAD 和最新公开 release；版本必须更高。
+2. 保留所有未提交改动，不清空用户资料，不读取私密资料目录。
+3. 用户确认后才能保存最终 commit/tag。提交全部已确认的相关代码，不能只提交版本号。
+4. 本地 tag、远程 tag、已提交的 package 版本和构建源码必须一致。不得移动旧 tag、覆盖旧 release 或强推。
+5. 构建只使用本机环境变量。`GH_TOKEN` 只用于发布；前端云配置只允许公开 publishable/anon key，禁止 secret/service-role key。
+6. `NEXT_PUBLIC_APP_URL` 未知时不设置，不填空格。空白值可在构建进程中忽略，不修改系统保存值。
 
-### 1. 检查工作区
-```powershell
-cd "E:\DeepSeek Project\Deepseek info\WealthAtlas"
-git status          # 工作区要干净
-```
+## 验证与候选打包
 
-### 2. 升版本号
-- 打开 `package.json`：`"version": "1.6.3"` → `"1.6.4"`（比当前已发布版本高）
-- 同步改 `package-lock.json` 顶部两处 `"version"`（第 3 行和第 9 行附近；**别碰** `node_modules/use-sync-external-store` 那种依赖自己的版本）
+在本修复分支所在目录执行；以下命令不会发布：
 
-### 3. 验证（AGENTS.md 硬性要求）
-```powershell
+```text
 npm test
 npm run build
+npm run release:test-updater
+npm run release:windows
+npm run release:test-installed
 ```
 
-### 4. 提交
-```powershell
-git add package.json package-lock.json
-git commit -m "chore: bump version to 1.6.4"
-```
+环境变量应通过本机安全方式载入进程，不把真实 Token 写进命令文本、源码、日志或聊天。构建不会读取或自动删除任何遗留 token 文件；发现该文件即停止。没有正式证书时，候选包明确标注 UNSIGNED。
 
-### 5. 创建一次性发布 token（每次发布都新建，用完即删）
-1. GitHub → 右上头像 → **Settings** → **Developer settings** → **Fine-grained personal access tokens** → **Generate new token**
-2. Token name：`wealth-atlas-publish`
-3. Expiration：7 天即可
-4. Repository access：**Only select repositories** → `Wealth-Atlas`
-5. Repository permissions → **Contents: Read and write**（只需要这一个权限）
-6. Generate，复制 `github_pat_...`
+桌面升级测试使用提取后的真实安装包程序和隔离虚拟 profile，不运行实际安装向导，不替换用户安装，不改变注册表或个人资料。
 
-> ⚠️ token 只留在你本地终端/密码管理器，**绝不发到聊天、绝不嵌进安装包**。
+## 经用户确认后发布
 
-### 6. 在项目目录注入 token 并发布
-```powershell
-cd "E:\DeepSeek Project\Deepseek info\WealthAtlas"
-$env:GH_TOKEN="你的新token"
+先提交并推送已确认的源码及精确版本 tag，再使用本机发布环境运行：
+
+```text
 npm run release:publish
 ```
-- 发布需要几分钟（Next 构建 + electron-builder 打包 + 上传）。
-- 成功标志：`Windows release check: PASS`，退出码 0。
 
-### 7. 核对 release
-- 打开 `https://github.com/xzksvpcqhz-arch/Wealth-Atlas/releases`
-- 确认最新 release：**非草稿**、tag 是 `vX.Y.Z`、**3 个资产**：
-  - `latest.yml`
-  - `Wealth-Atlas-Setup.exe`
-  - `Wealth-Atlas-Setup.exe.blockmap`
+脚本会再次检查源码、版本和配置，再构建、校验，最后创建 GitHub draft。必须上传且逐项验证以下三个文件的大小及服务器 SHA-256，才会公开为 latest：
 
-### 8. 缺 `.blockmap` 就手动补传（常见坑）
-```powershell
-# 先拿到 release_id：
-# GET https://api.github.com/repos/xzksvpcqhz-arch/wealth-atlas/releases/tags/vX.Y.Z  → 响应里的 "id"
-$releaseId="这里填release的id"
-$env:GH_TOKEN="你的token"
-curl.exe -s -X POST -H "Authorization: Bearer $env:GH_TOKEN" -H "Accept: application/vnd.github+json" -H "Content-Type: application/octet-stream" --data-binary "@desktop-dist\vX.Y.Z\Wealth-Atlas-Setup.exe.blockmap" "https://uploads.github.com/repos/xzksvpcqhz-arch/wealth-atlas/releases/$releaseId/assets?name=Wealth-Atlas-Setup.exe.blockmap"
-```
-> 注意 endpoint 是 **`uploads.github.com`**，不是 `api.github.com`。响应里出现 `"state":"uploaded"` 即成功。
+- `Wealth-Atlas-Setup.exe`
+- `Wealth-Atlas-Setup.exe.blockmap`
+- `latest.yml`
 
-### 9. 吊销这次用的 token
-GitHub → Settings → Developer settings → Fine-grained PAT → 删除 `wealth-atlas-publish`。
+清单内版本、文件名、文件大小和 SHA-512 必须与安装包一致。任何步骤失败时停止；已创建的 draft 保留，不自动删除或覆盖其他 release。`release-check.json` 的 PASS 仅说明本地检查通过；`distributionReady` 必须为 true，并且远程公开文件完成核对，才能称为正式发布成功。
 
-### 10. 完成
-- 已安装应用下次启动会自动更新（不需要你做任何事）。
-- 想立即生效：让用户重启一次 app，首页右上角应显示新版本号。
+## 发布后
 
----
-
-## 出问题时
-
-| 现象 | 处理 |
-|---|---|
-| `403 Resource not accessible by personal access token` | token 缺写权限 → 去 GitHub 把 Contents 改成 **Read and write** |
-| 上传成功但 `latest.yml` 版本不对 | 检查 package.json 版本是否比已发布的高 |
-| 旧版 app 不更新 | 等下次启动（只在启动时检查）；或手动装最新安装包一次 |
-| 想回退 | 别删旧 release；等用户重启后它只会升到更高版本，不会降级 |
+- 核对公开 release 的 tag 与源码 commit，以及全部更新资产。
+- 在独立测试环境验证真实公开更新下载，再安排实际安装验收。不能用模拟网络测试代替正式端到端验收。
+- 吊销临时 GitHub Token，并手动移除本机临时发布凭据。
+- 未签名不会因为上传 GitHub 而变成已签名，SmartScreen 仍可能提醒。
+- 不删除旧 release。需要修正已公开版本时，发布更高版本，不能让自动更新回退个人资料。

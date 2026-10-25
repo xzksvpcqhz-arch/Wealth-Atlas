@@ -4,8 +4,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import JSZip from "jszip";
-import { listPackage } from "@electron/asar";
+import { listPackage, extractFile } from "@electron/asar";
 import packageJson from "../package.json" with { type: "json" };
+import { validateUpdateAssets } from "./github-release.mjs";
 
 const projectRoot = process.cwd();
 const releaseDirectory = process.env.WEALTH_ATLAS_RELEASE_DIR?.trim() || path.join("desktop-dist", `v${packageJson.version}`);
@@ -26,6 +27,7 @@ function check(name, condition, detail) {
 
 function getWindowsMetadata(filePath) {
   const command = [
+    "$ErrorActionPreference = 'Stop'",
     "$target = $env:WEALTH_ATLAS_SIGNATURE_TARGET",
     "$item = Get-Item -LiteralPath $target",
     "$signature = Get-AuthenticodeSignature -LiteralPath $target",
@@ -40,7 +42,9 @@ function getWindowsMetadata(filePath) {
   ].join("\n");
   const output = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
     encoding: "utf8",
-    env: { ...process.env, WEALTH_ATLAS_SIGNATURE_TARGET: filePath },
+    // PowerShell 7 can pass an incompatible module path to Windows PowerShell 5.
+    // Use its own built-in security module and fail closed if inspection fails.
+    env: { ...process.env, PSModulePath: path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "Modules"), WEALTH_ATLAS_SIGNATURE_TARGET: filePath },
   });
   return JSON.parse(output.trim());
 }
@@ -72,6 +76,25 @@ if (expectedSigning === "SIGNED") {
 }
 
 const packagedFiles = listPackage(asarPath).map((entry) => entry.replaceAll("\\", "/").toLowerCase());
+const embeddedPackage = JSON.parse(extractFile(asarPath, "package.json").toString("utf8"));
+check("Embedded application version", embeddedPackage.version === packageJson.version, embeddedPackage.version);
+for (const relativePath of ["desktop/main.cjs", "desktop/preload.cjs", "desktop/updater.cjs"]) {
+  const source = readFileSync(path.join(projectRoot, relativePath));
+  const embedded = extractFile(asarPath, path.normalize(relativePath));
+  check("Embedded source matches build input", source.equals(embedded), relativePath);
+}
+check("No embedded update token", !packagedFiles.includes("/desktop/update-token.json"), "Public update feeds require no embedded credential.");
+const asarBytes = readFileSync(asarPath);
+const privateBuildSecrets = [process.env.GH_TOKEN, process.env.GITHUB_TOKEN, process.env.WINDOWS_CERTIFICATE_PASSWORD, process.env.DEEPSEEK_API_KEY].filter((value) => value && value.length >= 8);
+check("No private build credentials in package", !privateBuildSecrets.some((value) => asarBytes.includes(Buffer.from(value))), "Private secret values are never printed.");
+try {
+  validateUpdateAssets(["Wealth-Atlas-Setup.exe", "Wealth-Atlas-Setup.exe.blockmap", "latest.yml"].map((name) => ({ name, bytes: readFileSync(path.join(releasePath, name)) })), packageJson.version);
+  check("Automatic update assets", true, "Installer, blockmap and manifest agree on version, size and SHA-512.");
+} catch { check("Automatic update assets", false, "Missing or mismatched automatic update files."); }
+const updateFeedPath = path.join(releasePath, "win-unpacked", "resources", "app-update.yml");
+const updateFeed = readFileSync(updateFeedPath, "utf8");
+check("Public GitHub update feed", /^provider:\s*github\s*$/m.test(updateFeed) && /^owner:\s*xzksvpcqhz-arch\s*$/m.test(updateFeed) && /^repo:\s*wealth-atlas\s*$/im.test(updateFeed)
+  && !/^(?:token|authorization|private):/im.test(updateFeed), "Public repository feed without embedded credentials.");
 const forbiddenPackageSegments = ["/.env.local", "/data/", "/exports/", "/private-vault/", "/backups/", "/outputs/", "/review/"];
 const forbiddenPackagedFiles = packagedFiles.filter((entry) => forbiddenPackageSegments.some((segment) => entry.includes(segment)));
 check("Packaged private-data paths", forbiddenPackagedFiles.length === 0, forbiddenPackagedFiles.join(", ") || "none");
@@ -129,6 +152,15 @@ for (const templateName of ["INSTALL.md", "SECURITY.md", "RELEASE_NOTES.md"]) {
   writeFileSync(path.join(sharePath, templateName), content, "utf8");
 }
 
+const cloudConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectRoot, encoding: "utf8" }).trim();
+const sourceHasUncommittedChanges = Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: projectRoot, encoding: "utf8" }).trim());
+let sourceTagMatches = false;
+try { sourceTagMatches = execFileSync("git", ["rev-parse", `v${packageJson.version}^{commit}`], { cwd: projectRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim() === sourceCommit; } catch { /* Unapproved candidates remain undistributed. */ }
+if (!cloudConfigured) {
+  const notesPath = path.join(sharePath, "RELEASE_NOTES.md");
+  writeFileSync(notesPath, readFileSync(notesPath, "utf8") + "\n本地测试候选包：尚未注入现有云登录构建配置，不可上传为正式自动更新版本。\n", "utf8");
+}
 const report = {
   status: "PASS",
   release: signatureLabel,
@@ -138,6 +170,11 @@ const report = {
   sha256,
   installer: "Wealth-Atlas-Setup.exe",
   appData: "%APPDATA%\\Wealth Atlas",
+  sourceCommit,
+  sourceHasUncommittedChanges,
+  sourceTagMatches,
+  cloudConfigured,
+  distributionReady: cloudConfigured && !sourceHasUncommittedChanges && sourceTagMatches,
   checks,
 };
 writeFileSync(path.join(sharePath, "release-check.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");

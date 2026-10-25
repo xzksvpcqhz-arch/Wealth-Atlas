@@ -1,6 +1,6 @@
 {
   "name": "wealth-atlas",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "description": "Local-first multi-currency personal finance workspace",
   "author": "Wealth Atlas",
   "private": true,
@@ -11,7 +11,7 @@
     "build:web": "node scripts/web-build.mjs",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --experimental-strip-types --test tests/finance-regression.test.mjs tests/migration-diagnostics.test.mjs tests/account-hierarchy.test.mjs tests/cloud-merge.test.mjs && tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/finance-regression.test.mjs tests/migration-diagnostics.test.mjs tests/account-hierarchy.test.mjs tests/cloud-merge.test.mjs tests/release-source.test.mjs tests/auto-updater.test.mjs && tsc --noEmit",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "desktop:build": "node scripts/desktop-build.mjs",
     "desktop:test": "node scripts/desktop-persistence-test.mjs",
@@ -20,6 +20,7 @@
     "release:publish": "set WEALTH_ATLAS_PUBLISH=1&& node scripts/windows-release.mjs",
     "release:check": "node scripts/windows-release-check.mjs",
     "release:test-installed": "node scripts/windows-installed-release-test.mjs",
+    "release:test-updater": "node scripts/updater-feed-test.cjs",
     "ai:review": "node scripts/deepseek-review.mjs",
     "prepare:review": "node scripts/prepare-hermes-review.mjs",
     "read:review": "node scripts/read-hermes-review.mjs"

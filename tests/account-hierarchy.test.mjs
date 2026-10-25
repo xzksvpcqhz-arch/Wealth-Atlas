@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   getAccountDescendantIds,
   getAccountRootId,
+  getAccountCurrencyGroups,
   getAvailableMainAccounts,
   validateAccountParent,
 } from "../lib/account-hierarchy.ts";
@@ -44,4 +45,31 @@ test("root resolution keeps child organization separate from account balances", 
   assert.equal(getAccountRootId(accounts, "nested-child"), "sgd-main");
   assert.equal(accounts.find((account) => account.id === "sgd-main").balance, 100);
   assert.equal(accounts.find((account) => account.id === "sgd-child").balance, 50);
+});
+
+test("currency columns render every active account once without mutating financial records", () => {
+  const before = structuredClone(accounts);
+  const groups = ["MYR", "SGD", "USD"].flatMap((currency) => getAccountCurrencyGroups(accounts, currency));
+  const rendered = groups.flatMap(({ root, children }) => [root, ...children]);
+  assert.deepEqual(rendered.map(({ id }) => id).sort(), accounts.filter(({ status }) => status === "active").map(({ id }) => id).sort());
+  assert.equal(new Set(rendered.map(({ id }) => id)).size, rendered.length);
+  for (const { root, children } of groups) assert.ok(children.every((child) => child.currency === root.currency));
+  assert.equal(getAccountCurrencyGroups(accounts, "MYR").some(({ root }) => root.id === "nested-child"), true);
+  assert.deepEqual(accounts, before);
+});
+
+test("cross-currency children, missing parents and legacy cycles remain visible", () => {
+  const cases = [
+    { id: "usd-parent", currency: "USD", parentAccountId: null },
+    { id: "myr-child", currency: "MYR", parentAccountId: "usd-parent" },
+    { id: "myr-grandchild", currency: "MYR", parentAccountId: "myr-child" },
+    { id: "sgd-orphan", currency: "SGD", parentAccountId: "missing" },
+    { id: "cycle-a", currency: "SGD", parentAccountId: "cycle-b" },
+    { id: "cycle-b", currency: "SGD", parentAccountId: "cycle-a" },
+    { id: "inactive-child", currency: "MYR", parentAccountId: "usd-parent", status: "inactive" },
+  ];
+  const groups = ["MYR", "SGD", "USD"].flatMap((currency) => getAccountCurrencyGroups(cases, currency));
+  assert.deepEqual(groups.flatMap(({ root, children }) => [root.id, ...children.map(({ id }) => id)]).sort(), cases.filter(({ status }) => status !== "inactive").map(({ id }) => id).sort());
+  assert.deepEqual(getAccountCurrencyGroups(cases, "MYR")[0].children.map(({ id }) => id), ["myr-grandchild"]);
+  assert.deepEqual(getAccountCurrencyGroups([], "USD"), []);
 });

@@ -1,4 +1,4 @@
-import type { Account } from "./types";
+import type { Account, CurrencyCode } from "./types";
 
 function isAvailableAccount(account: Account) {
   return account.status !== "inactive" && account.status !== "deleted";
@@ -74,4 +74,15 @@ export function getAccountRootId(accounts: Account[], accountId: string) {
     if (!parentId || !accountById.has(parentId)) return currentId;
     currentId = parentId;
   }
+}
+
+// Currency columns are a display partition, not a change to the saved hierarchy.
+// A parent in another column must not hide its child or mix currency totals.
+export function getAccountCurrencyGroups(accounts: Account[], currency: CurrencyCode) {
+  const column = accounts.filter((account) => isAvailableAccount(account) && account.currency === currency);
+  const rootIds = new Map(column.map((account) => [account.id, getAccountRootId(column, account.id)]));
+  return column.filter((account) => rootIds.get(account.id) === account.id).map((root) => ({
+    root,
+    children: column.filter((account) => account.id !== root.id && rootIds.get(account.id) === root.id),
+  }));
 }

@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import packageJson from "../package.json" with { type: "json" };
 
 const projectRoot = process.cwd();
-const baselineVersion = "1.4.3";
+const baselineVersion = "1.7.3";
 const releaseVersion = packageJson.version;
-const baselineInstaller = path.join(projectRoot, "desktop-dist", `v${baselineVersion}`, "Wealth-Atlas-Setup.exe");
+const baselineInstaller = process.env.WEALTH_ATLAS_BASELINE_INSTALLER || path.join(projectRoot, "desktop-dist", `v${baselineVersion}`, "Wealth-Atlas-Setup.exe");
 const releaseInstaller = path.join(projectRoot, "desktop-dist", `v${releaseVersion}`, "Wealth-Atlas-Setup.exe");
 const testRoot = path.join(projectRoot, "work", "installed-release-tests", randomUUID());
 const freshInstallPath = path.join(testRoot, "fresh-app");
@@ -16,6 +16,7 @@ const freshProfilePath = path.join(testRoot, "fresh-profile");
 const upgradeInstallPath = path.join(testRoot, "upgrade-app");
 const upgradeProfilePath = path.join(testRoot, "upgrade-profile");
 const vaultPath = path.join(testRoot, "vault");
+const extractorPath = process.env.WEALTH_ATLAS_TEST_EXTRACTOR || path.join(projectRoot, "node_modules", "electron-winstaller", "vendor", "7z-x64.exe");
 
 function run(file, args, env = {}, requireSmokeOutput = false) {
   return new Promise((resolve, reject) => {
@@ -48,8 +49,16 @@ function executableVersion(filePath) {
 }
 
 async function install(installerPath, installPath, expectedVersion) {
-  await run(installerPath, ["/S", `/D=${installPath}`]);
-  const applicationPath = path.join(installPath, "Wealth Atlas.exe");
+  // Test the real payload without executing NSIS, changing registry/shortcuts,
+  // replacing the user's installed app, or using a real financial profile.
+  const payloadRoot = path.join(installPath, expectedVersion);
+  const stagingRoot = path.join(payloadRoot, "installer-payload");
+  const applicationRoot = path.join(payloadRoot, "application");
+  mkdirSync(stagingRoot, { recursive: true });
+  mkdirSync(applicationRoot, { recursive: true });
+  await run(extractorPath, ["x", installerPath, "$PLUGINSDIR/app-64.7z", `-o${stagingRoot}`, "-y"]);
+  await run(extractorPath, ["x", path.join(stagingRoot, "$PLUGINSDIR", "app-64.7z"), `-o${applicationRoot}`, "-y"]);
+  const applicationPath = path.join(applicationRoot, "Wealth Atlas.exe");
   if (!existsSync(applicationPath)) throw new Error("Installed Wealth Atlas executable was not found.");
   const actualVersion = executableVersion(applicationPath);
   if (!(actualVersion === expectedVersion || actualVersion.startsWith(`${expectedVersion}.`))) {
@@ -139,8 +148,8 @@ upgradeApp = await install(releaseInstaller, upgradeInstallPath, releaseVersion)
 await smoke(upgradeApp, upgradeProfilePath, "verify");
 verifyDiagnostics(upgradeProfilePath, false);
 
-console.log("Installed release test: PASS");
-console.log(`Fresh install: v${releaseVersion} PASS`);
+console.log("Installer payload runtime test: PASS (NSIS wizard and registry not exercised)");
+console.log(`Fresh isolated profile: v${releaseVersion} PASS`);
 console.log(`Upgrade: v${baselineVersion} -> v${releaseVersion} PASS`);
 console.log(`Rollback data compatibility: v${releaseVersion} -> v${baselineVersion} PASS`);
 console.log(`Isolated test root: ${testRoot}`);

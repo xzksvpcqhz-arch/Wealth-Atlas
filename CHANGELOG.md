@@ -1,4 +1,15 @@
 # Changelog
+## [1.7.4] - 2026-10-25
+
+- Hardened the public GitHub updater: stable releases only, no downgrade, no embedded credentials, deduplicated checks, throttled retry on focus, and no forced quit after downloading.
+- Added real NSIS updater loopback download/checksum tests with installation hard-blocked, plus version/hash verification of all three release assets before publication.
+
+- Fixed currency-column grouping that hid child accounts whose main account uses another currency; saved relationships, balances and financial calculations are unchanged.
+- Restored the complete v1.7.3 source baseline from commit `55c7ca6`, including existing login, navigation and asset-page fixes not yet reflected by the public release tag.
+- Added account visibility and release-source regressions. Publication now requires a clean reviewed commit, matching local/remote version tags, a newer version, and the existing cloud build configuration.
+- Build and release checks run before upload. Required update assets are uploaded to a draft and verified before publication; existing releases and tokens are not deleted or overwritten.
+- Desktop release tests use extracted installer payloads and synthetic profiles instead of running an installer against the user's Windows installation.
+
 ## [1.6.0] - 2026-08-22
 
 - 首页调整：快速记录工具栏整理、星座左右切换（默认按当日星座，按每星座日期范围显示）、Home Layout 文案整理。

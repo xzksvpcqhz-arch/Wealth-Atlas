@@ -84,7 +84,7 @@ import {
   totalIncomeInCurrency,
   totalInCurrency,
 } from "@/lib/finance";
-import { getAccountRootId,getAvailableMainAccounts,validateAccountParent } from "@/lib/account-hierarchy";
+import { getAccountCurrencyGroups,getAvailableMainAccounts,validateAccountParent } from "@/lib/account-hierarchy";
 import { loadWealthData,retryWealthStorage,saveWealthData,WealthStorageError } from "@/lib/storage";
 import { CURRENT_SCHEMA_VERSION,getWealthDataSchemaVersion,migrateWealthData,needsWealthDataMigration } from "@/lib/migrations";
 import { reportSafeDiagnostic,reportStartupStage,type SafeDiagnostic,type StartupStage } from "@/lib/diagnostics";
@@ -1048,15 +1048,14 @@ export default function WealthAtlasV2() {
             {currencies.map((currency) => {
               const colAccounts=activeAccounts.filter((account) => account.currency===currency);
               const colTotal=colAccounts.reduce((sum,account) => sum+getAccountBalance(data,account.id),0);
-              const roots=colAccounts.filter((account) => getAccountRootId(activeAccounts,account.id)===account.id);
+              const groups=getAccountCurrencyGroups(activeAccounts,currency);
               const collapsed=Boolean(collapsedCurrency[currency]);
               return <div className="tx-currency-col account-ccy-col" key={currency}>
                 <button type="button" className="tx-currency-head account-ccy-head" onClick={() => toggleCurrencyCol(currency)} aria-expanded={!collapsed} aria-label={(collapsed? "展开":"收起")+currency+" 账户"} title={(collapsed? "展开":"收起")+currency+" 账户"}>
                   <span>{currency}</span><b>{formatMoney(colTotal,currency)} <i className="account-ccy-chevron" aria-hidden="true">{collapsed? "▸":"▾"}</i></b>
                 </button>
-                {!collapsed&&(roots.length? <div className="account-ccy-list">
-                  {roots.map((root) => {
-                    const children=colAccounts.filter((account) => account.id!==root.id&&getAccountRootId(activeAccounts,account.id)===root.id);
+                {!collapsed&&(groups.length? <div className="account-ccy-list">
+                  {groups.map(({root,children}) => {
                     return <div className="account-ccy-family" key={root.id}>
                       <div className="tx-row account-ccy-row">
                         <div className="tx-row-ico"><Bank size={13} /></div>
