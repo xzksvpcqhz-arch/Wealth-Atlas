@@ -1,6 +1,6 @@
 {
   "name": "wealth-atlas",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "description": "Local-first multi-currency personal finance workspace",
   "author": "Wealth Atlas",
   "private": true,
@@ -11,7 +11,7 @@
     "build:web": "node scripts/web-build.mjs",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --experimental-strip-types --test tests/finance-regression.test.mjs tests/migration-diagnostics.test.mjs tests/account-hierarchy.test.mjs tests/cloud-merge.test.mjs tests/release-source.test.mjs tests/release-acceptance.test.mjs tests/installer-test-config.test.mjs tests/auto-updater.test.mjs && tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/finance-regression.test.mjs tests/migration-diagnostics.test.mjs tests/account-hierarchy.test.mjs tests/cloud-merge.test.mjs tests/release-source.test.mjs tests/release-acceptance.test.mjs tests/installer-test-config.test.mjs tests/auto-updater.test.mjs tests/display-preferences.test.mjs tests/display-preference-sync.test.mjs tests/display-preferences-sql.test.mjs tests/display-preferences-hook.test.mjs tests/display-candidate.test.mjs && tsc --noEmit",
     "desktop:dev": "node scripts/desktop-dev.mjs",
     "desktop:build": "node scripts/desktop-build.mjs",
     "desktop:test": "node scripts/desktop-persistence-test.mjs",

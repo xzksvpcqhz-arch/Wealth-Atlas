@@ -105,7 +105,7 @@ function persistLayouts(layouts: HomeLayouts, onNotify: (message: string) => voi
   }
 }
 
-export default function HomeLayoutGrid({ items, onNotify }: { items: HomeLayoutItem[]; onNotify: (message: string) => void }) {
+export default function HomeLayoutGrid({ items, onNotify, onCustomize }: { items: HomeLayoutItem[]; onNotify: (message: string) => void; onCustomize?: () => void }) {
   const [layouts, setLayouts] = useState<HomeLayouts>(() => cloneLayouts(DEFAULT_HOME_LAYOUTS));
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -174,7 +174,7 @@ export default function HomeLayoutGrid({ items, onNotify }: { items: HomeLayoutI
       </div>
       <div className="home-layout-toolbar-actions">
         {isEditing && <button type="button" className="secondary-button compact" onClick={resetLayouts} aria-label="恢复默认首页排版" title="恢复默认排版"><Sparkle size={16} />恢复默认排版</button>}
-        {isEditing ? <button type="button" className="primary-button compact" onClick={finishEditing} aria-label="完成首页排版" title="完成排版"><Check size={16} weight="bold" />完成排版</button> : <button type="button" className="secondary-button compact" onClick={() => setIsEditing(true)} disabled={isMobile} aria-label={isMobile ? "手机端保持单栏排版" : "调整首页排版"} title={isMobile ? "手机端保持单栏排版" : "调整排版"}><ArrowsOutCardinal size={16} />{isMobile ? "手机端单栏" : "调整排版"}</button>}
+        {isEditing ? <button type="button" className="primary-button compact" onClick={finishEditing} aria-label="完成首页排版" title="完成排版"><Check size={16} weight="bold" />完成排版</button> : <button type="button" className="secondary-button compact" onClick={() => onCustomize ? onCustomize() : setIsEditing(true)} disabled={isMobile && !onCustomize} aria-label={isMobile && !onCustomize ? "手机端保持单栏排版" : "调整首页排版"} title={isMobile && !onCustomize ? "手机端保持单栏排版" : "调整排版"}><ArrowsOutCardinal size={16} />{isMobile && !onCustomize ? "手机端单栏" : "调整排版"}</button>}
       </div>
     </div>
     {layoutEditing && <div className="home-layout-edit-notice" role="status"><DotsSixVertical size={17} /><span>编辑模式已开启，完成后点击“完成排版”才会退出。</span></div>}

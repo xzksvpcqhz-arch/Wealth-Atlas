@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { assertReleaseSource, assertCloudBuildConfigured, publishCheckedRelease, validateUpdateAssets } from "../scripts/github-release.mjs";
+import { assertReleaseSource, assertCloudBuildConfigured, publishCheckedRelease, validateUpdateAssets, buildReleaseBody } from "../scripts/github-release.mjs";
 import { probeAnonymousPrivileges, publicProbeConfig } from "../scripts/check-cloud-permissions.mjs";
 import { runInNewContext } from "node:vm";
 import { createRequire } from "node:module";
@@ -435,6 +435,15 @@ test("legacy search path fix cannot rewrite a function body, grant privileges or
 });
 
 const source = { version: "1.7.4", committedVersion: "1.7.4", head: "candidate", tagCommit: "candidate", remoteCommit: "candidate", dirty: false, latestVersion: "1.7.3" };
+test("v1.7.7 release notes describe display-only sync and preserve verification limits", () => {
+  const body = buildReleaseBody("1.7.7", "synthetic-reviewed-commit", "UNSIGNED");
+  assert.match(body, /Wealth Atlas v1\.7\.7/);
+  assert.match(body, /separate account-owned configuration table, not the financial snapshot/);
+  assert.match(body, /Windows-to-Mac and Mac-to-Windows/);
+  assert.match(body, /not proof of every NSIS wizard/);
+  assert.match(body, /UNSIGNED/);
+  assert.match(body, /synthetic-reviewed-commit/);
+});
 test("only a newer reviewed commit matching the local and remote release tags can publish", () => {
   assert.doesNotThrow(() => assertReleaseSource(source));
   for (const change of [{ dirty: true }, { committedVersion: "1.6.19" }, { tagCommit: "stale" }, { remoteCommit: "stale" }, { latestVersion: "1.7.4" }, { latestVersion: "1.8.0" }, { version: "invalid" }]) {

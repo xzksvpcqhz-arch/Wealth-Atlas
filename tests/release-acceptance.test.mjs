@@ -71,7 +71,7 @@ test("publish refuses stale acceptance and local candidates before any network r
 
 test("release copy describes current sync scope and never promises a universal offline fix", () => {
   const body = buildReleaseBody("1.7.5", "synthetic-commit", "UNSIGNED");
-  assert.match(body, /account-isolated/i); assert.match(body, /password-recovery/i);
+  assert.match(body, /account-isolated/i); assert.match(body, /password[- ]recovery/i);
   assert.match(body, /verification lifetime/i); assert.match(body, /UNSIGNED/);
   assert.doesNotMatch(body, /No UI redesign or financial calculation\/cloud-sync changes/);
 });

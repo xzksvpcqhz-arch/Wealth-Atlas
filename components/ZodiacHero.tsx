@@ -15,6 +15,8 @@ interface ZodiacHeroProps {
   monthlyIncome: number;
   monthlyExpenses: number;
   selectedDate?: string;
+  /** DIY separates income and expense into their own read-only modules. */
+  showTotals?: boolean;
 }
 
 function parseDate(dateStr: string | undefined): Date {
@@ -95,7 +97,7 @@ function smoothPathD(points: Array<[number, number]>): string {
 }
 
 export default function ZodiacHero({
-  freeToSpend, liquidBalance, budgetRemaining, upcomingTotal, reportCurrency, monthlyIncome, monthlyExpenses, selectedDate,
+  freeToSpend, liquidBalance, budgetRemaining, upcomingTotal, reportCurrency, monthlyIncome, monthlyExpenses, selectedDate, showTotals = true,
 }: ZodiacHeroProps) {
   const [zodiacIndex, setZodiacIndex] = useState<number>(() => getZodiacIndex(parseDate(selectedDate)));
   const bgStars = useMemo(buildBgStars, []);
@@ -179,10 +181,10 @@ export default function ZodiacHero({
           <span>固定付款 <b>- {formatMoney(upcomingTotal, reportCurrency)}</b></span>
         </div>
       </div>
-      <div className="zodiac-side">
+      {showTotals && <div className="zodiac-side">
         <div className="zodiac-stat income"><span>本月收入</span><b>{formatMoney(monthlyIncome, reportCurrency)}</b></div>
         <div className="zodiac-stat expense"><span>本月支出</span><b>{formatMoney(monthlyExpenses, reportCurrency)}</b></div>
-      </div>
+      </div>}
     </section>
   );
 }
