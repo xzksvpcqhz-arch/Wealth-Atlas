@@ -1,3 +1,5 @@
+import { assertActiveDataProfile, getDataProfile, type DataProfile } from "./data-profile";
+
 export type DesktopVaultConnection = {
   connected: boolean;
   name: string;
@@ -18,6 +20,7 @@ export type BackupEntry = {
 
 export type WealthAtlasDesktopBridge = {
   isDesktop: true;
+  activateDataProfile?: (key: string) => Promise<string>;
   appVersion: string;
   electronVersion: string;
   platform: string;
@@ -53,9 +56,33 @@ declare global {
   }
 }
 
+const privateMethods = new Set(["getDataLocation", "getStartupContext", "createDataBackup", "writeAutosave", "listBackups", "readBackup", "markStartupReady", "openBackupsLocation", "selectVault", "getVaultConnection", "disconnectVault", "ensureDirectory", "ensureFile", "readFile", "writeFile"]);
+
+export async function activateDesktopDataProfile(scope: DataProfile): Promise<string | undefined> {
+  const raw = typeof window === "undefined" ? null : window.wealthAtlasDesktop;
+  if (!raw) return undefined;
+  if (scope.kind === "local" && !raw.activateDataProfile) return undefined;
+  if (!raw.activateDataProfile) throw new Error("桌面资料隔离桥接不可用，请先更新桌面应用。");
+  return raw.activateDataProfile(scope.key);
+}
+
 export function getDesktopBridge() {
   if (typeof window === "undefined") return null;
-  return window.wealthAtlasDesktop ?? null;
+  const raw = window.wealthAtlasDesktop;
+  if (!raw) return null;
+  const scope = getDataProfile();
+  // contextBridge freezes its exposed object. Proxying that object directly
+  // cannot replace non-configurable function values (Proxy invariants).
+  return new Proxy({ ...raw }, {
+    get(target, property) {
+      const value = Reflect.get(target, property);
+      if (!privateMethods.has(String(property)) || typeof value !== "function") return value;
+      return (...args: unknown[]) => {
+        assertActiveDataProfile(scope);
+        return value(...args, { key: scope.key, token: scope.desktopToken });
+      };
+    },
+  });
 }
 
 export function isDesktopApp() {

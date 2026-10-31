@@ -12,7 +12,12 @@ const phases = ["main-startup-failure", "empty", "startup-diagnostics", "main-er
 
 function runPhase(phase) {
   return new Promise((resolve, reject) => {
-    const browserArgs = ["--disable-gpu", "--disable-gpu-compositing", "--disable-software-rasterizer", "--in-process-gpu"];
+    // The layout fixtures use transparent, non-taskbar windows. Keep Chromium
+    // rendering them while occluded so viewport changes and rAF focus effects
+    // are observed, not a stale frame. These switches are test-launcher ONLY;
+    // all existing layout/focus assertions and production defaults stay intact.
+    const browserArgs = ["--disable-gpu", "--disable-gpu-compositing", "--disable-software-rasterizer", "--in-process-gpu",
+      "--disable-renderer-backgrounding", "--disable-background-timer-throttling", "--disable-backgrounding-occluded-windows"];
     if (phase === "localstorage-unavailable") browserArgs.push("--disable-local-storage");
     const child = spawn(electronBinary, [...browserArgs, ".", `--desktop-smoke=${phase}`], {
       cwd: projectRoot,
@@ -31,7 +36,7 @@ function runPhase(phase) {
   });
 }
 
-for (const phase of phases) await runPhase(phase);
+for (const phase of [...phases, "account-isolation"]) await runPhase(phase);
 const rendererLog = await readFile(path.join(profilePath, "logs", "renderer.log"), "utf8");
 const mainLog = await readFile(path.join(profilePath, "logs", "main.log"), "utf8");
 const startup = JSON.parse(await readFile(path.join(profilePath, "logs", "startup.json"), "utf8"));

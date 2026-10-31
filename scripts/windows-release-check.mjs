@@ -1,14 +1,21 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import JSZip from "jszip";
 import { listPackage, extractFile } from "@electron/asar";
 import packageJson from "../package.json" with { type: "json" };
 import { validateUpdateAssets } from "./github-release.mjs";
+import { hashReleaseAssets, readInstalledReleaseAcceptance } from "./release-acceptance.mjs";
+import { assertPackagedRuntimeDependencies } from "./runtime-dependencies.mjs";
 
 const projectRoot = process.cwd();
+const localCandidate = process.env.WEALTH_ATLAS_LOCAL_CANDIDATE === "1";
+if (localCandidate && process.env.WEALTH_ATLAS_PUBLISH === "1") throw new Error("Local candidates cannot be published.");
+if (!localCandidate && process.env.WEALTH_ATLAS_RELEASE_SOURCE_ROOT) throw new Error("Source overrides are local-candidate only.");
+const sourceRoot = localCandidate && process.env.WEALTH_ATLAS_RELEASE_SOURCE_ROOT
+  ? path.resolve(process.env.WEALTH_ATLAS_RELEASE_SOURCE_ROOT) : projectRoot;
 const releaseDirectory = process.env.WEALTH_ATLAS_RELEASE_DIR?.trim() || path.join("desktop-dist", `v${packageJson.version}`);
 const releasePath = path.resolve(projectRoot, releaseDirectory);
 const installerPath = path.join(releasePath, "Wealth-Atlas-Setup.exe");
@@ -77,7 +84,14 @@ if (expectedSigning === "SIGNED") {
 
 const packagedFiles = listPackage(asarPath).map((entry) => entry.replaceAll("\\", "/").toLowerCase());
 const embeddedPackage = JSON.parse(extractFile(asarPath, "package.json").toString("utf8"));
+// Artifact provenance survives rechecking without the process-only candidate flag.
+const artifactIsLocalCandidate = localCandidate || embeddedPackage.wealthAtlasLocalReleaseCandidate === true
+  || existsSync(path.join(releasePath, "local-candidate-provenance.json"));
 check("Embedded application version", embeddedPackage.version === packageJson.version, embeddedPackage.version);
+try {
+  const count = assertPackagedRuntimeDependencies(listPackage(asarPath), (file) => JSON.parse(extractFile(asarPath, path.normalize(file)).toString("utf8")));
+  check("Packaged runtime dependency closure", count > 0, `${count} runtime packages present with entry files.`);
+} catch { check("Packaged runtime dependency closure", false, "Required updater/runtime module or entry is missing."); }
 for (const relativePath of ["desktop/main.cjs", "desktop/preload.cjs", "desktop/updater.cjs"]) {
   const source = readFileSync(path.join(projectRoot, relativePath));
   const embedded = extractFile(asarPath, path.normalize(relativePath));
@@ -95,23 +109,29 @@ const updateFeedPath = path.join(releasePath, "win-unpacked", "resources", "app-
 const updateFeed = readFileSync(updateFeedPath, "utf8");
 check("Public GitHub update feed", /^provider:\s*github\s*$/m.test(updateFeed) && /^owner:\s*xzksvpcqhz-arch\s*$/m.test(updateFeed) && /^repo:\s*wealth-atlas\s*$/im.test(updateFeed)
   && !/^(?:token|authorization|private):/im.test(updateFeed), "Public repository feed without embedded credentials.");
-const forbiddenPackageSegments = ["/.env.local", "/data/", "/exports/", "/private-vault/", "/backups/", "/outputs/", "/review/"];
-const forbiddenPackagedFiles = packagedFiles.filter((entry) => forbiddenPackageSegments.some((segment) => entry.includes(segment)));
+const privatePath = /(^|\/)(?:\.env[^/]*|data|exports|private-vault|backups|outputs|review|certificates)(?:\/|$)|\.(?:pfx|p12|pem|key)$/i;
+const forbiddenPackagedFiles = packagedFiles.filter((entry) => privatePath.test(entry));
 check("Packaged private-data paths", forbiddenPackagedFiles.length === 0, forbiddenPackagedFiles.join(", ") || "none");
 
-const trackedFiles = execFileSync("git", ["ls-files"], { cwd: projectRoot, encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
+const trackedFiles = execFileSync("git", ["ls-files"], { cwd: sourceRoot, encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
 const trackedSecrets = trackedFiles.filter((entry) => /(^|\/)(?:\.env(?!\.example)(?:\.|$)|data\/|exports\/|private-vault\/|backups\/|outputs\/)|\.(?:pfx|p12|pem|key)$/i.test(entry));
 check("Tracked secret containers", trackedSecrets.length === 0, trackedSecrets.join(", ") || "none");
 
-const changedFiles = execFileSync("git", ["ls-files", "--modified", "--others", "--exclude-standard"], { cwd: projectRoot, encoding: "utf8" })
+const changedFiles = execFileSync("git", ["ls-files", "--modified", "--others", "--exclude-standard"], { cwd: sourceRoot, encoding: "utf8" })
   .split(/\r?\n/)
   .filter(Boolean)
-  .filter((entry) => !/^(?:outputs|review|data|exports|private-vault|backups)(?:\/|$)/i.test(entry));
+  // Refuse private containers by name before reading any bytes. Read only code/templates.
+  .filter((entry) => !privatePath.test(entry) && !entry.split(/[\\/]/).includes("..")
+    && (/^(?:app|components|lib|desktop|scripts|tests|supabase|docs|release|build)\//.test(entry)
+      || /^(?:package(?:-lock)?\.json|[^/]+\.(?:md|mjs|json))$/.test(entry))
+    && /\.(?:[cm]?js|jsx|tsx?|css|json|md|sql)$/.test(entry));
 const sensitiveValues = [process.env.WINDOWS_CERTIFICATE_PASSWORD, process.env.DEEPSEEK_API_KEY].filter((value) => value && value.length >= 6);
 let secretLeakDetected = false;
 for (const relativePath of changedFiles) {
-  const absolutePath = path.join(projectRoot, relativePath);
+  const absolutePath = path.join(sourceRoot, relativePath);
   if (!existsSync(absolutePath)) continue;
+  const stat = lstatSync(absolutePath);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) throw new Error("Changed-code scan refused a nonregular source file before reading it.");
   const content = readFileSync(absolutePath, "utf8");
   if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(content) || sensitiveValues.some((value) => content.includes(value))) {
     secretLeakDetected = true;
@@ -153,10 +173,16 @@ for (const templateName of ["INSTALL.md", "SECURITY.md", "RELEASE_NOTES.md"]) {
 }
 
 const cloudConfigured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectRoot, encoding: "utf8" }).trim();
-const sourceHasUncommittedChanges = Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: projectRoot, encoding: "utf8" }).trim());
+const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: sourceRoot, encoding: "utf8" }).trim();
+const sourceHasUncommittedChanges = Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: sourceRoot, encoding: "utf8" }).trim());
 let sourceTagMatches = false;
-try { sourceTagMatches = execFileSync("git", ["rev-parse", `v${packageJson.version}^{commit}`], { cwd: projectRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim() === sourceCommit; } catch { /* Unapproved candidates remain undistributed. */ }
+try { sourceTagMatches = execFileSync("git", ["rev-parse", `v${packageJson.version}^{commit}`], { cwd: sourceRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim() === sourceCommit; } catch { /* Unapproved candidates remain undistributed. */ }
+let runtimeAcceptanceVerified = false;
+if (existsSync(path.join(releasePath, "installed-release-test.json"))) {
+  // A malformed/stale report is a failure, not an absent optional check.
+  readInstalledReleaseAcceptance(releasePath, { version: packageJson.version, sourceCommit, assetHashes: hashReleaseAssets(releasePath), localCandidate: artifactIsLocalCandidate });
+  runtimeAcceptanceVerified = true;
+}
 if (!cloudConfigured) {
   const notesPath = path.join(sharePath, "RELEASE_NOTES.md");
   writeFileSync(notesPath, readFileSync(notesPath, "utf8") + "\n本地测试候选包：尚未注入现有云登录构建配置，不可上传为正式自动更新版本。\n", "utf8");
@@ -174,7 +200,9 @@ const report = {
   sourceHasUncommittedChanges,
   sourceTagMatches,
   cloudConfigured,
-  distributionReady: cloudConfigured && !sourceHasUncommittedChanges && sourceTagMatches,
+  localCandidate: artifactIsLocalCandidate,
+  runtimeAcceptanceVerified,
+  distributionReady: !artifactIsLocalCandidate && cloudConfigured && !sourceHasUncommittedChanges && sourceTagMatches && runtimeAcceptanceVerified,
   checks,
 };
 writeFileSync(path.join(sharePath, "release-check.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
@@ -184,6 +212,7 @@ zip.file("Wealth-Atlas-Setup.exe", installerBytes);
 for (const fileName of [checksumName, "INSTALL.md", "SECURITY.md", "RELEASE_NOTES.md", "release-check.json"]) {
   zip.file(fileName, readFileSync(path.join(sharePath, fileName)));
 }
+if (runtimeAcceptanceVerified) zip.file("installed-release-test.json", readFileSync(path.join(sharePath, "installed-release-test.json")));
 const zipName = `Wealth-Atlas-v${packageJson.version}-Windows-${signatureLabel}.zip`;
 const zipBytes = await zip.generateAsync({ type: "nodebuffer", compression: "STORE", platform: "DOS" });
 writeFileSync(path.join(sharePath, zipName), zipBytes);

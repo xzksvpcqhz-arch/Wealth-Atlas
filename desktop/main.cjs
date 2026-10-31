@@ -7,6 +7,10 @@ const fsSync = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { setupAutoUpdates } = require("./updater.cjs");
+const { createDataProfileRouter } = require("./data-profiles.cjs");
+const { recordCandidateDiagnostic, runCandidateVisibilityProbe } = require("./candidate-diagnostics.cjs");
+const { createStartupDiagnostics } = require("./startup-diagnostics.cjs");
+const dataProfiles = createDataProfileRouter(() => app.getPath("userData"));
 
 const SCHEME = "wealth-atlas";
 const APP_ORIGIN = `${SCHEME}://app`;
@@ -16,6 +20,13 @@ const smokeMode = process.env.WEALTH_ATLAS_DESKTOP_SMOKE
   ?? process.argv.find((argument) => argument.startsWith("--desktop-smoke="))?.slice("--desktop-smoke=".length)
   ?? null;
 const explicitTestProfile = process.env.WEALTH_ATLAS_TEST_PROFILE;
+const startupDiagnostics = createStartupDiagnostics({
+  record: recordCandidateDiagnostic,
+  expectedRoot: explicitTestProfile,
+  getUserData: () => app.getPath("userData"),
+  getSessionData: () => app.getPath("sessionData"),
+  getStoragePath: () => session.defaultSession.storagePath,
+});
 const MAX_LOG_BYTES = 512 * 1024;
 const LOG_KEEP_BYTES = 256 * 1024;
 let rendererLogQueue = Promise.resolve();
@@ -24,7 +35,7 @@ let restartInvocationCount = 0;
 let diagnosticClipboardInvocationCount = 0;
 let diagnosticSaveInvocationCount = 0;
 let logsOpenInvocationCount = 0;
-let sessionBackup = null;
+const sessionBackups = new Map();
 const startedAt = new Date().toISOString();
 const startupStages = [];
 let startupStatus = "starting";
@@ -102,12 +113,15 @@ async function writeDiagnosticLog(event, details = {}) {
       const safeDetails = Object.fromEntries(Object.entries(details).map(([key, value]) => [key, sanitizeLogValue(value)]));
       const entry = { timestamp: new Date().toISOString(), event: sanitizeLogValue(event, 80), appVersion: app.getVersion(), electronVersion: process.versions.electron, platform: process.platform, mode: app.isPackaged ? "desktop-production" : "desktop-development", ...safeDetails };
       await fs.appendFile(logPath, JSON.stringify(entry) + "\n", "utf8");
-    } catch {
+      return true;
+    } catch (error) {
       // Diagnostics must never prevent the application from starting.
+      startupDiagnostics.recordIoFailure("renderer", error);
+      return false;
     }
   });
   rendererLogQueue = next;
-  await next;
+  return await next;
 }
 
 function logsDirectory() {
@@ -170,27 +184,33 @@ function updateStartupStatus(event) {
 }
 
 function initializeDiagnosticsSync() {
+  let stage = "initialize";
   try {
     fsSync.mkdirSync(logsDirectory(), { recursive: true });
     for (const logPath of [mainLogPath(), rendererLogPath()]) {
       rotateLogSync(logPath);
       fsSync.closeSync(fsSync.openSync(logPath, "a"));
     }
+    stage = "startup";
     fsSync.writeFileSync(startupPath(), JSON.stringify(startupSnapshot(), null, 2) + "\n", "utf8");
-  } catch {
+  } catch (error) {
     // Diagnostics must never prevent the application from starting.
+    startupDiagnostics.recordIoFailure(stage, error);
   }
 }
 
 function writeMainLog(event, details = {}) {
+  let stage = "main";
   try {
     fsSync.mkdirSync(logsDirectory(), { recursive: true });
     rotateLogSync(mainLogPath());
     fsSync.appendFileSync(mainLogPath(), JSON.stringify(buildMainEntry(event, details)) + "\n", "utf8");
     updateStartupStatus(event);
+    stage = "startup";
     fsSync.writeFileSync(startupPath(), JSON.stringify(startupSnapshot(), null, 2) + "\n", "utf8");
-  } catch {
+  } catch (error) {
     // Diagnostics must never prevent the application from starting.
+    startupDiagnostics.recordIoFailure(stage, error);
   }
 }
 
@@ -242,17 +262,17 @@ function recordStartupStage(stage, status, errorId = "") {
 }
 
 function backupsDirectory() {
-  return path.join(app.getPath("userData"), "backups");
+  return path.join(dataProfiles.root(), "backups");
 }
 
 function autosavesDirectory() {
-  return path.join(app.getPath("userData"), "autosaves");
+  return path.join(dataProfiles.root(), "autosaves");
 }
 
 const MAX_AUTOSAVES = 10;
 
 function releaseStatePath() {
-  return path.join(app.getPath("userData"), "release-state.json");
+  return path.join(dataProfiles.root(), "release-state.json");
 }
 
 async function readReleaseState() {
@@ -265,7 +285,7 @@ async function readReleaseState() {
 }
 
 async function writeReleaseState() {
-  await fs.mkdir(app.getPath("userData"), { recursive: true });
+  await fs.mkdir(dataProfiles.root(), { recursive: true });
   await fs.writeFile(releaseStatePath(), JSON.stringify({ lastReadyAppVersion: app.getVersion(), updatedAt: new Date().toISOString() }, null, 2) + "\n", "utf8");
 }
 
@@ -304,7 +324,8 @@ async function findReusableBackup(snapshotSha256, schemaVersion, reason) {
 }
 
 async function createDataBackup(payload) {
-  if (sessionBackup) return sessionBackup;
+  const profileRoot = dataProfiles.root();
+  if (sessionBackups.has(profileRoot)) return sessionBackups.get(profileRoot);
   const allowedReasons = new Set(["app-update", "migration", "app-update-and-migration"]);
   if (!allowedReasons.has(payload?.reason)) throw new Error("Backup reason is invalid.");
   const schemaVersion = Number(payload?.schemaVersion);
@@ -317,9 +338,9 @@ async function createDataBackup(payload) {
 
   const reusable = await findReusableBackup(snapshotSha256, schemaVersion, payload.reason);
   if (reusable) {
-    sessionBackup = reusable;
+    sessionBackups.set(profileRoot, reusable);
     writeMainLog("data-backup-reused", { schemaVersion, reason: payload.reason });
-    return sessionBackup;
+    return reusable;
   }
 
   const createdAt = new Date();
@@ -353,7 +374,8 @@ async function createDataBackup(payload) {
   await fs.writeFile(path.join(destination, "wealth-data.json"), snapshotBuffer);
   await fs.writeFile(path.join(destination, "metadata.json"), JSON.stringify(metadata, null, 2) + "\n", "utf8");
   await fs.writeFile(path.join(destination, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n", "utf8");
-  sessionBackup = { path: destination, createdAt: metadata.createdAt, reused: false };
+  const sessionBackup = { path: destination, createdAt: metadata.createdAt, reused: false };
+  sessionBackups.set(profileRoot, sessionBackup);
   writeMainLog("data-backup-created", { folder: folderName, schemaVersion, reason: payload.reason });
   return sessionBackup;
 }
@@ -399,7 +421,7 @@ async function writeAutosave(payload) {
   };
   await fs.writeFile(path.join(destination, "wealth-data.json"), snapshotBuffer);
   await fs.writeFile(path.join(destination, "metadata.json"), JSON.stringify(metadata, null, 2) + "\n", "utf8");
-  await pruneAutosaves();
+  if (!dataProfiles.isScoped()) await pruneAutosaves();
   writeMainLog("autosave-created", { folder: folderName, schemaVersion });
   return { path: destination, createdAt: metadata.createdAt };
 }
@@ -481,7 +503,9 @@ if (explicitTestProfile) {
   app.setPath("userData", path.join(app.getPath("appData"), "Wealth Atlas"));
 }
 
+startupDiagnostics.checkContext("before-ready");
 initializeDiagnosticsSync();
+runCandidateVisibilityProbe(app.getPath("userData"));
 writeMainLog("process-start");
 writeMainLog("privileged-scheme-registered", { scheme: SCHEME });
 
@@ -506,7 +530,7 @@ function assertTrustedSender(event) {
 }
 
 function vaultConfigPath() {
-  return path.join(app.getPath("userData"), "vault-connection.json");
+  return path.join(dataProfiles.root(), "vault-connection.json");
 }
 
 async function readVaultConfig() {
@@ -520,7 +544,7 @@ async function readVaultConfig() {
 }
 
 async function saveVaultConfig(config) {
-  await fs.mkdir(app.getPath("userData"), { recursive: true });
+  await fs.mkdir(dataProfiles.root(), { recursive: true });
   await fs.writeFile(vaultConfigPath(), JSON.stringify(config, null, 2), "utf8");
 }
 
@@ -542,13 +566,21 @@ async function resolveVaultPath(relativePath) {
 
 function registerDesktopIpc() {
   ipcMain.on("desktop:get-app-version", (event) => { event.returnValue = app.getVersion(); });
-
-  ipcMain.handle("desktop:get-data-location", (event) => {
+  ipcMain.handle("desktop:activate-data-profile", (event, key) => {
     assertTrustedSender(event);
-    return app.getPath("userData");
+    return dataProfiles.register(event.sender.id, key);
+  });
+  const handlePrivate = (channel, handler) => ipcMain.handle(channel, (event, envelope) => {
+    assertTrustedSender(event);
+    return dataProfiles.run(event.sender.id, envelope, (payload) => handler(event, payload));
   });
 
-  ipcMain.handle("desktop:get-startup-context", async (event) => {
+  handlePrivate("desktop:get-data-location", (event) => {
+    assertTrustedSender(event);
+    return dataProfiles.root();
+  });
+
+  handlePrivate("desktop:get-startup-context", async (event) => {
     assertTrustedSender(event);
     const releaseState = await readReleaseState();
     return {
@@ -565,7 +597,7 @@ function registerDesktopIpc() {
     return true;
   });
 
-  ipcMain.handle("desktop:create-data-backup", async (event, payload) => {
+  handlePrivate("desktop:create-data-backup", async (event, payload) => {
     assertTrustedSender(event);
     try {
       return await createDataBackup(payload);
@@ -575,7 +607,7 @@ function registerDesktopIpc() {
     }
   });
 
-  ipcMain.handle("desktop:write-autosave", async (event, payload) => {
+  handlePrivate("desktop:write-autosave", async (event, payload) => {
     assertTrustedSender(event);
     try {
       return await writeAutosave(payload);
@@ -585,17 +617,17 @@ function registerDesktopIpc() {
     }
   });
 
-  ipcMain.handle("desktop:list-backups", async (event) => {
+  handlePrivate("desktop:list-backups", async (event) => {
     assertTrustedSender(event);
     return await listBackups();
   });
 
-  ipcMain.handle("desktop:read-backup", async (event, payload) => {
+  handlePrivate("desktop:read-backup", async (event, payload) => {
     assertTrustedSender(event);
     return await readBackup(payload);
   });
 
-  ipcMain.handle("desktop:mark-startup-ready", async (event) => {
+  handlePrivate("desktop:mark-startup-ready", async (event) => {
     assertTrustedSender(event);
     await writeReleaseState();
     return true;
@@ -612,7 +644,7 @@ function registerDesktopIpc() {
     return true;
   });
 
-  ipcMain.handle("desktop:open-backups-location", async (event) => {
+  handlePrivate("desktop:open-backups-location", async (event) => {
     assertTrustedSender(event);
     await fs.mkdir(backupsDirectory(), { recursive: true });
     if (smokeMode) return true;
@@ -653,17 +685,17 @@ function registerDesktopIpc() {
 
   ipcMain.handle("diagnostics:renderer", async (event, payload) => {
     assertTrustedSender(event);
+    if (payload?.source === "auth-recovery") recordCandidateDiagnostic(payload.message);
     const safePayload = normalizeSafeDiagnostic(payload);
-    await writeDiagnosticLog("renderer-diagnostic", safePayload);
-    return true;
+    return await writeDiagnosticLog("renderer-diagnostic", safePayload);
   });
-  ipcMain.handle("vault:get-connection", async (event) => {
+  handlePrivate("vault:get-connection", async (event) => {
     assertTrustedSender(event);
     const config = await readVaultConfig();
     return config ? { connected: true, name: config.name } : { connected: false, name: "" };
   });
 
-  ipcMain.handle("vault:select", async (event) => {
+  handlePrivate("vault:select", async (event) => {
     assertTrustedSender(event);
     const owner = BrowserWindow.fromWebContents(event.sender) ?? undefined;
     const result = await dialog.showOpenDialog(owner, {
@@ -677,7 +709,7 @@ function registerDesktopIpc() {
     return { connected: true, name: config.name };
   });
 
-  ipcMain.handle("vault:disconnect", async (event) => {
+  handlePrivate("vault:disconnect", async (event) => {
     assertTrustedSender(event);
     vaultDisconnectInvocationCount += 1;
     if (smokeMode === "obsidian-disconnect-failure") {
@@ -693,7 +725,7 @@ function registerDesktopIpc() {
     return true;
   });
 
-  ipcMain.handle("vault:ensure-directory", async (event, payload) => {
+  handlePrivate("vault:ensure-directory", async (event, payload) => {
     assertTrustedSender(event);
     const { target } = await resolveVaultPath(payload?.relativePath);
     if (payload?.create === true) await fs.mkdir(target, { recursive: true });
@@ -702,7 +734,7 @@ function registerDesktopIpc() {
     return true;
   });
 
-  ipcMain.handle("vault:ensure-file", async (event, payload) => {
+  handlePrivate("vault:ensure-file", async (event, payload) => {
     assertTrustedSender(event);
     const { target } = await resolveVaultPath(payload?.relativePath);
     if (payload?.create === true) {
@@ -715,13 +747,13 @@ function registerDesktopIpc() {
     return true;
   });
 
-  ipcMain.handle("vault:read-file", async (event, payload) => {
+  handlePrivate("vault:read-file", async (event, payload) => {
     assertTrustedSender(event);
     const { target } = await resolveVaultPath(payload?.relativePath);
     return fs.readFile(target, "utf8");
   });
 
-  ipcMain.handle("vault:write-file", async (event, payload) => {
+  handlePrivate("vault:write-file", async (event, payload) => {
     assertTrustedSender(event);
     if (typeof payload?.content !== "string") throw new Error("写入内容无效。");
     const { target } = await resolveVaultPath(payload?.relativePath);
@@ -791,6 +823,10 @@ function createMainWindow() {
   });
 
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  window.on("close", () => recordCandidateDiagnostic("CANDIDATE_WINDOW_CLOSE_REQUESTED"));
+  window.on("closed", () => recordCandidateDiagnostic("CANDIDATE_WINDOW_CLOSED"));
+  const senderId = window.webContents.id;
+  window.webContents.once("destroyed", () => dataProfiles.forget(senderId));
   window.webContents.on("will-navigate", (event, navigationUrl) => {
     const allowed = navigationUrl.startsWith(APP_ORIGIN) || (devUrl ? navigationUrl.startsWith(devUrl) : false);
     if (!allowed) event.preventDefault();
@@ -1238,6 +1274,35 @@ async function runDiagnosticClipboardSmoke(window, mode) {
 }
 async function runSmoke(window, mode) {
   await waitForAppReady(window);
+  if (mode === "account-isolation") {
+    return window.webContents.executeJavaScript(`(${async function () {
+      const bridge = window.wealthAtlasDesktop;
+      const a = { key: "cloud:smoke-A", token: await bridge.activateDataProfile("cloud:smoke-A") };
+      const aRoot = await bridge.getDataLocation(a);
+      const seedA = { reportCurrency: "MYR", schemaVersion: 10, accounts: [], transactions: [], marker: "synthetic-A" };
+      await bridge.writeAutosave({ snapshot: seedA, schemaVersion: 10 }, a);
+      const entriesA = await bridge.listBackups(a);
+      const entryA = entriesA.find((entry) => entry.kind === "autosave");
+      const readA = await bridge.readBackup(entryA.id, entryA.kind, a);
+      const b = { key: "cloud:smoke-B", token: await bridge.activateDataProfile("cloud:smoke-B") };
+      const bRoot = await bridge.getDataLocation(b);
+      const beforeB = await bridge.listBackups(b);
+      let staleRejected = false, unscopedRejected = false;
+      try { await bridge.listBackups(a); } catch { staleRejected = true; }
+      try { await bridge.listBackups(); } catch { unscopedRejected = true; }
+      await bridge.writeAutosave({ snapshot: { ...seedA, marker: "synthetic-B" }, schemaVersion: 10 }, b);
+      const entriesB = await bridge.listBackups(b);
+      const entryB = entriesB.find((entry) => entry.kind === "autosave");
+      const readB = await bridge.readBackup(entryB.id, entryB.kind, b);
+      const guest = { key: "guest", token: await bridge.activateDataProfile("guest") };
+      const guestEntries = await bridge.listBackups(guest);
+      a.token = await bridge.activateDataProfile(a.key);
+      const restoredA = await bridge.readBackup(entryA.id, entryA.kind, a);
+      const pass = aRoot !== bRoot && beforeB.length === 0 && guestEntries.length === 0 && staleRejected && unscopedRejected
+        && readA.marker === "synthetic-A" && readB.marker === "synthetic-B" && restoredA.marker === "synthetic-A";
+      return { pass, mode: "account-isolation", scopedRoots: true, staleRejected, unscopedRejected };
+    }})()`);
+  }
   if (new Set(["diagnostic-browser-clipboard", "diagnostic-ipc-clipboard", "diagnostic-ipc-failure", "diagnostic-save-failure"]).has(mode)) return runDiagnosticClipboardSmoke(window, mode);
   if (mode === "obsidian-disconnect-failure" || mode === "obsidian-disconnect-success") return runObsidianDisconnectSmoke(window, mode);
   if (mode === "startup-diagnostics") {
@@ -1402,6 +1467,7 @@ function setupAutoUpdater() {
 }
 
 app.whenReady().then(async () => {
+  startupDiagnostics.checkContext("ready");
   await writeSmokeLog("app-ready");
   writeMainLog("app-ready");
   recordStartupStage("electron-app-ready", "success");
@@ -1445,7 +1511,12 @@ app.whenReady().then(async () => {
     });
   }
   await writeSmokeLog(`load-url ${devUrl ?? `${APP_ORIGIN}/`}`);
-  void window.loadURL(devUrl ?? `${APP_ORIGIN}/`);
+  const firstDocumentQa = process.env.WEALTH_ATLAS_CANDIDATE_FIRST_DOCUMENT;
+  const candidateMetadata = require(path.join(app.getAppPath(), "package.json"));
+  const pausedQa = candidateMetadata.wealthAtlasCandidate === "cloud-sync-test"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(firstDocumentQa ?? "")
+    && app.getPath("userData") === path.join(app.getPath("appData"), "Wealth Atlas Sync Candidate", app.getVersion(), "isolated-qa", firstDocumentQa);
+  void window.loadURL(pausedQa ? "about:blank" : devUrl ?? `${APP_ORIGIN}/`);
 }).catch((error) => {
   const errorId = makeStartupErrorId();
   writeMainLog("startup-failed", { name: error?.name, message: error?.message, stack: error?.stack, errorId });
@@ -1465,4 +1536,6 @@ app.whenReady().then(async () => {
   console.error(error);
 });
 
+app.on("before-quit", () => recordCandidateDiagnostic("CANDIDATE_APP_BEFORE_QUIT"));
+app.on("will-quit", () => recordCandidateDiagnostic("CANDIDATE_APP_WILL_QUIT"));
 app.on("window-all-closed", () => app.quit());

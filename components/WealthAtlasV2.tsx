@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect,useMemo,useRef,useState,type Dispatch,type ElementType,type SetStateAction } from "react";
+import { useCallback,useEffect,useMemo,useRef,useState,useSyncExternalStore,type Dispatch,type ElementType,type SetStateAction } from "react";
+import { inheritRemovalIntents,removeConfirmedRecord } from "@/lib/cloud-merge";
+import { createBlankWealthData,getDataProfile,getServerDataProfile,inheritProfileOwnership,isActiveDataProfile,subscribeDataProfile,tagProfileObject,type DataProfile } from "@/lib/data-profile";
+import { initializeAccountBoundary } from "@/lib/account-boundary";
 import {
   ArrowsLeftRight,
   ArrowRight,
@@ -85,7 +88,7 @@ import {
   totalInCurrency,
 } from "@/lib/finance";
 import { getAccountCurrencyGroups,getAvailableMainAccounts,validateAccountParent } from "@/lib/account-hierarchy";
-import { loadWealthData,retryWealthStorage,saveWealthData,WealthStorageError } from "@/lib/storage";
+import { loadWealthData as loadStoredWealthData,retryWealthStorage,saveWealthData as saveStoredWealthData,WealthStorageError } from "@/lib/storage";
 import { CURRENT_SCHEMA_VERSION,getWealthDataSchemaVersion,migrateWealthData,needsWealthDataMigration } from "@/lib/migrations";
 import { reportSafeDiagnostic,reportStartupStage,type SafeDiagnostic,type StartupStage } from "@/lib/diagnostics";
 import { DiagnosticFailurePanel } from "@/components/AppErrorBoundary";
@@ -283,7 +286,19 @@ function Stat({ icon: Icon,label,value,detail,tone="cyan" }: { icon: ElementType
 }
 
 export default function WealthAtlasV2() {
-  const [data,setData]=useState<WealthData>(() => migrateWealthData({ ...initialData,assets: normalizeAssets(initialData.assets).normalized }));
+  const profile=useSyncExternalStore(subscribeDataProfile,getDataProfile,getServerDataProfile);
+  useEffect(() => { void initializeAccountBoundary(); },[]);
+  return <WealthAtlasWorkspace key={profile.epoch} profile={profile} />;
+}
+
+function WealthAtlasWorkspace({ profile }: { profile: DataProfile }) {
+  const [data,setRawData]=useState<WealthData>(() => tagProfileObject(migrateWealthData(profile.kind==="local"? { ...initialData,assets: normalizeAssets(initialData.assets).normalized }:createBlankWealthData()),profile));
+  const setData=useCallback<Dispatch<SetStateAction<WealthData>>>((action) => {
+    if(!isActiveDataProfile(profile)) return;
+    setRawData((current) => !isActiveDataProfile(profile)? current:inheritProfileOwnership(current,inheritRemovalIntents(current,typeof action==="function"? action(current):action),profile));
+  },[profile]);
+  const loadWealthData=() => loadStoredWealthData(undefined,profile);
+  const saveWealthData=(next: WealthData) => saveStoredWealthData(next,profile);
   const [active,setActive]=useState("home");
   const [activeSectionReady,setActiveSectionReady]=useState(false);
   const [fxMode,setFxMode]=useState(false);
@@ -350,7 +365,7 @@ export default function WealthAtlasV2() {
   const [selectedDate,setSelectedDate]=useState<string>(today);
   const dateInputRef=useRef<HTMLInputElement>(null);
   const [customBg,setCustomBg]=useState<string|null>(null);
-  const cloud=useCloudSync(data,setData,loaded);
+  const cloud=useCloudSync(data,setRawData,loaded,profile);
 
   useEffect(() => {
     const refresh=() => getActiveBackgroundData().then(setCustomBg);
@@ -375,6 +390,7 @@ export default function WealthAtlasV2() {
   useEffect(() => {
     let cancelled=false;
     const initialize=async () => {
+      if(profile.kind==="locked") return;
       const bridge=getDesktopBridge();
       let stage: StartupStage="indexeddb-initialization";
       storageLoadFailedRef.current=false;
@@ -509,6 +525,7 @@ export default function WealthAtlasV2() {
   useEffect(() => {
     if(!loaded||storageLoadFailedRef.current) return;
     const timeout=window.setTimeout(() => {
+      if(!isActiveDataProfile(profile)) return;
       void autosaveLocalSnapshot(data).catch(() => undefined);
       void writeObsidianSnapshot(data);
     },2500);
@@ -648,8 +665,8 @@ export default function WealthAtlasV2() {
     if(!target||!beginDelete(`permanent:${target.kind}:${target.record.id}`)) return;
     try {
       setData((current) => target.kind==="transaction"
-        ? { ...current,transactions: current.transactions.filter((item) => item.id!==target.record.id) }
-        :{ ...current,transfers: current.transfers.filter((item) => item.id!==target.record.id) });
+        ? removeConfirmedRecord(current,"transactions",target.record.id)
+        :removeConfirmedRecord(current,"transfers",target.record.id));
       setPermanentTarget(null);
       showToast("记录已永久删除");
     } catch {
@@ -737,25 +754,25 @@ export default function WealthAtlasV2() {
           const inUse=current.transactions.some((item) => item.categoryId===target.id);
           if(target.action==="permanent") {
             if(!category?.createdAt||inUse) return current;
-            return { ...current,categories: (current.categories??[]).filter((item) => item.id!==target.id) };
+            return removeConfirmedRecord(current,"categories",target.id);
           }
           return { ...current,categories: (current.categories??[]).map((item) => item.id===target.id? { ...item,active: false,updatedAt: new Date().toISOString() }:item) };
         }
         if(target.kind==="budget") {
-          if(target.action==="permanent") return { ...current,budgets: (current.budgets??[]).filter((item) => item.id!==target.id) };
+          if(target.action==="permanent") return removeConfirmedRecord(current,"budgets",target.id);
           return { ...current,budgets: (current.budgets??[]).map((item) => item.id===target.id? target.action==="deactivate"? { ...item,active: false,status: "inactive" }:{ ...item,active: false,status: "deleted",deleted: true,deletedAt }:item) };
         }
         if(target.kind==="goal") {
-          if(target.action==="permanent") return { ...current,goals: current.goals.filter((item) => item.id!==target.id) };
+          if(target.action==="permanent") return removeConfirmedRecord(current,"goals",target.id);
           return { ...current,goals: current.goals.map((item) => item.id===target.id? target.action==="deactivate"? { ...item,active: false,deleted: false,deletedAt: undefined }:{ ...item,active: false,deleted: true,deletedAt }:item) };
         }
         if(target.kind==="annual-plan") {
-          if(target.action==="permanent") return { ...current,annualPlans: (current.annualPlans??[]).filter((item) => item.id!==target.id) };
+          if(target.action==="permanent") return removeConfirmedRecord(current,"annualPlans",target.id);
           return { ...current,annualPlans: (current.annualPlans??[]).map((item) => item.id===target.id
             ? target.action==="deactivate" ? { ...item,active: false,deleted: false,deletedAt: undefined } : { ...item,active: false,deleted: true,deletedAt }
             : item) };
         }
-        if(target.action==="permanent") return { ...current,assets: current.assets.filter((item) => item.id!==target.id) };
+        if(target.action==="permanent") return removeConfirmedRecord(current,"assets",target.id);
         return { ...current,assets: current.assets.map((item) => item.id===target.id? { ...item,deleted: true,deletedAt }:item) };
       });
       setEntityDeleteTarget(null);
@@ -850,7 +867,7 @@ export default function WealthAtlasV2() {
         showToast("账户已有历史记录或关联子账户，无法永久删除");
         return;
       }
-      const nextData={ ...data,accounts: data.accounts.filter((item) => item.id!==account.id) };
+      const nextData=removeConfirmedRecord(data,"accounts",account.id);
       await saveWealthData(nextData);
       setData(nextData);
       setAccountPermanentTarget(null);

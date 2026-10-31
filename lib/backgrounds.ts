@@ -1,4 +1,5 @@
 // 自定义背景（图片/动图）：IndexedDB 持久化（支持 4K 大图），最多保留 10 张历史。
+import { assertActiveDataProfile, getDataProfile, isActiveDataProfile, type DataProfile } from "./data-profile";
 export interface BackgroundItem {
   id: string;
   name: string;
@@ -11,10 +12,11 @@ const DB_NAME = "wealth-atlas-backgrounds";
 const STORE = "backgrounds";
 const ACTIVE_KEY = "wealth-atlas-background-active";
 
-function openDb(): Promise<IDBDatabase> {
+function openDb(scope: DataProfile): Promise<IDBDatabase> {
+  assertActiveDataProfile(scope);
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") { reject(new Error("IndexedDB 不可用")); return; }
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(scope.kind === "local" ? DB_NAME : `${DB_NAME}:profile:v1:${scope.key}`, 1);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
@@ -24,15 +26,15 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function loadBackgrounds(): Promise<BackgroundItem[]> {
+export async function loadBackgrounds(scope: DataProfile = getDataProfile()): Promise<BackgroundItem[]> {
   try {
-    const db = await openDb();
+    const db = await openDb(scope);
     return await new Promise((resolve) => {
       const tx = db.transaction(STORE, "readonly");
       const req = tx.objectStore(STORE).getAll();
       req.onsuccess = () => {
         const list = (req.result as BackgroundItem[]).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-        resolve(list.slice(0, MAX_BACKGROUNDS));
+        resolve(isActiveDataProfile(scope) ? list.slice(0, MAX_BACKGROUNDS) : []);
       };
       req.onerror = () => resolve([]);
     });
@@ -41,8 +43,9 @@ export async function loadBackgrounds(): Promise<BackgroundItem[]> {
   }
 }
 
-async function deleteBackgroundRecord(id: string): Promise<void> {
-  const db = await openDb();
+async function deleteBackgroundRecord(id: string, scope: DataProfile): Promise<void> {
+  const db = await openDb(scope);
+  assertActiveDataProfile(scope);
   await new Promise<void>((resolve) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).delete(id);
@@ -53,35 +56,41 @@ async function deleteBackgroundRecord(id: string): Promise<void> {
 
 /** 新增背景（dataUrl），裁剪到最多 MAX_BACKGROUNDS 张。返回更新后的列表。 */
 export async function addBackground(name: string, dataUrl: string): Promise<BackgroundItem[]> {
+  const scope = getDataProfile();
   const item: BackgroundItem = { id: `bg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, dataUrl, createdAt: new Date().toISOString() };
-  const db = await openDb();
+  const db = await openDb(scope);
+  assertActiveDataProfile(scope);
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
     tx.objectStore(STORE).put(item);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
-  const list = await loadBackgrounds();
-  for (const excess of list.slice(MAX_BACKGROUNDS)) await deleteBackgroundRecord(excess.id);
-  return loadBackgrounds();
+  const list = await loadBackgrounds(scope);
+  for (const excess of list.slice(MAX_BACKGROUNDS)) await deleteBackgroundRecord(excess.id, scope);
+  return loadBackgrounds(scope);
 }
 
 export async function removeBackground(id: string): Promise<BackgroundItem[]> {
-  await deleteBackgroundRecord(id);
+  const scope = getDataProfile();
+  await deleteBackgroundRecord(id, scope);
+  assertActiveDataProfile(scope);
   if (loadActiveId() === id) setActiveId(null);
-  return loadBackgrounds();
+  return loadBackgrounds(scope);
 }
 
+const activeKey = () => getDataProfile().kind === "local" ? ACTIVE_KEY : `${ACTIVE_KEY}:profile:v1:${getDataProfile().key}`;
+
 export function loadActiveId(): string | null {
-  if (typeof window === "undefined") return null;
-  try { return window.localStorage.getItem(ACTIVE_KEY); } catch { return null; }
+  if (typeof window === "undefined" || getDataProfile().kind === "locked") return null;
+  try { return window.localStorage.getItem(activeKey()); } catch { return null; }
 }
 
 export function setActiveId(id: string | null) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || getDataProfile().kind === "locked") return;
   try {
-    if (id) window.localStorage.setItem(ACTIVE_KEY, id);
-    else window.localStorage.removeItem(ACTIVE_KEY);
+    if (id) window.localStorage.setItem(activeKey(), id);
+    else window.localStorage.removeItem(activeKey());
   } catch { /* 忽略 */ }
 }
 

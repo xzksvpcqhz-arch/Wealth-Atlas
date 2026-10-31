@@ -1,4 +1,5 @@
 "use client";
+import { removeConfirmedRecord } from "@/lib/cloud-merge";
 
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
@@ -134,7 +135,7 @@ export default function FxCenter({ data, setData, onToast, onNavigate }: { data:
         const stillUsed = getFxUsageCount(currentData, target.id) + (currentData.fxRates.find((item) => item.id === target.id)?.useCount ?? 0) > 0;
         return stillUsed
           ? { ...currentData, fxRates: currentData.fxRates.map((item) => item.id === target.id ? { ...item, active: false, isDefault: false } : item) }
-          : { ...currentData, fxRates: currentData.fxRates.filter((item) => item.id !== target.id) };
+          : removeConfirmedRecord(currentData,"fxRates",target.id);
       });
       setDeleteTarget(null);
       onToast(used ? "该汇率已有历史使用记录，已停用且历史快照保留" : "历史汇率记录已删除");

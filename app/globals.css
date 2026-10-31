@@ -1525,6 +1525,18 @@ h1,h2,h3,.hero-number,.stat-value,.record-amount,.account-balance,.tx-currency-h
 .cloud-intro { margin-bottom: 18px; }
 .cloud-note { margin-top: 16px; }
 .cloud-form { max-width: 420px; }
+.cloud-form .cloud-login-history select { min-width: 0; max-width: 100%; appearance: auto; color-scheme: dark; }
+.cloud-login-help { margin: 0; color: var(--muted-strong); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.cloud-login-memory { display: grid; gap: 8px; min-width: 0; }
+.cloud-form label.cloud-remember-email { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.cloud-form .cloud-remember-email input { flex: 0 0 18px; width: 18px; height: 18px; padding: 0; accent-color: var(--cyan); }
+.cloud-remember-email span { min-width: 0; overflow-wrap: anywhere; }
+.cloud-login-memory > button { justify-self: start; min-height: 44px; max-width: 100%; white-space: normal; }
+.cloud-login-memory > button[role="switch"][aria-checked="true"] { color: var(--cyan); border-color: var(--cyan); }
+.cloud-forget-confirm { display: grid; gap: 8px; }
+.cloud-forget-confirm .cloud-actions { margin-top: 0; }
+.cloud-forget-confirm button { min-height: 44px; max-width: 100%; white-space: normal; }
+.cloud-login-history select:focus-visible, .cloud-remember-email input:focus-visible, .cloud-login-memory button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 .cloud-account { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 14px 16px; background: var(--btn-bg); border: 1px solid var(--line); border-radius: 10px; }
 .cloud-dot { width: 10px; height: 10px; flex: 0 0 auto; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
 .cloud-account strong { display: block; color: var(--text); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }

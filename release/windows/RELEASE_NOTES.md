@@ -1,13 +1,20 @@
 # Wealth Atlas v{{VERSION}} Windows 发布说明
 
-本候选版本修复跨币种子账户在币种栏中被漏显示的问题。主子关系、账户余额、交易和历史汇率保持不变。
+本候选版本完善账号隔离、本机历史邮箱选择、跨设备同步及离线重开验证。主子关系、账户余额计算、历史交易和历史汇率快照保持不变；不重新设计页面。
 发布前须核对源码 commit、版本 tag、构建配置和三项自动更新资产；未确认候选包不得上传为正式版本。
 
 - GitHub 自动更新仅使用公开稳定版本，不要求使用者提供发布 Token，不自动降级。
 - 后台下载完成后不会立即关闭应用；正常退出后安装，重新打开使用新版本。
 - 网络失败不会阻止启动，返回应用时按间隔重试。
 - 发布前校验安装包、清单和 blockmap，全部上传文件通过服务器 SHA-256 核对后才公开。
-- 本次不改变页面视觉、财务计算或跨设备财务同步逻辑。
+- 完善同步版本竞争、冲突暂停、删除恢复传播及待同步队列保护，不以空白资料覆盖读不到的原工作区。
+- 各账号使用对应本机工作区；原本未绑定账号的本机资料保持独立，不自动上传或采用测试包资料。
+- 本机历史账号只在用户勾选并成功登录后记住邮箱；选择历史项仅回填邮箱，不保存密码、不自动登录。
+- 新增“下次自动登录”开关，复用现有有效会话，不保存密码或额外令牌副本；关闭只影响下次打开，不退出当前账号。
+- 自动登录关闭后，后台联网/焦点事件不能打开账号资料；密码重设链接被消费后刷新仍能恢复表单，恢复流程不自动打开财务工作区。
+- 加强密码重设表单的恢复状态、失败重试和重复提交保护。
+- 已验证本机工作区可按现有验证期限离线读取；联网后重新验证成功再恢复同步，不保证无限期离线登录或所有设备的历史故障均已消失。
+- 最终运行验收绑定安装包、blockmap 和更新清单的 SHA-256；重新构建或签名后必须重新验收。
 
 - 发布状态：**{{SIGNATURE_STATUS}}**
 - 发布者：**{{PUBLISHER}}**
@@ -18,10 +25,6 @@
 - 卸载配置：不主动删除桌面资料目录
 - 网页版资料：安装程序不读取浏览器 IndexedDB 或 localStorage
 
-本发布不会改变既有页面、财务计算或 Obsidian 工作流程；更新前会在本地建立资料快照备份。
-## v{{VERSION}} startup stability
+本发布准备不会更改既有页面、财务计算或 Obsidian 工作流程。升级前建议用户自行导出 Excel 和 Obsidian ZIP 备份；不要通过清空资料解决启动或同步异常。
 
-- Missing FX paths now fail safely without recursive render crashes.
-- Startup diagnostics use browser clipboard, secure Electron IPC, manual selection, and local-file fallbacks.
-- IndexedDB failures preserve the original snapshot and provide retry and backup-location actions.
-- Identical short-window startup backups are verified and reused; older backups are never deleted.
+本地候选不代表已批准发布；未签名版本没有经过验证的 Authenticode 发布者，Windows 仍可能提醒。隔离的安装包 payload 测试不等同实际安装向导、注册表、快捷方式、卸载或完整在线自动安装验收。

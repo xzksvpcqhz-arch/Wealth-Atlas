@@ -1,6 +1,7 @@
 import { buildAssetMarkdown, buildDailyMarkdown, buildMonthlyMarkdown, buildYearlyMarkdown, getDefaultObsidianTemplates } from "./exporters";
 import { getDesktopBridge } from "./desktop";
 import type { WealthData } from "./types";
+import { assertActiveDataProfile, getDataProfile, getObjectProfile, tagProfileObject } from "./data-profile";
 
 export const OBSIDIAN_ROOT = "财富理财师";
 export const OBSIDIAN_FOLDERS = [
@@ -58,6 +59,7 @@ function joinVaultPath(base: string, name: string) {
 }
 
 function createDesktopDirectoryHandle(name: string, relativePath = ""): VaultDirectoryHandle {
+  const scope = getDataProfile();
   const bridge = getDesktopBridge();
   if (!bridge) throw new Error("桌面文件夹桥接不可用，请改用 ZIP 下载。");
   return {
@@ -65,6 +67,7 @@ function createDesktopDirectoryHandle(name: string, relativePath = ""): VaultDir
     async getDirectoryHandle(childName, options) {
       const childPath = joinVaultPath(relativePath, childName);
       await bridge.ensureDirectory(childPath, options?.create === true);
+      assertActiveDataProfile(scope);
       return createDesktopDirectoryHandle(childName, childPath);
     },
     async getFileHandle(filename, options) {
@@ -87,11 +90,15 @@ function createDesktopDirectoryHandle(name: string, relativePath = ""): VaultDir
 }
 
 export async function restoreVaultHandle(handle: unknown, vaultName: string) {
+  const scope = getDataProfile();
+  assertActiveDataProfile(scope);
+  if (handle && typeof handle === "object" && getObjectProfile(handle) && getObjectProfile(handle) !== scope) throw new Error("Vault 连接不属于当前账号，请重新连接。");
   const bridge = getDesktopBridge();
-  if (!bridge) return handle as VaultDirectoryHandle;
+  if (!bridge) return tagProfileObject(handle as VaultDirectoryHandle, scope);
   const connection = await bridge.getVaultConnection();
+  assertActiveDataProfile(scope);
   if (!connection.connected) throw new Error("上次选择的 Vault 已断开，请重新选择本地 Vault。");
-  return createDesktopDirectoryHandle(connection.name || vaultName);
+  return tagProfileObject(createDesktopDirectoryHandle(connection.name || vaultName), scope);
 }
 
 const templateFiles = {
@@ -106,14 +113,21 @@ const templateFiles = {
 export function getDirectoryPicker() {
   if (typeof window === "undefined") return null;
   const bridge = getDesktopBridge();
+  const scope = getDataProfile();
   if (bridge) {
     return async () => {
       const selected = await bridge.selectVault();
+      assertActiveDataProfile(scope);
       if (!selected?.connected) throw new Error("已取消选择 Vault，未读取或写入任何文件。");
-      return createDesktopDirectoryHandle(selected.name);
+      return tagProfileObject(createDesktopDirectoryHandle(selected.name), scope);
     };
   }
-  return (window as Window & { showDirectoryPicker?: () => Promise<VaultDirectoryHandle> }).showDirectoryPicker ?? null;
+  const picker = (window as Window & { showDirectoryPicker?: () => Promise<VaultDirectoryHandle> }).showDirectoryPicker;
+  return picker ? async () => {
+    const handle = await picker.call(window);
+    assertActiveDataProfile(scope);
+    return tagProfileObject(handle, scope);
+  } : null;
 }
 
 export async function requestVaultPermission(handle: VaultDirectoryHandle) {

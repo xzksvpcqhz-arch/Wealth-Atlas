@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowsClockwise,
   CheckCircle,
@@ -13,12 +13,25 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import type { CloudSyncController } from "@/lib/use-cloud-sync";
+import { forgetLoginEmail, getLoginHistoryNotice, normalizeLoginEmail, readLoginHistory, subscribeLoginHistory, LOGIN_HISTORY_KEY, type LoginHistory } from "@/lib/login-history";
+import { AUTO_LOGIN_KEY, readAutoLoginPreference, saveAutoLoginPreference, subscribeAutoLoginPreference, type AutoLoginPreference } from "@/lib/auto-login";
 
 export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [busy, setBusy] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(false);
+  const [autoLogin, setAutoLogin] = useState<AutoLoginPreference>({ enabled: true, error: null });
+  const [autoLoginReady, setAutoLoginReady] = useState(false);
+  const [autoLoginNotice, setAutoLoginNotice] = useState<string | null>(null);
+  const [history, setHistory] = useState<LoginHistory>({ emails: [], error: null });
+  const [historyReady, setHistoryReady] = useState(false);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+  const [forgetPending, setForgetPending] = useState<string | null>(null);
+  const forgetButton = useRef<HTMLButtonElement>(null);
+  const forgetConfirm = useRef<HTMLButtonElement>(null);
+  const emailInput = useRef<HTMLInputElement>(null);
   const [resetMode, setResetMode] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -29,12 +42,34 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
   const [recoveryDone, setRecoveryDone] = useState(false);
   const [recoveryError, setRecoveryError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const refresh = () => {
+      setHistory(readLoginHistory());
+      setHistoryNotice(getLoginHistoryNotice());
+      setHistoryReady(true);
+    };
+    refresh();
+    const unsubscribe = subscribeLoginHistory(refresh);
+    const storageChanged = (event: StorageEvent) => { if (event.key === LOGIN_HISTORY_KEY || event.key === null) refresh(); };
+    window.addEventListener("storage", storageChanged);
+    return () => { unsubscribe(); window.removeEventListener("storage", storageChanged); };
+  }, []);
+  useEffect(() => { if (forgetPending) forgetConfirm.current?.focus(); }, [forgetPending]);
+  useEffect(() => {
+    const refresh = () => { setAutoLogin(readAutoLoginPreference()); setAutoLoginNotice(null); setAutoLoginReady(true); };
+    refresh();
+    const unsubscribe = subscribeAutoLoginPreference(refresh);
+    const storageChanged = (event: StorageEvent) => { if (event.key === AUTO_LOGIN_KEY || event.key === null) refresh(); };
+    window.addEventListener("storage", storageChanged);
+    return () => { unsubscribe(); window.removeEventListener("storage", storageChanged); };
+  }, []);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!email.trim() || !password) return;
+    if (busy || forgetPending || cloud.status === "syncing" || !email.trim() || !password) return;
     setBusy(true);
     try {
-      if (mode === "signin") await cloud.signIn(email.trim(), password);
+      if (mode === "signin") await cloud.signIn(email.trim(), password, rememberEmail);
       else await cloud.signUp(email.trim(), password);
     } finally {
       setBusy(false);
@@ -79,6 +114,23 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
   };
 
   const inFlight = busy || cloud.status === "syncing";
+  const autoLoginControl = (
+    <div className="cloud-login-memory">
+      <button type="button" role="switch" className="secondary-button"
+        aria-label="下次自动登录，仅此设备" aria-checked={autoLogin.enabled} aria-describedby="auto-login-help"
+        title="只控制下次打开时是否恢复本机有效登录状态，不保存密码"
+        disabled={!autoLoginReady || inFlight || Boolean(forgetPending)}
+        onClick={() => {
+          const next = saveAutoLoginPreference(!autoLogin.enabled);
+          setAutoLogin(next);
+          setAutoLoginNotice(next.error ? null : next.enabled ? "已开启下次自动登录（仅此设备）" : "已关闭下次自动登录，当前登录不受影响。");
+        }}>
+        {!autoLoginReady ? "正在读取自动登录设置…" : `下次自动登录：${autoLogin.enabled ? "已开启" : "已关闭"}`}
+      </button>
+      <p id="auto-login-help" className="cloud-login-help">使用本机有效登录状态，不保存密码。主动登出或登录状态失效后，需要重新登录。关闭后下次打开需手动登录，不删除财务资料。</p>
+      {(autoLogin.error || autoLoginNotice) && <p className="cloud-login-help" role="status">{autoLogin.error ?? autoLoginNotice}</p>}
+    </div>
+  );
 
   // 未配置 Supabase
   if (cloud.status === "unconfigured") {
@@ -194,6 +246,7 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
           )}
 
           <p className="cloud-note">本机改动会自动上传；其他设备的改动会自动拉回并合并。每台设备用同一账号登录，数据即保持一致。</p>
+          {historyNotice && <p className="cloud-note" role="status">{historyNotice}</p>}
 
           <div className="cloud-actions">
             <button type="button" className="primary-button" onClick={() => void cloud.syncNow()} disabled={inFlight}>
@@ -202,6 +255,7 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
             <button type="button" className="secondary-button" onClick={() => void cloud.signOut()}>
               <SignOut size={16} /> 登出
             </button>
+            {autoLoginControl}
           </div>
         </section>
       </main>
@@ -268,16 +322,33 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
           <>
             <form className="form-stack cloud-form" onSubmit={submit}>
               <div className="segmented" role="tablist" aria-label="登录或注册">
-                <button type="button" className={mode === "signin" ? "selected" : ""} onClick={() => setMode("signin")}>登录</button>
-                <button type="button" className={mode === "signup" ? "selected" : ""} onClick={() => setMode("signup")}>注册新账号</button>
+                <button type="button" className={mode === "signin" ? "selected" : ""} disabled={inFlight} onClick={() => { setMode("signin"); setForgetPending(null); }}>登录</button>
+                <button type="button" className={mode === "signup" ? "selected" : ""} disabled={inFlight} onClick={() => { setMode("signup"); setForgetPending(null); }}>注册新账号</button>
               </div>
+              {mode === "signin" && (
+                <label className="cloud-login-history">
+                  历史登录账号
+                  <select aria-label="选择历史登录账号" aria-describedby="login-history-help"
+                    value={history.emails.includes(normalizeLoginEmail(email) ?? "") ? normalizeLoginEmail(email)! : ""}
+                    disabled={!historyReady || !history.emails.length || inFlight || Boolean(forgetPending)}
+                    onChange={(event) => { setEmail(event.target.value); setPassword(""); setHistoryNotice(null); }}>
+                    <option value="">{!historyReady ? "正在读取账号记忆…" : history.emails.length ? "选择已记住的账号" : "暂无已记住的账号"}</option>
+                    {history.emails.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                  <span id="login-history-help" className="cloud-login-help">
+                    {history.error ?? (history.emails.length ? "选择后只填写邮箱，仍需输入密码。" : "首次请手动输入邮箱；勾选下方选项并成功登录后才会记住。")}
+                  </span>
+                </label>
+              )}
               <label>
                 邮箱
                 <input
+                  ref={emailInput}
                   type="email"
                   autoComplete="email"
                   placeholder="you@example.com"
                   value={email}
+                  disabled={inFlight || Boolean(forgetPending)}
                   onChange={(event) => setEmail(event.target.value)}
                   required
                 />
@@ -289,17 +360,48 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
                   autoComplete={mode === "signin" ? "current-password" : "new-password"}
                   placeholder="••••••••"
                   value={password}
+                  disabled={inFlight || Boolean(forgetPending)}
                   onChange={(event) => setPassword(event.target.value)}
                   required
                   minLength={6}
                 />
               </label>
-              <button type="submit" className="primary-button full" disabled={inFlight}>
+              {mode === "signin" && (
+                <div className="cloud-login-memory">
+                  <label className="cloud-remember-email">
+                    <input type="checkbox" checked={rememberEmail} disabled={inFlight || Boolean(forgetPending) || !historyReady || Boolean(history.error)}
+                      onChange={(event) => setRememberEmail(event.target.checked)} />
+                    <span>记住本机账号（仅邮箱）</span>
+                  </label>
+                  <p className="cloud-login-help">仅在勾选并成功登录后记住邮箱；不保存密码、验证码或令牌。</p>
+                </div>
+              )}
+              {mode === "signin" && autoLoginControl}
+              <button type="submit" className="primary-button full" disabled={inFlight || Boolean(forgetPending)}>
                 {mode === "signin" ? <SignIn size={16} /> : <UserCirclePlus size={16} />}
                 {inFlight ? "处理中…" : mode === "signin" ? "登录" : "注册并上传"}
               </button>
+              {mode === "signin" && (
+                <div className="cloud-login-memory">
+                  <button ref={forgetButton} type="button" className="secondary-button"
+                    title="仅移除本机邮箱记忆，不注销账号或删除财务资料" aria-label="移除此邮箱记忆"
+                    disabled={inFlight || Boolean(forgetPending) || !history.emails.includes(normalizeLoginEmail(email) ?? "")}
+                    onClick={() => setForgetPending(normalizeLoginEmail(email))}>移除此邮箱记忆</button>
+                  {forgetPending && <div className="cloud-forget-confirm" role="group" aria-label="确认移除本机邮箱记忆"
+                    onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setForgetPending(null); setTimeout(() => forgetButton.current?.focus(), 0); } }}>
+                    <p className="cloud-login-help">只移除本机邮箱记忆，不注销账号，不删除任何财务资料。</p>
+                    <div className="cloud-actions">
+                      <button type="button" className="secondary-button" onClick={() => { setForgetPending(null); setTimeout(() => forgetButton.current?.focus(), 0); }}>取消</button>
+                      <button ref={forgetConfirm} type="button" className="secondary-button" onClick={() => {
+                        if (forgetLoginEmail(forgetPending)) { setForgetPending(null); setTimeout(() => emailInput.current?.focus(), 0); }
+                      }}>确认移除此邮箱记忆</button>
+                    </div>
+                  </div>}
+                  {historyNotice && <p className="cloud-login-help" role="status">{historyNotice}</p>}
+                </div>
+              )}
             </form>
-            <button type="button" className="cloud-back-link" onClick={() => { setResetMode(true); setResetError(null); }}>
+            <button type="button" className="cloud-back-link" disabled={inFlight} onClick={() => { setResetMode(true); setResetError(null); setForgetPending(null); }}>
               忘记密码？
             </button>
           </>

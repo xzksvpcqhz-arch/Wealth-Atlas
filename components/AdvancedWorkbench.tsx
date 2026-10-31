@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { ArrowRight, Bank, CalendarDots, ChartLineUp, Check, CloudArrowDown, DownloadSimple, FileCsv, FilePdf, FileXls, FloppyDisk, GearSix, HardDrives, Lightning, MagnifyingGlass, PencilSimple, Plus, ShieldCheck, Sparkle, Target, Trash, TrendUp, UploadSimple, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import { detectDuplicateTransactions } from "@/lib/adapters";
+import { removeConfirmedRecord } from "@/lib/cloud-merge";
 import { exportChartPng as exportChartPngFile, exportExcel, exportPdfReport as exportPdfReportFile } from "@/lib/exporters";
 import { formatMoney, getCashFlowForecast, getCashFlowForecastSet, getFinanceAlerts, getLocalDate, getWatchlistMetrics, totalExpensesInCurrency, totalIncomeInCurrency, totalInCurrency } from "@/lib/finance";
 import { reportSafeDiagnostic } from "@/lib/diagnostics";
@@ -175,7 +176,7 @@ function CashFlowPage({ data, setData, onToast }: Pick<Props, "data" | "setData"
     const target=deleteTarget;
     if(!target) return;
     run(() => {
-      setData((current) => ({ ...current,plannedPayments: current.plannedPayments.filter((item) => item.id!==target.id) }));
+      setData((current) => removeConfirmedRecord(current,"plannedPayments",target.id));
       setEditingPayment((current) => current?.id===target.id ? null : current);
       setDeleteTarget(null);
       onToast("计划付款已删除，现金流预测已更新");
@@ -209,7 +210,7 @@ function WatchlistsPage({ data, setData, onToast }: Pick<Props, "data" | "setDat
     const target=deleteTarget;
     if(!target) return;
     run(() => {
-      setData((current) => ({ ...current,watchlists: current.watchlists.filter((item) => item.id!==target.id) }));
+      setData((current) => removeConfirmedRecord(current,"watchlists",target.id));
       setEditingWatchlist((current) => current?.id===target.id ? null : current);
       setDeleteTarget(null);
       onToast("Watchlist 已删除，交易和预算未改变");

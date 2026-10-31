@@ -1,47 +1,60 @@
-# Wealth Atlas · Supabase 云端同步 · 建库步骤
+# Wealth Atlas · Supabase 配置与权限核查
 
-> 按下面做，最后把 **项目 URL + anon key** 发给我（这两个是给前端用的"公开"值，不是秘密；**不要发 service_role key**）。
+本地代码和线上数据库是两件事。修改本目录不会自动执行线上 SQL，
+也不能据此声称线上 RLS 已通过。当前加固候选尚未应用到生产项目。
 
-## 第 1 步：注册 Supabase 并建项目
-1. 打开 https://supabase.com → 右上 **Sign in / Start your project**
-2. 用邮箱注册登录（可 GitHub 登录）
-3. 点 **New project**：
-   - **Name**：`wealth-atlas`（随意）
-   - **Database Password**：自己设一个强密码（记好，本地不会用，但以后要进数据库会用到）
-   - **Region**：选离你近的（如 **Southeast Asia (Singapore)**）
-4. 等 1~2 分钟项目初始化完成
+## 已有项目：先做只读检查
 
-> **建议顺手关掉「邮箱确认」（省去注册后还要去邮箱点链接这一步）：**
-> 左侧 **Authentication → Providers → Email**，把 **Confirm email** 关掉（OFF）。这样在 App 里注册后立刻就能用。
+1. 打开 Supabase Dashboard，选择正确项目 → **SQL Editor → New query**。
+2. 执行 `audit-user-data.sql`。它只读取系统目录，**不读取财务记录**，不修改权限。
+3. 检查 RLS、anon/authenticated 实际权限、策略、索引、触发器和 Realtime 配置。
+   可提供这些技术元数据供复核；不要发送 Table Editor 中的资料、密码或密钥。
+4. 先在单独测试项目使用虚构 A/B 用户验证允许/拒绝行为，再考虑正式库变更。
 
-## 第 2 步：运行建表脚本
-1. 左侧菜单 **SQL Editor** → **New query**
-2. 把本目录下的 `schema.sql` **整段复制粘贴**进去
-3. 点 **Run**（或 Ctrl+Enter）
-4. 看到成功提示即可
+完整验收和已知限制见 `../docs/CLOUD_PERMISSIONS.md`。
 
-## 第 3 步：拿到两个值发给我
-1. 左侧 **Settings → API**
-2. 复制：
-   - **Project URL**（形如 `https://xxxx.supabase.co`）
-   - **anon / public** key（形如 `eyJhbGciOi...`，很长一串）
-3. 把这两个值发给我（**只发 URL 和 anon key**，不要发 `service_role` 那个）
+## 权限候选：不要未经确认在正式库执行
 
-## 第 4 步：验证（可选，推荐跑一下）
-在 SQL Editor 新建一个 query，粘下面这段，点 Run。能正常返回一行（显示 `user_data`）就说明表建好了：
+`schema.sql` 是新建表/已有表权限加固的**人工审批候选**。它没有财务行的
+UPDATE、INSERT、DELETE 或清空操作；权限变更在一个有超时的事务里提交。
+它会收紧现有 API 权限，所以不能当作普通说明随意在生产运行。
 
-```sql
-select table_name, row_security from information_schema.tables
-where table_schema = 'public' and table_name = 'user_data';
+正式执行前必须：
+
+- 用户明确确认；建议先导出 Excel 和 Obsidian ZIP 备份。
+- 保存当前权限、策略和触发器定义，制定恢复权限配置的方案；不要回退个人资料。
+- 升级并验证所有写入端。旧版 upsert 可能依赖此候选刻意禁止的身份列更新权限，
+  而且不具备新的冲突保护。不要让新旧版本同时写同一个账号。
+- 暂停同步写入，先在测试项目验证；通过后再决定生产应用次序。
+- 运行只读审核并验证 A/B 用户隔离、并发修改和 Realtime 行为。
+
+脚本不删除未知策略；额外的限制性归属策略防止宽松策略意外放开其他用户的行。
+它禁止客户端删除**整份云端快照**，不禁止正常 JSON 内的交易删除、恢复和回收站。
+数据库管理员、service_role、BYPASSRLS 以及其他特权 RPC 仍需单独审核。
+
+## 新项目
+
+创建项目时选择合适区域并妥善保存数据库密码。保留邮箱确认，不要为了省步骤关闭
+身份验证。审核 `schema.sql` 后，只在新的空白测试项目先执行和验收。
+
+客户端只使用 **Project URL + publishable key**，或现有兼容的 **anon key**。
+通过本机环境变量或受控构建环境配置，不必发到聊天：
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
 ```
 
-> `schema.sql` 是**幂等**的：如果不小心运行了两次也没关系，不会报错。
+绝不能把 secret/service_role key、数据库密码、用户密码、JWT 或访问令牌放入客户端、
+Git 或聊天。公开 key 本身不是用户身份，也不替代 RLS。
 
-## 第 5 步：我会做
-- 把这两个值接进 app 的环境变量（`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`，写进本地 `.env.local`，同时配到 Cloudflare Pages 构建变量）
-- 写登录 + 同步界面（会先给你看预览再动手）
-- 你的桌面 App + 手机 PWA 登录同一个账号后，数据就互通了
+## 无财务内容的线上初步探测
 
-## 注意
-- `anon key` 是**公开**的（前端要用它），可以安全写进 app；它配合 RLS 只允许用户访问自己的数据。
-- `service_role` key 是**私密**的（有管理员权限），**绝不发给我、绝不写进 app**。
+在已经配置上述**公开**构建变量的终端运行：
+
+```text
+node scripts/check-cloud-permissions.mjs
+```
+
+只发送 HEAD + limit=0，不登录用户、不下载响应内容。401/403 仅说明该匿名请求被拒绝；
+200 是「需要元数据审核」，不是安全 PASS。此命令不加载 `.env.local`，不更改线上资料。

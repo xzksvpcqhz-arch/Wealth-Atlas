@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { readInstalledReleaseAcceptance, RELEASE_ASSET_NAMES, sha256 as assetSha256 } from "./release-acceptance.mjs";
 const { load: parseYaml } = createRequire(import.meta.url)("js-yaml");
 
 export function validateUpdateAssets(assets, version) {
@@ -77,20 +78,23 @@ export async function prepareGithubPublish(projectRoot, packageJson) {
 }
 
 export async function publishCheckedRelease(context, releasePath, version) {
+  if (existsSync(path.join(releasePath, "local-candidate-provenance.json"))) throw new Error("Publish blocked: local-candidate provenance cannot be promoted by changing environment flags.");
   const check = JSON.parse(readFileSync(path.join(releasePath, "release-check.json"), "utf8"));
   const installer = readFileSync(path.join(releasePath, "Wealth-Atlas-Setup.exe"));
   const sha256 = createHash("sha256").update(installer).digest("hex").toUpperCase();
-  if (check.status !== "PASS" || !check.distributionReady || check.sourceCommit !== context.head || check.version !== version || check.sha256?.toUpperCase() !== sha256 || !Array.isArray(check.checks) || !check.checks.length || check.checks.some((item) => !item.pass)) throw new Error("Publish blocked: release validation, approved source or installer hash does not match.");
-  const names = ["Wealth-Atlas-Setup.exe", "Wealth-Atlas-Setup.exe.blockmap", "latest.yml"];
+  if (check.status !== "PASS" || !check.distributionReady || check.localCandidate === true || check.runtimeAcceptanceVerified !== true || check.sourceCommit !== context.head || check.version !== version || check.sha256?.toUpperCase() !== sha256 || !Array.isArray(check.checks) || !check.checks.length || check.checks.some((item) => !item.pass)) throw new Error("Publish blocked: release validation, approved source or installer hash does not match.");
+  const names = RELEASE_ASSET_NAMES;
   // Read all assets before creating anything remotely. Only code/build artifacts are allowed.
   const assets = names.map((name) => ({ name, bytes: readFileSync(path.join(releasePath, name)) }));
   validateUpdateAssets(assets, version);
+  readInstalledReleaseAcceptance(releasePath, { version, sourceCommit: context.head,
+    assetHashes: Object.fromEntries(assets.map(({ name, bytes }) => [name, assetSha256(bytes)])) });
   const { api, headers, head, tag } = context;
   const existing = await fetch(`${api}/releases/tags/${tag}`, { headers });
   if (existing.status !== 404) throw new Error("Publish blocked: a release already exists or could not be checked; no existing release will be overwritten or deleted.");
   const release = await githubJson(`${api}/releases`, {
     method: "POST", headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ tag_name: tag, target_commitish: head, name: `Wealth Atlas ${tag}`, draft: true, prerelease: false, body: `GitHub automatic update hardening: public stable feed, background download, install on normal exit, safe retries and verified release assets. Includes the cross-currency child-account visibility fix. No UI redesign or financial calculation/cloud-sync changes.\n\nSource commit: ${head}\nSignature: ${check.release} (Windows may still show an unknown-publisher warning).\n\nExisting local financial records remain unchanged. Back up important records before installing any update.` }),
+    body: JSON.stringify({ tag_name: tag, target_commitish: head, name: `Wealth Atlas ${tag}`, draft: true, prerelease: false, body: buildReleaseBody(version, head, check.release) }),
   });
   const uploadUrl = release.upload_url.replace(/\{.*$/, "");
   if (new URL(uploadUrl).hostname !== "uploads.github.com") throw new Error("Unexpected asset upload host.");
@@ -106,4 +110,8 @@ export async function publishCheckedRelease(context, releasePath, version) {
     && asset.size === bytes.length && asset.digest === `sha256:${createHash("sha256").update(bytes).digest("hex")}`))) throw new Error("Required update assets failed verification; release remains a draft.");
   await githubJson(`${api}/releases/${release.id}`, { method: "PATCH", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ draft: false, make_latest: "true" }) });
   console.log(`Published ${tag}: source and all three update assets verified.`);
+}
+
+export function buildReleaseBody(version, head, signature) {
+  return `Wealth Atlas v${version}\n\nAdds an explicit next-launch automatic-login switch using the existing verified local session, without saving passwords or extra token copies. Disabling it keeps the current session but requires manual login on next launch; background events cannot bypass this choice. Password-recovery resilience includes consumed-link reload while automatic login is disabled.\n\nIncludes account-isolated local workspaces, guarded cross-device sync and conflict handling, opt-in email-only login history, and verified local-workspace offline reopening with online revalidation. Existing financial calculations, historical FX snapshots and approved visual design are preserved. Offline access remains subject to the existing verification lifetime; no claim of indefinite offline authentication or universal resolution of previous failures.\n\nFinal installer, blockmap and update manifest are bound to extracted-payload runtime acceptance before publication. This is not proof of every NSIS wizard, hardware or end-to-end update-install scenario.\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\nNo automatic adoption of candidate data. Existing unassigned local records stay local; account synchronization uses the corresponding account workspace. Back up important records before updating. No user files or Obsidian handwritten content are deleted by this release preparation.`;
 }

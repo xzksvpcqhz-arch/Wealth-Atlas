@@ -5,8 +5,13 @@ import { spawn } from "node:child_process";
 import { Arch, Platform, build } from "electron-builder";
 import packageJson from "../package.json" with { type: "json" };
 import { assertCloudBuildConfigured, prepareGithubPublish, publishCheckedRelease } from "./github-release.mjs";
+import { stageRuntimeApplication } from "./runtime-dependencies.mjs";
+import { randomUUID } from "node:crypto";
 
 const projectRoot = process.cwd();
+const localCandidate = process.env.WEALTH_ATLAS_LOCAL_CANDIDATE === "1";
+if (localCandidate && process.env.WEALTH_ATLAS_PUBLISH === "1") throw new Error("Local installer candidates cannot be published.");
+if (!localCandidate && (process.env.WEALTH_ATLAS_RELEASE_SOURCE_ROOT || process.env.WEALTH_ATLAS_RELEASE_DIR)) throw new Error("Source/output overrides require explicit local-candidate mode; publishing overrides are forbidden.");
 assertCloudBuildConfigured(process.env);
 
 // Public update feeds do not require a token inside the application.
@@ -69,8 +74,24 @@ if (!signedRelease) {
 await run(process.execPath, ["scripts/desktop-build.mjs"]);
 
 const buildConfig = structuredClone(packageJson.build);
-const releaseDirectory = path.join("desktop-dist", `v${packageJson.version}`);
+const releaseDirectory = localCandidate && process.env.WEALTH_ATLAS_RELEASE_DIR
+  ? path.resolve(process.env.WEALTH_ATLAS_RELEASE_DIR) : path.join("desktop-dist", `v${packageJson.version}`);
+if (existsSync(path.join(releaseDirectory, "Wealth-Atlas-Setup.exe")) || existsSync(path.join(releaseDirectory, "win-unpacked"))) {
+  throw new Error("Release output already exists; preserve it and choose a new local candidate directory.");
+}
 buildConfig.directories = { ...buildConfig.directories, output: releaseDirectory };
+{
+  // Fresh formal builds also need a physical runtime dependency closure.
+  const runtimeApp = path.join(projectRoot, "work", "release-runtime", randomUUID(), "app");
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(path.dirname(runtimeApp), { recursive: true });
+  await stageRuntimeApplication(projectRoot, path.resolve(process.env.WEALTH_ATLAS_RELEASE_SOURCE_ROOT || projectRoot), runtimeApp, { localCandidate });
+  buildConfig.directories.app = runtimeApp;
+  // Explicit file set: do not rely on the package-manager collector to follow
+  // the build dependency link or infer the nested, physical runtime closure.
+  buildConfig.files = [...(buildConfig.files ?? []), { from: path.join(runtimeApp, "node_modules"), to: "node_modules", filter: ["**/*"] }];
+}
+buildConfig.electronDist = path.join(projectRoot, "node_modules", "electron", "dist");
 buildConfig.win = {
   ...buildConfig.win,
   signExecutable: signedRelease,
@@ -101,6 +122,15 @@ await build({
   publish: "never",
 });
 
+await run(process.execPath, ["scripts/windows-release-check.mjs"], {
+  WEALTH_ATLAS_RELEASE_DIR: releaseDirectory,
+  WEALTH_ATLAS_RELEASE_SIGNING: signedRelease ? "SIGNED" : "UNSIGNED",
+  WINDOWS_PUBLISHER_NAME: signedRelease ? publisherName : "",
+});
+// Test the exact signed/unsigned bytes just built, before any remote write.
+await run(process.execPath, ["scripts/windows-installed-release-test.mjs"], {
+  WEALTH_ATLAS_RELEASE_DIR: releaseDirectory,
+});
 await run(process.execPath, ["scripts/windows-release-check.mjs"], {
   WEALTH_ATLAS_RELEASE_DIR: releaseDirectory,
   WEALTH_ATLAS_RELEASE_SIGNING: signedRelease ? "SIGNED" : "UNSIGNED",

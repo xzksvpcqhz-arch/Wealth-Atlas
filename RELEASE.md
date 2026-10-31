@@ -27,15 +27,23 @@
 
 ```text
 npm test
-npm run build
 npm run release:test-updater
-npm run release:windows
-npm run release:test-installed
+node scripts/build-local-release.mjs
 ```
+
+`build-local-release.mjs` 只准备本地 v1.7.6 候选：新建不含环境文件/个人资料的源码副本，仅在副本设置目标版本，复用已安装依赖和本机公开云构建变量；不读取 `.env.local`，不改变根 package/lock 版本，不安装或发布。命令在副本执行 `npm run build`、Windows 打包、检查、提取 payload 运行测试和最终检查。输出目录使用新时间戳与 UUID，旧目录不覆盖。
+
+本地候选始终 `localCandidate=true`、`distributionReady=false`；不得把它改成可发布状态。用户确认源码/版本后，正式发布必须从匹配的干净 commit/tag 重新构建和验收。
 
 环境变量应通过本机安全方式载入进程，不把真实 Token 写进命令文本、源码、日志或聊天。构建不会读取或自动删除任何遗留 token 文件；发现该文件即停止。没有正式证书时，候选包明确标注 UNSIGNED。
 
 桌面升级测试使用提取后的真实安装包程序和隔离虚拟 profile，不运行实际安装向导，不替换用户安装，不改变注册表或个人资料。
+
+升级基准默认 `1.7.4`，可同时通过 `WEALTH_ATLAS_BASELINE_VERSION` 和 `WEALTH_ATLAS_BASELINE_INSTALLER` 选择其他已核对旧版；实际 PE 版本须匹配，且旧版必须严格小于目标版本。隔离安装包测试包含账号隔离及 Obsidian 断开成功/失败阶段。它不证明 NSIS 向导、快捷方式、卸载或真实账号的同步行为。
+
+本机 vendor 提取器需要同版 `7z.dll`。本地候选脚本自动把现有 `7z-x64.exe` / `7z-x64.dll` 复制到新工具目录并命名为 `7z.exe` / `7z.dll`，通过 `WEALTH_ATLAS_TEST_EXTRACTOR` 传入，不移动原件或更新工具。单独运行 payload 测试或以后正式发布时，也应显式配置配齐 DLL 的提取器，不能只指定孤立的 `7z-x64.exe`。
+
+`release:windows` / `release:publish` 现在自动串联“打包 → 检查 → payload 运行验收 → 再检查”。不要再次对同一产物运行 `release:test-installed` 覆盖证据：`installed-release-test.json` 只以独占方式创建；需要重做时保留旧输出，选择新候选目录。新安装包、签名后字节或任意更新资产变化都会使旧验收失效。
 
 ## 经用户确认后发布
 
@@ -52,6 +60,8 @@ npm run release:publish
 - `latest.yml`
 
 清单内版本、文件名、文件大小和 SHA-512 必须与安装包一致。任何步骤失败时停止；已创建的 draft 保留，不自动删除或覆盖其他 release。`release-check.json` 的 PASS 仅说明本地检查通过；`distributionReady` 必须为 true，并且远程公开文件完成核对，才能称为正式发布成功。
+
+发布前还必须有 `runtimeAcceptanceVerified=true`，并重新验证 `installed-release-test.json` 与当前 commit、版本、安装包/blockmap/清单三个 SHA-256 一致。发布函数在任何远端请求前执行此检查，不能拿旧安装包的运行结果放行重建后的新包。
 
 ## 发布后
 
