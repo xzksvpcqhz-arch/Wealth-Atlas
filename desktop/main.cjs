@@ -761,6 +761,29 @@ function registerDesktopIpc() {
     await fs.writeFile(target, payload.content, "utf8");
     return true;
   });
+  handlePrivate("investment:request", async (event, payload) => {
+    assertTrustedSender(event);
+    try {
+      const config = await readVaultConfig();
+      if (!config) throw new Error("请先在「同步 Obsidian」连接自己的 Vault，再使用投资保存功能。");
+      if (!["state", "save"].includes(payload?.route)) throw new Error("投资操作无效。");
+      if (Buffer.byteLength(JSON.stringify(payload)) > 5000000) throw new Error("投资资料超过 5MB。");
+      const catalog = require("./investment/instruments.json");
+      const store = require("./investment/store.cjs").createStore({vaultRoot: config.path, catalog});
+      const value = payload.route === "state" ? await store.read() : await store.save(payload.request);
+      return {ok:true,value};
+    } catch(error) { return {ok:false,error:error.message,status:error.status || 400}; }
+  });
+  handlePrivate("investment:open-note", async (event, payload) => {
+    assertTrustedSender(event);
+    const config = await readVaultConfig();
+    if (!config) throw new Error("请先连接自己的 Obsidian Vault。");
+    const instrument = require("./investment/instruments.json").instruments.find(i => i.alias === payload?.alias);
+    if (!instrument) throw new Error("证券资料不存在。");
+    await shell.openExternal("obsidian://open?vault=" + encodeURIComponent(config.name) + "&file=" + encodeURIComponent("20_领域/投资/标的资料/" + instrument.profile + ".md"));
+    return true;
+  });
+
 }
 
 function resolveAppAsset(requestUrl) {

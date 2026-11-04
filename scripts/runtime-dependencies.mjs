@@ -3,7 +3,7 @@ import { copyFile, lstat, mkdir, readFile, readdir, realpath, writeFile } from "
 import path from "node:path";
 
 const packageName = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/i;
-const skip = /^(?:node_modules|tests?|__tests__|examples?|benchmarks?|\.git|\.github|\.env.*)$|\.(?:pem|pfx|p12|key)$/i;
+const skip = /^(?:node_modules|tests?|__tests__|examples?|benchmarks?|\.git|\.github|\.env.*)$|\.(?:test|spec)\.[cm]?[jt]sx?$|\.(?:pem|pfx|p12|key)$/i;
 async function copyCode(from, to) {
   const stat = await lstat(from);
   if (stat.isSymbolicLink()) throw new Error("Runtime staging refuses source links.");

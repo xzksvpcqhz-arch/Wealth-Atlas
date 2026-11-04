@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
 import RuntimeDiagnostics, { DiagnosticBoundaryProbe } from "@/components/RuntimeDiagnostics";
 import "./globals.css";
+import "@/desktop/investment/investment-features.css";
+import "@/desktop/investment/native.css";
 
 export const metadata: Metadata = {
   title: "Wealth Atlas | 个人财富星图",

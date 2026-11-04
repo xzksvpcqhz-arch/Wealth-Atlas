@@ -1,0 +1,570 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-11-03",
+  "purpose": "public-security-reference-only",
+  "positionsVerified": false,
+  "sources": {
+    "M1": {
+      "title": "Maybank 官方投资者关系",
+      "url": "https://maybank.listedcompany.com/",
+      "kind": "issuer",
+      "checked": "read",
+      "fields": [
+        "name",
+        "stockCode",
+        "tradingCurrency"
+      ]
+    },
+    "M2": {
+      "title": "MarketScreener · Malayan Banking",
+      "url": "https://www.marketscreener.com/quote/stock/MALAYAN-BANKING-6491196/",
+      "kind": "secondary",
+      "checked": "read",
+      "fields": [
+        "name",
+        "stockCode",
+        "isin",
+        "exchange"
+      ]
+    },
+    "S1": {
+      "title": "Samaiden 官方投资者关系 · Price Ticker",
+      "url": "https://insage.com.my/ir/cmn/trps02/priceticker.aspx?Symbol=0223",
+      "kind": "issuer-ir",
+      "checked": "read",
+      "fields": [
+        "name",
+        "stockCode",
+        "stockName",
+        "exchangeBoard",
+        "tradingCurrency",
+        "sector"
+      ]
+    },
+    "S2": {
+      "title": "Investing.com · Samaiden",
+      "url": "https://uk.investing.com/equities/samaiden-group-bhd",
+      "kind": "secondary",
+      "checked": "read",
+      "fields": [
+        "isin",
+        "providerAlias"
+      ]
+    },
+    "S3": {
+      "title": "Samaiden · About Us",
+      "url": "https://samaiden.com.my/about-us/",
+      "kind": "issuer",
+      "checked": "read",
+      "fields": [
+        "description",
+        "name"
+      ]
+    },
+    "T1": {
+      "title": "TRC 官方投资者关系",
+      "url": "https://www.trc.com.my/ir-home/",
+      "kind": "issuer",
+      "checked": "read",
+      "fields": [
+        "name",
+        "stockName",
+        "exchangeBoard",
+        "description"
+      ]
+    },
+    "T2": {
+      "title": "i3investor · TRC (5054)",
+      "url": "https://klse.i3investor.com/web/stock/overview/5054",
+      "kind": "secondary",
+      "checked": "read",
+      "fields": [
+        "stockCode",
+        "stockName",
+        "tradingCurrency"
+      ]
+    },
+    "T3": {
+      "title": "Investing.com · TRC Synergy",
+      "url": "https://www.investing.com/equities/trc-synergy-bhd",
+      "kind": "secondary",
+      "checked": "read",
+      "fields": [
+        "isin",
+        "providerAlias"
+      ]
+    },
+    "V1": {
+      "title": "Vanguard · VWRD 所属派息份额及上市代码",
+      "url": "https://www.vanguard.co.uk/professional/product/etf/equity/9505/ftse-all-world-ucits-etf-usd-distributing",
+      "kind": "issuer",
+      "checked": "read",
+      "fields": [
+        "name",
+        "isin",
+        "ticker",
+        "exchange",
+        "tradingCurrency",
+        "sedol",
+        "bloomberg",
+        "reuters",
+        "domicile",
+        "description"
+      ]
+    },
+    "V2": {
+      "title": "Vanguard 官方 factsheet · 2026-09-30",
+      "url": "https://fund-docs.vanguard.com/FTSE_All-World_UCITS_ETF_USD_Distributing_9505_EU_INT_UK_EN.pdf",
+      "kind": "issuer-pdf",
+      "checked": "read-and-table-checked",
+      "asOf": "2026-09-30",
+      "fields": [
+        "isin",
+        "ticker",
+        "tradingCurrency",
+        "fee",
+        "distribution",
+        "benchmark",
+        "fundBaseCurrency",
+        "domicile"
+      ]
+    },
+    "R1": {
+      "title": "Invesco 官方 factsheet · TREI · 2026-09-30",
+      "url": "https://www.invesco.com/content/dam/invesco/emea/en/product-documents/etf/share-class/factsheet/IE00BKWD3C98_factsheet_en.pdf",
+      "kind": "issuer-pdf",
+      "checked": "read-and-table-checked",
+      "asOf": "2026-09-30",
+      "fields": [
+        "name",
+        "isin",
+        "ticker",
+        "bloomberg",
+        "sedol",
+        "wkn",
+        "fundBaseCurrency",
+        "domicile",
+        "distribution",
+        "fee",
+        "benchmark",
+        "description"
+      ]
+    },
+    "R2": {
+      "title": "London Stock Exchange · TREI",
+      "url": "https://www.londonstockexchange.com/en/quote/etps/TREI/invesco-markets-ii-plc",
+      "kind": "exchange",
+      "checked": "page-read-dynamic-fields-empty",
+      "fields": [
+        "ticker",
+        "exchange"
+      ]
+    },
+    "R3": {
+      "title": "Invesco 官方产品页 · 上市表",
+      "url": "https://www.invesco.com/uk/en/financial-products/etfs/invesco-us-treasury-bond-0-1-year-ucits-etf-dist.html",
+      "kind": "issuer",
+      "checked": "listing-table-search-index-only; direct-page-gated",
+      "fields": [
+        "tradingCurrency",
+        "reuters",
+        "sedol",
+        "ticker"
+      ]
+    },
+    "G1": {
+      "title": "iShares 官方 · iShares Gold Trust",
+      "url": "https://www.ishares.com/us/products/239561/ishares-gold-trust-etf",
+      "kind": "issuer",
+      "checked": "read",
+      "fields": [
+        "name",
+        "ticker",
+        "exchange",
+        "cusip",
+        "fee",
+        "description",
+        "benchmark",
+        "assetClass"
+      ]
+    },
+    "G2": {
+      "title": "墨西哥交易所 BMV · IAU 证券识别资料",
+      "url": "https://www.bmv.com.mx/en/issuers/profile/IAU-6499",
+      "kind": "exchange",
+      "checked": "read",
+      "fields": [
+        "isin"
+      ]
+    },
+    "B1": {
+      "title": "Bursa 证券 ISIN 清单 · 2024-04-30",
+      "url": "https://www.bursamalaysia.com/sites/5d809dcf39fba22790cad230/assets/6634918dcd34aa1c5a9ae055/isinequity_as_of__30_Apr_2024.pdf",
+      "kind": "exchange-historical",
+      "checked": "search-index-only; direct-http-403",
+      "asOf": "2024-04-30",
+      "fields": [
+        "isin"
+      ]
+    },
+    "B2": {
+      "title": "Bursa RSS 清单 · 2025-07",
+      "url": "https://www.bursamalaysia.com/sites/5d809dcf39fba22790cad230/assets/685507dbe6414a60f3f45108/Directive_on_the_List_of_Approved_Securities__w.e.f._July_2025_.pdf",
+      "kind": "exchange-historical",
+      "checked": "search-index-only; direct-http-403",
+      "asOf": "2025-07",
+      "fields": [
+        "isin",
+        "stockCode"
+      ]
+    },
+    "G3": {
+      "title": "iShares IAU 官方 factsheet · 2026-09-30",
+      "url": "https://www.ishares.com/us/literature/fact-sheet/iau-ishares-gold-trust-fund-fact-sheet-en-us.pdf",
+      "kind": "issuer-pdf",
+      "checked": "read",
+      "asOf": "2026-09-30",
+      "fields": [
+        "distribution",
+        "fee",
+        "cusip",
+        "exchange"
+      ]
+    }
+  },
+  "instruments": [
+    {
+      "alias": "Maybank",
+      "display": "Maybank",
+      "name": "Malayan Banking Berhad",
+      "ticker": "MAYBANK",
+      "stockCode": "1155",
+      "isin": "MYL1155OO000",
+      "exchange": "Bursa Malaysia",
+      "board": "Main Market",
+      "tradingCurrency": "MYR",
+      "assetClass": "普通股 / 银行",
+      "domicile": "Malaysia",
+      "description": "马来西亚银行集团；此处为 Bursa 普通股，不是海外存托凭证。",
+      "sourceIds": [
+        "M1",
+        "M2",
+        "B1"
+      ],
+      "fieldSources": {
+        "name": "M1",
+        "stockCode": "M1",
+        "isin": "M2",
+        "exchange": "M2",
+        "tradingCurrency": "M1",
+        "description": "M2"
+      },
+      "profile": "MAYBANK-1155",
+      "notes": [
+        "ISIN 已在 MarketScreener 正文核对；Bursa 历史清单仅取得搜索索引，PDF 返回 403。"
+      ],
+      "instrumentId": "isin:MYL1155OO000",
+      "listingId": "ref:maybank-1155",
+      "verifiedAt": "2026-11-03",
+      "verification": "public-reference-checked;broker-match-pending",
+      "brokerIds": {
+        "ibkrConid": null,
+        "moomooSecurityId": null
+      },
+      "quantity": null,
+      "costBasis": null,
+      "accountId": null,
+      "price": null
+    },
+    {
+      "alias": "Samaiden",
+      "display": "Samaiden",
+      "name": "Samaiden Group Berhad",
+      "ticker": "SAMAIDEN",
+      "stockCode": "0223",
+      "isin": "MYQ0223OO006",
+      "exchange": "Bursa Malaysia",
+      "board": "Main Market",
+      "tradingCurrency": "MYR",
+      "assetClass": "普通股 / 清洁能源",
+      "domicile": "Malaysia",
+      "description": "清洁能源方案与工程服务商，业务包括太阳能等项目的 EPCC。",
+      "providerAliases": {
+        "Investing.com": "SAMA"
+      },
+      "sourceIds": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "fieldSources": {
+        "name": "S1",
+        "ticker": "S1",
+        "stockCode": "S1",
+        "isin": "S2",
+        "exchange": "S1",
+        "tradingCurrency": "S1",
+        "description": "S3",
+        "providerAliases": "S2"
+      },
+      "profile": "SAMAIDEN-0223",
+      "notes": [
+        "0223 按字符串保存，保留前导零。",
+        "Investing.com 的 SAMA 是网站别名，不替代 Bursa 的 SAMAIDEN / 0223。"
+      ],
+      "instrumentId": "isin:MYQ0223OO006",
+      "listingId": "ref:samaiden-0223",
+      "verifiedAt": "2026-11-03",
+      "verification": "public-reference-checked;broker-match-pending",
+      "brokerIds": {
+        "ibkrConid": null,
+        "moomooSecurityId": null
+      },
+      "quantity": null,
+      "costBasis": null,
+      "accountId": null,
+      "price": null
+    },
+    {
+      "alias": "TRC",
+      "display": "TRC",
+      "name": "TRC Synergy Berhad",
+      "ticker": "TRC",
+      "stockCode": "5054",
+      "isin": "MYL5054OO001",
+      "exchange": "Bursa Malaysia",
+      "board": "Main Market",
+      "tradingCurrency": "MYR",
+      "assetClass": "普通股 / 建筑",
+      "domicile": "Malaysia",
+      "description": "以建筑及物业开发等业务为主的上市集团。",
+      "providerAliases": {
+        "Investing.com": "TRCG"
+      },
+      "sourceIds": [
+        "T1",
+        "T2",
+        "T3",
+        "B2"
+      ],
+      "fieldSources": {
+        "name": "T1",
+        "ticker": "T1",
+        "stockCode": "T2",
+        "isin": "T3",
+        "exchange": "T1",
+        "tradingCurrency": "T2",
+        "description": "T1",
+        "providerAliases": "T3"
+      },
+      "profile": "TRC-5054",
+      "notes": [
+        "官方 Factsheet 本次读取超时；5054 在 i3investor 正文核对，ISIN 在 Investing.com 正文核对。",
+        "TRCG 仅为 Investing.com 网站别名；Bursa 代码为 TRC / 5054。"
+      ],
+      "instrumentId": "isin:MYL5054OO001",
+      "listingId": "ref:trc-5054",
+      "verifiedAt": "2026-11-03",
+      "verification": "public-reference-checked;broker-match-pending",
+      "brokerIds": {
+        "ibkrConid": null,
+        "moomooSecurityId": null
+      },
+      "quantity": null,
+      "costBasis": null,
+      "accountId": null,
+      "price": null
+    },
+    {
+      "alias": "VWRD-LSEETF",
+      "display": "VWRD",
+      "name": "Vanguard FTSE All-World UCITS ETF (USD) Distributing",
+      "ticker": "VWRD",
+      "stockCode": "VWRD",
+      "isin": "IE00B3RBWM25",
+      "exchange": "London Stock Exchange",
+      "board": null,
+      "tradingCurrency": "USD",
+      "fundBaseCurrency": "USD",
+      "assetClass": "股票 ETF / 全球大型及中型股",
+      "domicile": "Ireland",
+      "benchmark": "FTSE All-World Index",
+      "distribution": "派息 / 季度",
+      "fee": {
+        "label": "OCF",
+        "percent": 0.14,
+        "asOf": "2026-09-30",
+        "source": "V2"
+      },
+      "sedol": "B6QBHM9",
+      "bloomberg": "VWRD LN",
+      "reuters": "VWRD.L",
+      "description": "追踪 FTSE All-World，覆盖发达与新兴市场的大型及中型公司股票。",
+      "sourceIds": [
+        "V1",
+        "V2"
+      ],
+      "fieldSources": {
+        "name": "V2",
+        "ticker": "V1",
+        "isin": "V1",
+        "exchange": "V1",
+        "tradingCurrency": "V1",
+        "fundBaseCurrency": "V2",
+        "assetClass": "V1",
+        "domicile": "V2",
+        "benchmark": "V2",
+        "distribution": "V2",
+        "fee": "V2",
+        "sedol": "V1",
+        "bloomberg": "V1",
+        "reuters": "V1",
+        "description": "V1"
+      },
+      "profile": "VWRD-LSE-USD",
+      "notes": [
+        "此条目在伦敦上市，以 USD 交易，基金注册地为爱尔兰。",
+        "同一份额在不同市场有其他交易代码；不能把 VWRL 的 GBP 条目或累积份额 VWRA 当作 VWRD。",
+        "0.14% 为 2026-09-30 factsheet 费用，不是券商佣金；不沿用旧资料的 0.19%。"
+      ],
+      "instrumentId": "isin:IE00B3RBWM25",
+      "listingId": "ref:vwrd-lse-usd",
+      "verifiedAt": "2026-11-03",
+      "verification": "public-reference-checked;broker-match-pending",
+      "brokerIds": {
+        "ibkrConid": null,
+        "moomooSecurityId": null
+      },
+      "quantity": null,
+      "costBasis": null,
+      "accountId": null,
+      "price": null
+    },
+    {
+      "alias": "TREI-LSE ETF",
+      "display": "TREI",
+      "name": "Invesco US Treasury Bond 0-1 Year UCITS ETF Dist",
+      "ticker": "TREI",
+      "stockCode": "TREI",
+      "isin": "IE00BKWD3C98",
+      "exchange": "London Stock Exchange",
+      "board": null,
+      "tradingCurrency": "USD",
+      "fundBaseCurrency": "USD",
+      "assetClass": "债券 ETF / 美国 0–1 年期国债",
+      "domicile": "Ireland",
+      "benchmark": "Bloomberg US Treasury Coupons Index",
+      "distribution": "派息 / 季度",
+      "fee": {
+        "label": "Ongoing charge",
+        "percent": 0.06,
+        "asOf": "2026-09-30",
+        "source": "R1"
+      },
+      "sedol": "BKRQNM3",
+      "bloomberg": "TREI LN",
+      "reuters": "TREI.L",
+      "wkn": "A2PVD0",
+      "description": "追踪剩余期限 0–1 年的美元美国国债指数；为债券 ETF，不是银行存款。",
+      "sourceIds": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "fieldSources": {
+        "name": "R1",
+        "ticker": "R1",
+        "isin": "R1",
+        "exchange": "R2",
+        "tradingCurrency": "R3",
+        "fundBaseCurrency": "R1",
+        "assetClass": "R1",
+        "domicile": "R1",
+        "benchmark": "R1",
+        "distribution": "R1",
+        "fee": "R1",
+        "sedol": "R1",
+        "bloomberg": "R1",
+        "reuters": "R3",
+        "description": "R1"
+      },
+      "profile": "TREI-LSE-USD",
+      "notes": [
+        "基金身份、ISIN、TREI LN 与 SEDOL 已由官方 factsheet 核对。",
+        "LSE 的 USD 交易币种及 TREI.L 来自发行商上市表搜索索引；直接产品页有地区限制，LSE 页面动态字段未完整返回，仍待券商合同详情最终匹配。",
+        "TRIS 是另一报价币种的交易代码，不自动合并为同一上市条目。"
+      ],
+      "instrumentId": "isin:IE00BKWD3C98",
+      "listingId": "ref:trei-lse-usd",
+      "verifiedAt": "2026-11-03",
+      "verification": "public-reference-checked;broker-match-pending",
+      "brokerIds": {
+        "ibkrConid": null,
+        "moomooSecurityId": null
+      },
+      "quantity": null,
+      "costBasis": null,
+      "accountId": null,
+      "price": null
+    },
+    {
+      "alias": "IAU",
+      "display": "IAU",
+      "name": "iShares Gold Trust",
+      "ticker": "IAU",
+      "stockCode": "IAU",
+      "isin": "US4642852044",
+      "exchange": "NYSE Arca",
+      "board": null,
+      "tradingCurrency": "USD",
+      "assetClass": "黄金信托 / 实物黄金敞口",
+      "domicile": "United States",
+      "benchmark": "LBMA Gold Price",
+      "distribution": "无定期收益派发",
+      "fee": {
+        "label": "Sponsor fee",
+        "percent": 0.25,
+        "asOf": "2026-09-30",
+        "source": "G3"
+      },
+      "cusip": "464285204",
+      "description": "提供实物黄金价格敞口的信托；法律结构与普通股票基金不同。",
+      "sourceIds": [
+        "G1",
+        "G2",
+        "G3"
+      ],
+      "fieldSources": {
+        "name": "G1",
+        "ticker": "G1",
+        "isin": "G2",
+        "exchange": "G1",
+        "tradingCurrency": "G1",
+        "assetClass": "G1",
+        "domicile": "G2",
+        "benchmark": "G1",
+        "fee": "G3",
+        "cusip": "G1",
+        "description": "G1",
+        "distribution": "G3"
+      },
+      "profile": "IAU-NYSE-Arca-USD",
+      "notes": [
+        "NYSE Arca 按 iShares 发行商资料登记；BMV 页面仅用于交叉核对 ISIN。",
+        "不采用网上旧的 US4642851053 / CUSIP 464285105。券商合约仍待接入核对。"
+      ],
+      "instrumentId": "isin:US4642852044",
+      "listingId": "ref:iau-nyse-arca-usd",
+      "verifiedAt": "2026-11-03",
+      "verification": "public-reference-checked;broker-match-pending",
+      "brokerIds": {
+        "ibkrConid": null,
+        "moomooSecurityId": null
+      },
+      "quantity": null,
+      "costBasis": null,
+      "accountId": null,
+      "price": null
+    }
+  ]
+}

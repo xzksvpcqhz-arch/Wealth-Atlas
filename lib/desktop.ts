@@ -41,6 +41,8 @@ export type WealthAtlasDesktopBridge = {
   copyDiagnostic: (diagnostic: unknown) => Promise<boolean>;
   saveDiagnostic: (diagnostic: unknown) => Promise<DiagnosticFileResult>;
   reportDiagnostic: (diagnostic: unknown) => Promise<boolean>;
+  investmentRequest: (route: string, payload?: unknown) => Promise<{ok: boolean; value?: unknown; error?: string; status?: number}>;
+  openInvestmentNote: (alias: string) => Promise<boolean>;
   selectVault: () => Promise<DesktopVaultConnection | null>;
   getVaultConnection: () => Promise<DesktopVaultConnection>;
   disconnectVault: () => Promise<boolean>;
@@ -56,7 +58,7 @@ declare global {
   }
 }
 
-const privateMethods = new Set(["getDataLocation", "getStartupContext", "createDataBackup", "writeAutosave", "listBackups", "readBackup", "markStartupReady", "openBackupsLocation", "selectVault", "getVaultConnection", "disconnectVault", "ensureDirectory", "ensureFile", "readFile", "writeFile"]);
+const privateMethods = new Set(["investmentRequest", "openInvestmentNote", "getDataLocation", "getStartupContext", "createDataBackup", "writeAutosave", "listBackups", "readBackup", "markStartupReady", "openBackupsLocation", "selectVault", "getVaultConnection", "disconnectVault", "ensureDirectory", "ensureFile", "readFile", "writeFile"]);
 
 export async function activateDesktopDataProfile(scope: DataProfile): Promise<string | undefined> {
   const raw = typeof window === "undefined" ? null : window.wealthAtlasDesktop;

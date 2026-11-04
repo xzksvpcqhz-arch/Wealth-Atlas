@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld("wealthAtlasDesktop", {
   copyDiagnostic: (diagnostic) => ipcRenderer.invoke("diagnostics:copy", diagnostic),
   saveDiagnostic: (diagnostic) => ipcRenderer.invoke("diagnostics:save", diagnostic),
   reportDiagnostic: (diagnostic) => ipcRenderer.invoke("diagnostics:renderer", diagnostic),
+  investmentRequest: (route, payload, profile) => privateInvoke("investment:request", {route, request:payload}, profile),
+  openInvestmentNote: (alias, profile) => privateInvoke("investment:open-note", {alias}, profile),
   selectVault: (profile) => privateInvoke("vault:select", undefined, profile),
   getVaultConnection: (profile) => privateInvoke("vault:get-connection", undefined, profile),
   disconnectVault: (profile) => privateInvoke("vault:disconnect", undefined, profile),
