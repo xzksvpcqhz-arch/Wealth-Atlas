@@ -1,4 +1,5 @@
 import { assertActiveDataProfile, getDataProfile, type DataProfile } from "./data-profile";
+import type { UpdateReply } from "./update-center";
 
 export type DesktopVaultConnection = {
   connected: boolean;
@@ -27,6 +28,9 @@ export type WealthAtlasDesktopBridge = {
   isDiagnosticTest: boolean;
   isStorageReadFailureTest: boolean;
   startupTestMode: string;
+  getUpdateState?: () => Promise<UpdateReply>;
+  checkForUpdates?: () => Promise<UpdateReply>;
+  openUpdateReleaseNotes?: () => Promise<{ ok: boolean; code?: string }>;
   getDataLocation: () => Promise<string>;
   getStartupContext: () => Promise<{ appVersion: string; previousAppVersion: string | null; requiresUpdateBackup: boolean; backupsPath: string }>;
   reportStartupStage: (stage: { stage: string; status: "running" | "success" | "failed"; errorId?: string }) => Promise<boolean>;

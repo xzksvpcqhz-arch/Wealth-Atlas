@@ -113,6 +113,9 @@ export async function publishCheckedRelease(context, releasePath, version) {
 }
 
 export function buildReleaseBody(version, head, signature) {
+  if (version === "1.7.9") {
+    return `Wealth Atlas v${version} — 更新中心\n\n设置页新增更新中心，显示真实程序版本、最近取得的正式版本、检查时间和下载进度。下载达到100%仍等待校验，只有安装包确认就绪后才提示保存操作并正常退出安装，不会强制关闭应用。\n\n完善失败重试间隔、重复点击、迟到事件、校验失败及初始化失败保护。更新状态和发布说明通过受限桌面接口读取，不接受任意下载地址或安装命令；开发、网页版和隔离测试模式不会假装执行安装。\n\n保留当前深色星空设计，以及账户、交易、预算、投资、Obsidian、删除恢复、账号同步和离线验证逻辑；不迁移或清空个人资料。\n\n发布前运行完整回归、更新器对抗测试、四个尺寸的界面及键盘验收，并对最终安装包执行独立虚构资料的payload启动、v1.7.8升级和回退兼容测试。隔离payload验收不等同实际NSIS安装向导或所有设备的端到端更新安装验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n正式Windows版联网后可后台检测并下载更新，保存操作并正常退出后安装，重新打开确认v${version}。无需卸载或清空资料；更新前建议自行导出Excel和Obsidian ZIP备份。`;
+  }
   if (version === "1.7.8") {
     return `Wealth Atlas v1.7.8 — 我的投资\n\n新增 Windows 投资工作台：导入券商持仓快照与成交流水，核对重复记录和持仓变动，并按已导入资料拆解收益。证券资料与投资政策、事件日历及基准比较分开管理。\n\n真实券商未接入，不会执行交易或付款。投资版本只在用户确认保存后写入已连接的 Obsidian Vault；公开安装包不含个人持仓、成本、账户或 Vault 文件。\n\n发布前以模拟资料验证投资保存、并发、路径隔离及导入逻辑，并对最终安装包执行隔离启动及升级兼容验收。不等同于验证所有真实账户或实际安装向导。\n\nSource commit: ${head}\nSignature: ${signature} (unsigned builds may trigger a Windows warning).\n\n正式版联网后后台下载更新，正常退出后安装。已安装本地 v1.7.8 的设备不会因同版本号自动重装。`;
   }

@@ -444,6 +444,13 @@ test("v1.7.7 release notes describe display-only sync and preserve verification 
   assert.match(body, /UNSIGNED/);
   assert.match(body, /synthetic-reviewed-commit/);
 });
+test("update-center release notes describe the actual scope and preserve unsigned and installation limits", () => {
+  const body = buildReleaseBody("1.7.9", "synthetic-reviewed-commit", "UNSIGNED");
+  for (const expected of ["v1.7.9", "更新中心", "100%", "受限桌面接口", "校验失败", "不会强制", "synthetic-reviewed-commit", "UNSIGNED", "NSIS", "无需卸载或清空资料"]) assert.ok(body.includes(expected), expected);
+  assert.ok(!body.includes("Adds an optional home DIY editor"));
+  assert.ok(!/保证安全|已通过病毒检查|guaranteed safe/i.test(body));
+});
+
 test("only a newer reviewed commit matching the local and remote release tags can publish", () => {
   assert.doesNotThrow(() => assertReleaseSource(source));
   for (const change of [{ dirty: true }, { committedVersion: "1.6.19" }, { tagCommit: "stale" }, { remoteCommit: "stale" }, { latestVersion: "1.7.4" }, { latestVersion: "1.8.0" }, { version: "invalid" }]) {

@@ -68,6 +68,8 @@ async function electronTest() {
       { name: "same-version", version: "1.7.3", expected: "up-to-date" },
       { name: "older-version", version: "1.7.2", expected: "up-to-date" },
       { name: "checksum-failure", version: "1.7.4", corrupt: true, expected: "error" },
+      { name: "download-with-late-network-error", version: "1.7.4", expected: "downloaded", lateErrorCode: "ENOTFOUND", finalStatus: "downloaded" },
+      { name: "late-integrity-failure", version: "1.7.4", expected: "downloaded", lateErrorCode: "ERR_UPDATER_INVALID_SIGNATURE", finalStatus: "error" },
     ]) {
       scenario = entry;
       const folder = path.join(profile, entry.name);
@@ -94,15 +96,32 @@ async function electronTest() {
       const result = await control.check();
       assert.equal(result.status, entry.expected, entry.name);
       assert.equal(installs, 0, "Download completion triggered installation");
+      if (entry.corrupt) {
+        assert.equal(result.code, "ERR_CHECKSUM_MISMATCH");
+        assert.equal(updater.autoInstallOnAppQuit, false);
+      }
+      if (entry.lateErrorCode) {
+        updater.emit("error", Object.assign(new Error("Synthetic late updater failure"), { code: entry.lateErrorCode }));
+        updater.emit("update-not-available", { version: "1.7.3" });
+        if (entry.finalStatus === "error") {
+          updater.emit("update-available", { version: "1.7.4" });
+          updater.emit("update-downloaded", { version: "1.7.4" });
+          assert.equal(updater.autoInstallOnAppQuit, false);
+        } else {
+          assert.equal(control.getState().version, "1.7.4");
+          assert.equal(control.getState().warningCode, entry.lateErrorCode);
+        }
+        assert.equal(control.getState().status, entry.finalStatus);
+      }
       if (entry.expected === "downloaded") {
         assert.deepEqual(fs.readFileSync(updater.installerPath), payload);
         quitHandlers.forEach((callback) => callback(1));
         assert.equal(installs, 0, "Abnormal exit should not install");
         quitHandlers.forEach((callback) => callback(0));
         quitHandlers.forEach((callback) => callback(0));
-        assert.equal(installs, 1, "Normal exit must schedule installation exactly once");
+        assert.equal(installs, entry.finalStatus === "error" ? 0 : 1, "Only a verified pending update may install on normal exit, at most once");
       }
-      results.push({ scenario: entry.name, status: result.status, actualInstallerExecuted: false });
+      results.push({ scenario: entry.name, status: control.getState().status, actualInstallerExecuted: false });
     }
     assert.ok(requests.length > 4 && requests.every((request) => !request.hasAuthorization));
     console.log("UPDATER_FEED_TEST " + JSON.stringify({ pass: true, transport: "loopback HTTP", updater: "real electron-updater NSIS", results, noCredentialsTransmitted: true }));

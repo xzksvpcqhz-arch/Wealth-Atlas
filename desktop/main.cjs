@@ -7,6 +7,7 @@ const fsSync = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { setupAutoUpdates } = require("./updater.cjs");
+const { registerUpdateIpc } = require("./update-ipc.cjs");
 const { createDataProfileRouter } = require("./data-profiles.cjs");
 const { recordCandidateDiagnostic, runCandidateVisibilityProbe } = require("./candidate-diagnostics.cjs");
 const { createStartupDiagnostics } = require("./startup-diagnostics.cjs");
@@ -1512,6 +1513,14 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   const window = createMainWindow();
   const updateController = setupAutoUpdater();
+  registerUpdateIpc({
+    ipcMain,
+    getController: () => updateController,
+    getContents: () => window.webContents,
+    getAppVersion: () => app.getVersion(),
+    devUrl,
+    openReleaseNotes: (url) => shell.openExternal(url),
+  });
   window.on("focus", () => { void updateController.check(); });
   await writeSmokeLog("window-created");
   writeMainLog("browser-window-created");
