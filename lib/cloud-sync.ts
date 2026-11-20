@@ -39,15 +39,20 @@ async function verifiedSession() {
     binding: await sessionBinding(session), recoveryKey: await verifiedRecoveryKey(session) };
 }
 
-export function getCloudTransport(userId: string) {
+export function getCloudTransport(userId: string, isolationManaged = false) {
   const sb = getSupabaseClient();
   if (!sb) throw new Error("尚未配置云端（缺少 Supabase 环境变量）。");
   const scope = getDataProfile();
   if (scope.kind !== "cloud" || scope.ownerId !== userId) throw new Error("登录账号与本机工作区不一致，已停止同步。");
   const transport = createSnapshotTransport(sb, userId);
+  const guarded = async <T,>(operation: () => Promise<T>) => {
+    // Keep auth-only startup independent of financial restore/storage modules.
+    const { assertRestoreSideEffectsAllowed, withRestoreSideEffects } = await import("./restore-isolation");
+    return isolationManaged ? assertRestoreSideEffectsAllowed(scope).then(operation) : withRestoreSideEffects(scope, operation);
+  };
   return {
-    pull() { assertActiveDataProfile(scope); return transport.pull(); },
-    compareAndSet: (...args: Parameters<typeof transport.compareAndSet>) => { assertActiveDataProfile(scope); return transport.compareAndSet(...args); },
+    pull() { assertActiveDataProfile(scope); return guarded(() => transport.pull()); },
+    compareAndSet: (...args: Parameters<typeof transport.compareAndSet>) => { assertActiveDataProfile(scope); return guarded(() => transport.compareAndSet(...args)); },
   };
 }
 

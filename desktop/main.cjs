@@ -9,9 +9,14 @@ const { createHash } = require("node:crypto");
 const { setupAutoUpdates } = require("./updater.cjs");
 const { registerUpdateIpc } = require("./update-ipc.cjs");
 const { createDataProfileRouter } = require("./data-profiles.cjs");
+const { createDesktopBackupStore } = require("./backup-safety.cjs");
 const { recordCandidateDiagnostic, runCandidateVisibilityProbe } = require("./candidate-diagnostics.cjs");
 const { createStartupDiagnostics } = require("./startup-diagnostics.cjs");
 const dataProfiles = createDataProfileRouter(() => app.getPath("userData"));
+const desktopBackups = createDesktopBackupStore({
+  getProfileRoot: () => dataProfiles.root(),
+  getAppVersion: () => app.getVersion(),
+});
 
 const SCHEME = "wealth-atlas";
 const APP_ORIGIN = `${SCHEME}://app`;
@@ -428,47 +433,11 @@ async function writeAutosave(payload) {
 }
 
 async function listBackups() {
-  const results = [];
-  for (const [kind, directory] of [["autosave", autosavesDirectory()], ["backup", backupsDirectory()]]) {
-    let entries;
-    try { entries = await fs.readdir(directory, { withFileTypes: true }); } catch { continue; }
-    for (const entry of entries.filter((item) => item.isDirectory()).sort((a, b) => b.name.localeCompare(a.name))) {
-      const folder = path.join(directory, entry.name);
-      let metadata = null;
-      try { metadata = JSON.parse(await fs.readFile(path.join(folder, "metadata.json"), "utf8")); } catch { continue; }
-      let hasSnapshot = false;
-      try { await fs.stat(path.join(folder, "wealth-data.json")); hasSnapshot = true; } catch { /* no snapshot */ }
-      if (!hasSnapshot) continue;
-      results.push({
-        id: entry.name,
-        kind,
-        path: folder,
-        createdAt: metadata?.createdAt ?? null,
-        appVersion: metadata?.appVersion ?? "",
-        schemaVersion: metadata?.schemaVersion ?? metadata?.backupVersion ?? null,
-      });
-    }
-  }
-  return results.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
+  return await desktopBackups.listBackups();
 }
 
 async function readBackup(payload) {
-  const id = String(payload?.id ?? "");
-  const kind = payload?.kind === "autosave" ? "autosave" : "backup";
-  if (!id || /[^A-Za-z0-9._-]/.test(id)) throw new Error("Backup id is invalid.");
-  const directory = kind === "autosave" ? autosavesDirectory() : backupsDirectory();
-  const buffer = await fs.readFile(path.join(directory, id, "wealth-data.json"));
-  try {
-    const metadata = JSON.parse(await fs.readFile(path.join(directory, id, "metadata.json"), "utf8"));
-    if (typeof metadata?.snapshotSha256 === "string") {
-      const actual = createHash("sha256").update(buffer).digest("hex");
-      if (actual !== metadata.snapshotSha256) throw new Error("Backup file integrity check failed.");
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message === "Backup file integrity check failed.") throw error;
-    // Missing/unparseable metadata: keep compatibility with older backup folders without a hash.
-  }
-  return JSON.parse(buffer.toString("utf8"));
+  return await desktopBackups.readBackup(payload);
 }
 
 async function writeSmokeLog(message) {
@@ -618,6 +587,11 @@ function registerDesktopIpc() {
     }
   });
 
+  handlePrivate("desktop:create-restore-safety-backup", async (event, payload) => {
+    assertTrustedSender(event);
+    return await desktopBackups.createRestoreSafetyBackup(payload);
+  });
+
   handlePrivate("desktop:list-backups", async (event) => {
     assertTrustedSender(event);
     return await listBackups();
@@ -626,6 +600,11 @@ function registerDesktopIpc() {
   handlePrivate("desktop:read-backup", async (event, payload) => {
     assertTrustedSender(event);
     return await readBackup(payload);
+  });
+
+  handlePrivate("desktop:read-backup-with-integrity", async (event, payload) => {
+    assertTrustedSender(event);
+    return await desktopBackups.readBackupWithIntegrity(payload);
   });
 
   handlePrivate("desktop:mark-startup-ready", async (event) => {

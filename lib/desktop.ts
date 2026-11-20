@@ -19,6 +19,23 @@ export type BackupEntry = {
   schemaVersion: number | null;
 };
 
+export type RestoreSafetyBackup = {
+  id: string;
+  kind: "backup";
+  path: string;
+  createdAt: string;
+  snapshotSha256: string;
+  reused: false;
+};
+
+export type BackupWithIntegrity = {
+  snapshot: unknown;
+  snapshotSha256: string;
+  integrity: "verified" | "legacy-unverified";
+  schemaVersion: number | null;
+  backupVersion: number | null;
+};
+
 export type WealthAtlasDesktopBridge = {
   isDesktop: true;
   activateDataProfile?: (key: string) => Promise<string>;
@@ -35,9 +52,11 @@ export type WealthAtlasDesktopBridge = {
   getStartupContext: () => Promise<{ appVersion: string; previousAppVersion: string | null; requiresUpdateBackup: boolean; backupsPath: string }>;
   reportStartupStage: (stage: { stage: string; status: "running" | "success" | "failed"; errorId?: string }) => Promise<boolean>;
   createDataBackup: (payload: { snapshot: unknown; schemaVersion: number; reason: "app-update" | "migration" | "app-update-and-migration" }) => Promise<{ path: string; createdAt: string; reused?: boolean }>;
+  createRestoreSafetyBackup: (payload: { snapshot: unknown; schemaVersion: number }) => Promise<RestoreSafetyBackup>;
   writeAutosave: (payload: { snapshot: unknown; schemaVersion: number }) => Promise<{ path: string; createdAt: string }>;
   listBackups: () => Promise<BackupEntry[]>;
   readBackup: (id: string, kind: "autosave" | "backup") => Promise<unknown>;
+  readBackupWithIntegrity: (id: string, kind: "autosave" | "backup") => Promise<BackupWithIntegrity>;
   markStartupReady: () => Promise<boolean>;
   restartApp: () => Promise<boolean>;
   openBackupsLocation: () => Promise<boolean>;
@@ -62,7 +81,7 @@ declare global {
   }
 }
 
-const privateMethods = new Set(["investmentRequest", "openInvestmentNote", "getDataLocation", "getStartupContext", "createDataBackup", "writeAutosave", "listBackups", "readBackup", "markStartupReady", "openBackupsLocation", "selectVault", "getVaultConnection", "disconnectVault", "ensureDirectory", "ensureFile", "readFile", "writeFile"]);
+const privateMethods = new Set(["investmentRequest", "openInvestmentNote", "getDataLocation", "getStartupContext", "createDataBackup", "createRestoreSafetyBackup", "writeAutosave", "listBackups", "readBackup", "readBackupWithIntegrity", "markStartupReady", "openBackupsLocation", "selectVault", "getVaultConnection", "disconnectVault", "ensureDirectory", "ensureFile", "readFile", "writeFile"]);
 
 export async function activateDesktopDataProfile(scope: DataProfile): Promise<string | undefined> {
   const raw = typeof window === "undefined" ? null : window.wealthAtlasDesktop;

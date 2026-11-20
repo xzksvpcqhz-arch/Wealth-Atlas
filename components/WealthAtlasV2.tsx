@@ -104,7 +104,8 @@ import { BACKGROUND_CHANGE_EVENT, getActiveBackgroundData, mediaKind } from "@/l
 import { getDesktopBridge } from "@/lib/desktop";
 import { autosaveLocalSnapshot, writeObsidianSnapshot } from "@/lib/snapshot-backup";
 import { normalizeAssets } from "@/lib/asset-normalization";
-import BackupRestorePanel from "@/components/BackupRestorePanel";
+import BackupRestorePanel, { type RestoreRequest } from "@/components/BackupRestorePanel";
+import { commitRestoredSnapshot, getRestoreIsolationRevision, getRestoreIsolationState, getServerRestoreIsolationRevision, isRestorePreparing, loadRestoreHold, resumeRestoreSideEffects, restoreFingerprint, subscribeRestoreIsolation, withLocalRestore } from "@/lib/restore-isolation";
 import CloudSyncPanel from "@/components/CloudSyncPanel";
 import { useCloudSync } from "@/lib/use-cloud-sync";
 import type { Account,AnnualPlan,CurrencyCode,Goal,MonthlyBudget,Transaction,TransactionCategory,Transfer,WealthData } from "@/lib/types";
@@ -299,10 +300,32 @@ export default function WealthAtlasV2() {
 
 function WealthAtlasWorkspace({ profile }: { profile: DataProfile }) {
   const [data,setRawData]=useState<WealthData>(() => tagProfileObject(migrateWealthData(profile.kind==="local"? { ...initialData,assets: normalizeAssets(initialData.assets).normalized }:createBlankWealthData()),profile));
+  const liveRestoreDataRef=useRef(data);
+  liveRestoreDataRef.current=data;
+  const restoredPersistedRef=useRef<WealthData|null>(null);
+  const restoreRevision=useSyncExternalStore(subscribeRestoreIsolation,getRestoreIsolationRevision,getServerRestoreIsolationRevision);
+  const restoreView=getRestoreIsolationState(profile);
+  const restorePaused=restoreView.loaded&&!restoreView.error? restoreView.hold?.paused??null:null;
   const setData=useCallback<Dispatch<SetStateAction<WealthData>>>((action) => {
-    if(!isActiveDataProfile(profile)) return;
-    setRawData((current) => !isActiveDataProfile(profile)? current:inheritProfileOwnership(current,inheritRemovalIntents(current,typeof action==="function"? action(current):action),profile));
+    if(!isActiveDataProfile(profile)||isRestorePreparing(profile)) return;
+    setRawData((current) => !isActiveDataProfile(profile)||isRestorePreparing(profile)? current:inheritProfileOwnership(current,inheritRemovalIntents(current,typeof action==="function"? action(current):action),profile));
   },[profile]);
+  const restoreLocal=useCallback(async ({expected,candidate,verify}: RestoreRequest) => {
+    await withLocalRestore(profile,async () => {
+      await verify();
+      if(liveRestoreDataRef.current!==expected) throw new Error("RESTORE_STALE");
+      const bridge=getDesktopBridge();
+      if(!bridge?.createRestoreSafetyBackup) throw new Error("RESTORE_BRIDGE_UNAVAILABLE");
+      await bridge.createRestoreSafetyBackup({snapshot:expected,schemaVersion:getWealthDataSchemaVersion(expected)});
+      await verify();
+      await commitRestoredSnapshot(profile,restoreFingerprint(expected),candidate);
+      if(!isActiveDataProfile(profile)) return;
+      restoredPersistedRef.current=candidate;
+      liveRestoreDataRef.current=candidate;
+      setRawData(tagProfileObject(candidate,profile));
+    });
+  },[profile]);
+  const resumeRestoredEffects=useCallback(async () => { await resumeRestoreSideEffects(profile); },[profile]);
   const loadWealthData=() => loadStoredWealthData(undefined,profile);
   const saveWealthData=(next: WealthData) => saveStoredWealthData(next,profile);
   const [active,setActive]=useState("home");
@@ -531,6 +554,11 @@ function WealthAtlasWorkspace({ profile }: { profile: DataProfile }) {
   },[loaded,activeSectionReady]);
   useEffect(() => {
     if(!loaded||storageLoadFailedRef.current) return;
+    void loadRestoreHold(profile).catch(() => undefined);
+  },[loaded,profile]);
+  useEffect(() => {
+    if(!loaded||storageLoadFailedRef.current) return;
+    if(restoredPersistedRef.current===data) { restoredPersistedRef.current=null; return; }
     void saveWealthData(data).catch((error) => {
       setToast("本地资料保存失败，原有资料未被删除；请重新启动后再试");
       void reportSafeDiagnostic("indexeddb-save", error);
@@ -544,7 +572,7 @@ function WealthAtlasWorkspace({ profile }: { profile: DataProfile }) {
       void writeObsidianSnapshot(data);
     },2500);
     return () => window.clearTimeout(timeout);
-  },[data,loaded]);
+  },[data,loaded,restoreRevision]);
   useEffect(() => { if(!toast) return; const timeout=window.setTimeout(() => setToast(null),3200); return () => window.clearTimeout(timeout); },[toast]);
 
   const reportCurrency=data.reportCurrency;
@@ -1268,7 +1296,7 @@ function WealthAtlasWorkspace({ profile }: { profile: DataProfile }) {
     return <main className="main-content module-page trash-page">{renderHeader("TRASH","回收站",{ label: "返回收支记录",onClick: () => setActive("transactions"),icon: ArrowRight })}<div className="trash-notice"><ShieldCheck size={19} /><div><strong>已删除记录仍保留在本地</strong><span>软删除不会进入余额、预算、收入支出或汇率使用统计。恢复后会重新计入，永久删除前会再次确认。</span></div></div><section className="module-summary trash-summary"><div><span>待处理记录</span><strong>{totalDeleted}</strong><small>收入、支出与转账</small></div><div><span>可恢复</span><strong>{totalDeleted}</strong><small>本地 IndexedDB</small></div><div><span>永久删除</span><strong>需确认</strong><small>此操作无法恢复</small></div></section><section className="panel trash-list"><div className="panel-title-row"><div><div className="panel-kicker">LOCAL RECOVERY</div><h2>已删除记录</h2></div><Trash size={20} /></div>{totalDeleted===0? <div className="empty-state compact-empty"><ShieldCheck size={30} /><strong>回收站为空</strong><span>从收支记录删除的项目会在这里保留，方便恢复。</span></div>:<div className="deleted-record-list">{deletedTransactions.map((item) => <div className="deleted-record-row" key={`transaction-${item.id}`}><div><strong>{item.merchant||item.category}</strong><span>{item.date} · {item.type==="income"? "收入":"支出"} · {item.category}</span></div><div><b className={item.type==="income"? "positive":"negative"}>{item.type==="income"? "+":"-"}{formatMoney(item.amount,item.currency)}</b><small>{getAccount(data,item.accountId)?.name||"未关联账户"}</small></div><div className="record-actions"><button type="button" className="secondary-button compact" onClick={() => restoreRecord({ kind: "transaction",record: item })} title="恢复">恢复</button><button type="button" className="icon-button danger-icon" aria-label={`永久删除 ${item.merchant||item.category}`} onClick={() => setPermanentTarget({ kind: "transaction",record: item })} title="永久删除"><Trash size={16} /></button></div></div>)}{deletedTransfers.map((item) => <div className="deleted-record-row" key={`transfer-${item.id}`}><div><strong>{getAccount(data,item.fromAccountId)?.name||item.fromCurrency} → {getAccount(data,item.toAccountId)?.name||item.toCurrency}</strong><span>{item.date} · 转账 · 汇率 {item.rate.toFixed(4)}</span></div><div><b className="transfer">↔ {formatMoney(item.fromAmount,item.fromCurrency)}</b><small>{getAccount(data,item.fromAccountId)?.name||item.fromCurrency} → {getAccount(data,item.toAccountId)?.name||item.toCurrency}</small></div><div className="record-actions"><button type="button" className="secondary-button compact" onClick={() => restoreRecord({ kind: "transfer",record: item })} title="恢复">恢复</button><button type="button" className="icon-button danger-icon" aria-label="永久删除转账" onClick={() => setPermanentTarget({ kind: "transfer",record: item })} title="永久删除"><Trash size={16} /></button></div></div>)}</div>}</section></main>;
   };
 
-  const renderSettings=() => assetMode? <div className="module-stack">{renderAssets()}{renderAssetRecovery()}{assetModal&&<AssetEntryModal draft={assetDraft} setDraft={setAssetDraft} editing={Boolean(assetEditingId)} onClose={() => setAssetModal(false)} onSave={saveAsset} />}</div>:fxMode? <FxCenter data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} />:<div className="module-stack settings-stack"><UpdateCenter /><DisplaySettingsPanel controller={display} onOpenEditor={openHomeEditor} /><CloudSyncPanel cloud={cloud} /><ObsidianWorkbench mode="settings" data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} /><BackupRestorePanel data={data} setData={setData} onToast={showToast} /></div>;
+const renderSettings=() => assetMode? <div className="module-stack">{renderAssets()}{renderAssetRecovery()}{assetModal&&<AssetEntryModal draft={assetDraft} setDraft={setAssetDraft} editing={Boolean(assetEditingId)} onClose={() => setAssetModal(false)} onSave={saveAsset} />}</div>:fxMode? <FxCenter data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} />:<div className="module-stack settings-stack"><UpdateCenter /><DisplaySettingsPanel controller={display} onOpenEditor={openHomeEditor} /><CloudSyncPanel cloud={cloud} /><ObsidianWorkbench mode="settings" data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} /><BackupRestorePanel data={data} onRestore={restoreLocal} onToast={showToast} paused={restorePaused} onResume={resumeRestoredEffects} /></div>;
   const renderObsidian=() => <ObsidianWorkbench mode="sync" data={data} setData={setData} onToast={showToast} onNavigate={(page) => setActive(page)} />;
   const renderPlaceholder=() => <main className="main-content placeholder-page"><div className="page-header"><div><div className="breadcrumb">WEALTH ATLAS / MODULE</div><h1>{navItems.find((item) => item.key===active)?.label??"模块"}</h1></div></div><div className="panel empty-module"><Sparkle size={32} weight="fill" /><h2>这个模块保留在你的产品地图里</h2><p>本次版本先把账户、交易和预算闭环跑通，现有目标、资产、保险、报表和提醒结构仍然保留。</p><button type="button" className="primary-button" onClick={() => setActive("home")}>返回首页</button></div></main>;
 

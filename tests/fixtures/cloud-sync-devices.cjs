@@ -276,14 +276,23 @@ if (process.type === "browser") {
     const { act, useEffect, useState, useSyncExternalStore } = React;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     Object.defineProperty(globalThis, "crypto", { value: require("node:crypto").webcrypto });
+    const sourceModules = new Map();
     function loadTs(file, replacements = {}) {
+      file = path.normalize(file);
+      if (sourceModules.has(file)) return sourceModules.get(file).exports;
       const source = readFileSync(path.resolve(__dirname, "../..", file), "utf8");
       const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
       const mod = { exports: {} };
-      new Function("require", "module", "exports", compiled)((name) => replacements[name]
-        ?? (name === "./auto-login" ? loadTs("lib/auto-login.ts") : undefined)
-        ?? (name === "./password-recovery" ? loadTs("lib/password-recovery.ts") : undefined)
-        ?? (name === "./auth-diagnostics" ? { reportAuthDiagnostic() {} } : require(name)), mod, mod.exports);
+      // Load the real isolation/storage cycle once per independent renderer;
+      // preserve all explicit fake-network/SDK/profile dependency bindings.
+      sourceModules.set(file, mod);
+      new Function("require", "module", "exports", compiled)((name) => {
+        if (Object.hasOwn(replacements, name)) return replacements[name];
+        if (name === "./auth-diagnostics") return { reportAuthDiagnostic() {} };
+        if (name.startsWith("@/lib/")) return loadTs(name.slice(2) + ".ts");
+        if (name.startsWith("./")) return loadTs(path.join(path.dirname(file), name + ".ts"));
+        return require(name);
+      }, mod, mod.exports);
       return mod.exports;
     }
     const merge = loadTs("lib/cloud-merge.ts"), retry = loadTs("lib/cloud-retry.ts");

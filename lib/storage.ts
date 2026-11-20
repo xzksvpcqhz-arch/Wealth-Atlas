@@ -5,6 +5,7 @@ import { acknowledgeRemovalJournals, CloudSyncSafetyError, emptyDeletionMetadata
 import { emptySyncOutbox, failSyncOutbox, queueSavedSnapshot, resumeSyncOutbox, validateSyncOutbox, type SyncFailureCode, type SyncOutbox } from "./cloud-retry";
 import { assertActiveDataProfile, createBlankWealthData, getDataProfile, getObjectProfile, profileMetadataKey, snapshotKey, tagProfileObject, type DataProfile } from "./data-profile";
 import { validAuthReceipt, type VerifiedAuthReceipt } from "./auth-session";
+import { EMPTY_RESTORE_HOLD, RestoreIsolationError, assertRestoreGeneration, assertRestoreLease, getRestoreSaveGeneration, isRestorePreparing, noteRestoreGeneration, parseRestoreHold, publishRestoreHold, restoreFingerprint, restoreHoldKey, type RestoreHold } from "./restore-isolation";
 
 export type StorageLifecycleEvent =
   | "open-start"
@@ -128,7 +129,81 @@ let snapshotWriteQueue: Promise<void> = Promise.resolve();
 const deletionJournalId = (owner: string, scope: DataProfile) => scope.kind === "local"
   ? `cloud-deletions:v1:${owner}` : profileMetadataKey(scope, `deletions:${owner}`);
 
-async function writeWealthData(data: WealthData, scope: DataProfile) {
+type RestoreHoldRow = { id: string; hold: RestoreHold; updatedAt: string };
+async function readRestoreHold(scope: DataProfile): Promise<RestoreHold> {
+  if (!db) throw new RestoreIsolationError();
+  const row = await db.table<RestoreHoldRow, string>("snapshots").get(restoreHoldKey(scope));
+  return row ? parseRestoreHold(row.hold) : EMPTY_RESTORE_HOLD;
+}
+
+/** Internal persistence boundary; use the public restore-isolation API. */
+export async function loadRestoreHoldStorage(scope: DataProfile): Promise<RestoreHold> {
+  assertActiveDataProfile(scope);
+  if (!db) throw new RestoreIsolationError();
+  await initializeWealthStorage();
+  const hold = await readRestoreHold(scope);
+  assertActiveDataProfile(scope);
+  return hold;
+}
+
+/** Snapshot + persistent quarantine commit atomically, with no journal, outbox,
+ * baseline, authentication or Vault-handle writes. No schema/version migration. */
+export async function commitRestoredSnapshotStorage(scope: DataProfile, expectedFingerprint: string, candidate: WealthData): Promise<RestoreHold> {
+  assertRestoreLease(scope);
+  if (!db || typeof expectedFingerprint !== "string" || !expectedFingerprint) throw new RestoreIsolationError();
+  const owner = getObjectProfile(candidate);
+  if (owner && owner !== scope) throw new RestoreIsolationError("候选资料属于其他工作区。");
+  const pinned = structuredClone(candidate);
+  if (!pinned || !Array.isArray(pinned.accounts) || !Array.isArray(pinned.transactions) || typeof pinned.reportCurrency !== "string") throw new RestoreIsolationError("恢复候选资料无效，原资料未被覆盖。");
+  await initializeWealthStorage();
+  const hold = await db.transaction("rw", db.snapshots, async () => {
+    assertRestoreLease(scope);
+    const oldHold = await readRestoreHold(scope);
+    const current = await db!.snapshots.get(snapshotKey(scope));
+    assertRestoreLease(scope);
+    if (!current?.data || restoreFingerprint(current.data) !== expectedFingerprint) throw new RestoreIsolationError("当前资料已变化，请重新预览后再恢复；原资料未被覆盖。");
+    if (!snapshotsEqual(current.data.obsidian, pinned.obsidian) || !snapshotsEqual(current.data.syncLogs, pinned.syncLogs)) {
+      throw new RestoreIsolationError("恢复候选未保留当前 Vault 连接或同步日志，请重新预览。");
+    }
+    const updatedAt = new Date().toISOString();
+    const next = parseRestoreHold({ version: 1, paused: true, generation: oldHold.generation + 1, revision: oldHold.revision + 1, restoredAt: updatedAt });
+    await db!.snapshots.put({ id: snapshotKey(scope), data: pinned, updatedAt });
+    await db!.table<RestoreHoldRow, string>("snapshots").put({ id: restoreHoldKey(scope), hold: next, updatedAt });
+    assertRestoreLease(scope);
+    return next;
+  });
+  // Only after the transaction's completion promise resolves. A rejected commit
+  // must not publish success, upgrade save generations or mutate the UI object.
+  tagProfileObject(candidate, scope);
+  noteRestoreGeneration(scope, candidate, hold.generation);
+  publishRestoreHold(scope, hold, true);
+  return hold;
+}
+
+export async function resumeRestoreSideEffectsStorage(scope: DataProfile): Promise<RestoreHold> {
+  assertActiveDataProfile(scope);
+  if (!db || isRestorePreparing(scope)) throw new RestoreIsolationError();
+  await initializeWealthStorage();
+  const hold = await db.transaction("rw", db.snapshots, async () => {
+    assertActiveDataProfile(scope);
+    const old = await readRestoreHold(scope);
+    if (!old.paused) return old;
+    const next = parseRestoreHold({ ...old, paused: false, revision: old.revision + 1 });
+    await db!.table<RestoreHoldRow, string>("snapshots").put({ id: restoreHoldKey(scope), hold: next, updatedAt: new Date().toISOString() });
+    assertActiveDataProfile(scope);
+    return next;
+  });
+  publishRestoreHold(scope, hold, true);
+  return hold;
+}
+
+async function assertCloudNotHeld(scope: DataProfile) {
+  assertActiveDataProfile(scope);
+  if (isRestorePreparing(scope) || (await readRestoreHold(scope)).paused) throw new RestoreIsolationError("本机恢复保护中，未改变云同步元数据。");
+  assertActiveDataProfile(scope);
+}
+
+async function writeWealthData(data: WealthData, scope: DataProfile, generation: number) {
   if (!db) return;
   await initializeWealthStorage();
   emitLifecycle("write-start");
@@ -138,6 +213,12 @@ async function writeWealthData(data: WealthData, scope: DataProfile) {
     const journals = await prepareRemovalJournals(data);
     const journalTable = db.table<DeletionJournalRow, string>("snapshots");
     await db.transaction("rw", db.snapshots, async () => {
+      const hold = await readRestoreHold(scope);
+      assertRestoreGeneration(scope, generation, hold, true);
+      const current = await db!.snapshots.get(snapshotKey(scope));
+      // Installing the restored object in React must never manufacture a cloud
+      // revision or replay deletion intents. Local edits still save normally.
+      if (hold.paused && snapshotsEqual(current?.data, data)) return;
       const updatedAt = new Date().toISOString();
       for (const [owner, pending] of journals) {
         if (scope.kind === "cloud" && owner !== scope.ownerId) throw new CloudSyncSafetyError("删除标记不属于当前工作区，资料未改变。");
@@ -150,12 +231,12 @@ async function writeWealthData(data: WealthData, scope: DataProfile) {
         const outboxes = db!.table<OutboxRow, string>("snapshots");
         const id = profileMetadataKey(scope, "outbox");
         const row = await outboxes.get(id);
-        const current = await db!.snapshots.get(snapshotKey(scope));
         let outbox = row ? validateSyncOutbox(row.outbox) : emptySyncOutbox();
         if (!row || !current || journals.size > 0 || !snapshotsEqual(current.data, data)) outbox = queueSavedSnapshot(outbox);
         // Snapshot + tombstones + pending revision commit atomically, or none do.
         await outboxes.put({ id, outbox, updatedAt });
       }
+      assertRestoreGeneration(scope, generation, hold, true);
       await db!.snapshots.put({ id: snapshotKey(scope), data, updatedAt });
     });
     acknowledgeRemovalJournals(data);
@@ -170,8 +251,10 @@ export function saveWealthData(data: WealthData, scope: DataProfile = getObjectP
   catch { return Promise.reject(new CloudSyncSafetyError("账号工作区已经切换或尚未就绪，未执行新的保存。")); }
   const owner = getObjectProfile(data);
   if (owner && owner !== scope) return Promise.reject(new CloudSyncSafetyError("资料不属于目标工作区，未执行保存。"));
+  if (isRestorePreparing(scope)) return Promise.reject(new RestoreIsolationError("正在恢复本机资料，已取消新的自动保存。"));
+  const generation = getRestoreSaveGeneration(scope, data);
   // Hash preparation must not reorder two rapid edits and save an older snapshot last.
-  const pending = snapshotWriteQueue.then(() => writeWealthData(data, scope));
+  const pending = snapshotWriteQueue.then(() => writeWealthData(data, scope, generation));
   snapshotWriteQueue = pending.catch(() => undefined);
   return pending;
 }
@@ -278,6 +361,7 @@ export async function saveCloudBaseline(scope: DataProfile, baseline: SyncBaseli
   const savedFingerprint = await fingerprintSnapshot(saved.data);
   assertActiveDataProfile(scope);
   await db.transaction("rw", db.snapshots, async () => {
+    await assertCloudNotHeld(scope);
     const current = await db!.snapshots.get(snapshotKey(scope));
     await db!.table<{ id: string; baseline: SyncBaseline }, string>("snapshots").put({ id: profileMetadataKey(scope, "baseline"), baseline });
     const outboxes = db!.table<OutboxRow, string>("snapshots");
@@ -305,6 +389,7 @@ export async function loadCloudOutbox(scope: DataProfile): Promise<SyncOutbox> {
   return db.transaction("rw", db.snapshots, async () => {
     const row = await table.get(id);
     if (row) return validateSyncOutbox(row.outbox);
+    await assertCloudNotHeld(scope);
     if (!(await db!.snapshots.get(snapshotKey(scope)))?.data) throw new CloudSyncSafetyError("本地快照不存在，未建立替代资料。");
     const outbox = queueSavedSnapshot(emptySyncOutbox()); // Add-only compatibility with an earlier account workspace.
     await table.add({ id, outbox, updatedAt: new Date().toISOString() });
@@ -317,6 +402,7 @@ async function updateCloudOutbox(scope: DataProfile, update: (state: SyncOutbox)
   assertActiveDataProfile(scope);
   const table = db!.table<OutboxRow, string>("snapshots"), id = profileMetadataKey(scope, "outbox");
   return db!.transaction("rw", db!.snapshots, async () => {
+    await assertCloudNotHeld(scope);
     const row = await table.get(id);
     if (!row) throw new CloudSyncSafetyError("待同步状态不存在，原资料未改变。");
     const outbox = validateSyncOutbox(update(validateSyncOutbox(row.outbox)));
@@ -358,6 +444,7 @@ export async function saveCloudDeletions(owner: string, incoming: DeletionMetada
     await initializeWealthStorage();
     const table = db.table<DeletionJournalRow, string>("snapshots");
     await db.transaction("rw", db.snapshots, async () => {
+      await assertCloudNotHeld(scope);
       const id = deletionJournalId(owner, scope);
       const existing = await table.get(id);
       const deletions = mergeDeletionMetadata(existing ? validateDeletionMetadata(existing.deletions) : emptyDeletionMetadata(), incoming);
@@ -378,7 +465,11 @@ export async function loadWealthData(reporter?: StorageLifecycleReporter, scope:
     if (getDesktopBridge()?.isStorageReadFailureTest) {
       throw new Error("IndexedDB startup diagnostic test");
     }
-    const snapshot = await db.snapshots.get(snapshotKey(scope));
+    const { snapshot, hold } = await db.transaction("r", db.snapshots, async () => ({
+      snapshot: await db!.snapshots.get(snapshotKey(scope)), hold: await readRestoreHold(scope),
+    }));
+    if (snapshot?.data) noteRestoreGeneration(scope, snapshot.data, hold.generation);
+    publishRestoreHold(scope, hold);
     emitLifecycle("read-success");
     return snapshot?.data ? tagProfileObject(snapshot.data, scope) : null;
   } catch (error) {

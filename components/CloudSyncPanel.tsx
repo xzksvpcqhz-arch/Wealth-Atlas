@@ -221,8 +221,8 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
         <section className="panel">
           <div className="panel-title-row">
             <div><div className="panel-kicker">CLOUD SYNC</div><h2>云端同步</h2></div>
-            <span className={"status-chip" + (cloud.status === "ready" ? " safe" : cloud.status === "error" ? " attention" : "")}>
-              {cloud.status === "syncing" ? "同步中…" : cloud.status === "error" ? "需处理" : "已连接"}
+            <span className={"status-chip" + (cloud.status === "ready" ? " safe" : cloud.status === "error" || cloud.status === "paused" ? " attention" : "")}>
+              {cloud.status === "paused" ? "已暂停" : cloud.status === "syncing" ? "同步中…" : cloud.status === "error" ? "需处理" : "已连接"}
             </span>
           </div>
 
@@ -231,7 +231,7 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
             <div>
               <strong>{cloud.user.email ?? cloud.user.id}</strong>
               <span>
-                {cloud.status === "syncing" ? "正在同步…"
+                {cloud.status === "paused" ? "本机恢复保护 · 同步已暂停" : cloud.status === "syncing" ? "正在同步…"
                   : cloud.status === "error" ? "同步出错"
                   : cloud.lastSyncedAt ? `已是最新 · ${cloud.lastSyncedAt}` : "已连接"}
               </span>
@@ -245,11 +245,11 @@ export default function CloudSyncPanel({ cloud }: { cloud: CloudSyncController }
             </div>
           )}
 
-          <p className="cloud-note">本机改动会自动上传；其他设备的改动会自动拉回并合并。每台设备用同一账号登录，数据即保持一致。</p>
+          <p className="cloud-note">{cloud.status === "paused" ? "本机恢复后，上传和接收均保持暂停。请到下方「备份与恢复」核对资料，再明确确认恢复自动写入；不会自动将云端回退。" : "本机改动会自动上传；其他设备的改动会自动拉回并合并。每台设备用同一账号登录，数据即保持一致。"}</p>
           {historyNotice && <p className="cloud-note" role="status">{historyNotice}</p>}
 
           <div className="cloud-actions">
-            <button type="button" className="primary-button" onClick={() => void cloud.syncNow()} disabled={inFlight}>
+            <button type="button" className="primary-button" onClick={() => void cloud.syncNow()} disabled={inFlight || cloud.status === "paused"}>
               <ArrowsClockwise size={16} /> 立即同步
             </button>
             <button type="button" className="secondary-button" onClick={() => void cloud.signOut()}>

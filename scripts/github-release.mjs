@@ -113,6 +113,9 @@ export async function publishCheckedRelease(context, releasePath, version) {
 }
 
 export function buildReleaseBody(version, head, signature) {
+  if (version === "1.7.10") {
+    return `Wealth Atlas v${version} — 备份恢复差异预览\n\n设置页可先只读比较备份与当前工作区：逐类查看新增、改变、相同和当前独有记录，再进行独立的二次确认。预览和取消不会恢复资料。\n\n实际恢复前创建独立、经过校验且不参与滚动清理的安全备份；本地快照成功提交后才提示恢复成功。备份损坏、版本不支持、资料变化、保存失败或账号切换时停止处理，不以空白资料替代。\n\n恢复仅作用于当前本机工作区，并持续暂停该工作区的云端上传、接收及 Vault 自动快照写入，重开后仍暂停。用户另行核对并明确确认后才能恢复自动写入；这不是云端回退，重新同步仍受合并、删除标记和冲突保护约束。当前 Obsidian 连接与同步日志保留，不自动改写 Vault。\n\n保留现有暗色星空设计、财务计算、账号隔离、投资、报表、DIY 和更新中心；不自动执行恢复，不迁移或清空个人资料。发布验证仅使用隔离虚构资料，不等同所有真实账号、硬件和 NSIS 安装向导验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n更新前建议自行导出 Excel 和 Obsidian ZIP 备份。无需卸载或清空资料；保存操作并正常退出后安装，重新打开确认 v${version}。`;
+  }
   if (version === "1.7.9") {
     return `Wealth Atlas v${version} — 更新中心\n\n设置页新增更新中心，显示真实程序版本、最近取得的正式版本、检查时间和下载进度。下载达到100%仍等待校验，只有安装包确认就绪后才提示保存操作并正常退出安装，不会强制关闭应用。\n\n完善失败重试间隔、重复点击、迟到事件、校验失败及初始化失败保护。更新状态和发布说明通过受限桌面接口读取，不接受任意下载地址或安装命令；开发、网页版和隔离测试模式不会假装执行安装。\n\n保留当前深色星空设计，以及账户、交易、预算、投资、Obsidian、删除恢复、账号同步和离线验证逻辑；不迁移或清空个人资料。\n\n发布前运行完整回归、更新器对抗测试、四个尺寸的界面及键盘验收，并对最终安装包执行独立虚构资料的payload启动、v1.7.8升级和回退兼容测试。隔离payload验收不等同实际NSIS安装向导或所有设备的端到端更新安装验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n正式Windows版联网后可后台检测并下载更新，保存操作并正常退出后安装，重新打开确认v${version}。无需卸载或清空资料；更新前建议自行导出Excel和Obsidian ZIP备份。`;
   }

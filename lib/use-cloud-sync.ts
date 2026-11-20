@@ -8,6 +8,7 @@ import { createCloudRetryController, syncFailureMessage } from "@/lib/cloud-retr
 import { getAccountError, getAccountRevision, getAccountUser, initializeAccountBoundary, isAccountBusy, isAccountVerified, retryAccountVerification, resetAccountPassword, signInAccount, signOutAccount, signUpAccount, subscribeAccountBoundary } from "@/lib/account-boundary";
 import { assertActiveDataProfile, getDataProfile, getObjectProfile, isActiveDataProfile, tagProfileObject, type DataProfile } from "@/lib/data-profile";
 import { subscribePasswordRecovery } from "@/lib/password-recovery";
+import { areRestoreSideEffectsBlocked, assertRestoreGeneration, getRestoreIsolationRevision, getRestoreIsolationState, getRestoreSaveGeneration, loadRestoreHold, subscribeRestoreIsolation, withRestoreSideEffects } from "@/lib/restore-isolation";
 import {
   isRecoveryLink,
   getCloudTransport,
@@ -21,7 +22,7 @@ import {
   snapshotsEqual,
 } from "@/lib/cloud-merge";
 
-export type SyncStatus = "unconfigured" | "signed-out" | "syncing" | "ready" | "error";
+export type SyncStatus = "unconfigured" | "signed-out" | "syncing" | "ready" | "paused" | "error";
 
 export interface CloudSyncController {
   user: CloudUser | null;
@@ -58,6 +59,13 @@ export function useCloudSync(
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const recovering = useSyncExternalStore(subscribePasswordRecovery, isRecoveryLink, () => false);
+  const restoreRevision = useSyncExternalStore(subscribeRestoreIsolation, getRestoreIsolationRevision, () => 0);
+  const restoreBlocked = areRestoreSideEffectsBlocked(profile);
+  const restoreView = getRestoreIsolationState(profile);
+  const restorePaused = configured && ready && profile.kind === "cloud" && restoreBlocked && (restoreView.hold?.paused === true || restoreView.preparing);
+  const restorePauseReason = restorePaused ? restoreView.preparing
+    ? "正在准备本机恢复，云同步与 Vault 自动快照已暂停。"
+    : "本机恢复后已暂停云同步与 Vault 自动快照。请到备份与恢复区核对资料后明确恢复；恢复同步可能合并或产生冲突。" : null;
 
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -90,6 +98,7 @@ export function useCloudSync(
 
   const syncNow = useCallback(async () => {
     if (!readyRef.current || !isActiveDataProfile(profile)) return;
+    if (areRestoreSideEffectsBlocked(profile)) return;
     if (!isAccountVerified()) { await retryAccountVerification(); return; }
     await retryRef.current?.request("manual");
   }, [profile]);
@@ -97,27 +106,33 @@ export function useCloudSync(
   const startSession = useCallback(async (u: CloudUser, cancelled: () => boolean) => {
     stopSession();
     if (profile.kind !== "cloud" || profile.ownerId !== u.id || !isActiveDataProfile(profile)) return;
+    const hold = await loadRestoreHold(profile);
+    if (hold.paused || areRestoreSideEffectsBlocked(profile)) return;
     const baseline = await loadCloudBaseline(profile);
-    if (cancelled() || !isActiveDataProfile(profile)) return;
+    if (cancelled() || !isActiveDataProfile(profile) || areRestoreSideEffectsBlocked(profile)) return;
     sessionRef.current = createCloudSyncSession({
-      transport: getCloudTransport(u.id),
+      // The full session owns the lock; the transport must not acquire it again.
+      transport: getCloudTransport(u.id, true),
       baseline,
       getLocal: () => {
         assertActiveDataProfile(profile);
+        const view = getRestoreIsolationState(profile);
+        if (areRestoreSideEffectsBlocked(profile) || !view.hold) throw new CloudSyncSafetyError("本机恢复保护中，已暂停云同步。");
+        assertRestoreGeneration(profile, getRestoreSaveGeneration(profile, dataRef.current), view.hold);
         if (getObjectProfile(dataRef.current) !== profile) throw new CloudSyncSafetyError("资料与登录账号不一致，已停止同步。");
         return dataRef.current;
       },
       loadDeletions: () => loadCloudDeletions(u.id, profile),
       saveDeletions: (deletions) => saveCloudDeletions(u.id, deletions, profile),
       applyLocal: (expected, next) => {
-        if (!isActiveDataProfile(profile)) return Promise.resolve(false);
+        if (!isActiveDataProfile(profile) || areRestoreSideEffectsBlocked(profile)) return Promise.resolve(false);
         tagProfileObject(next, profile);
         if (snapshotsEqual(dataRef.current, next)) return Promise.resolve(true);
         return new Promise<boolean>((resolve) => {
           pendingApplyRef.current = { next, resolve };
           appliedDataRef.current = next;
           // Do not overwrite edits queued in React while the network was busy.
-          setData((current) => isActiveDataProfile(profile) && getObjectProfile(current) === profile && snapshotsEqual(current, expected) ? next : current);
+          setData((current) => isActiveDataProfile(profile) && !areRestoreSideEffectsBlocked(profile) && getObjectProfile(current) === profile && snapshotsEqual(current, expected) ? next : current);
           setApplyAttempt((attempt) => attempt + 1);
         });
       },
@@ -126,7 +141,7 @@ export function useCloudSync(
         const activeSession = sessionRef.current;
         try {
           for (let attempt = 0; attempt < 10; attempt++) {
-            if (sessionRef.current !== activeSession || !isActiveDataProfile(profile)) return false;
+            if (sessionRef.current !== activeSession || !isActiveDataProfile(profile) || areRestoreSideEffectsBlocked(profile)) return false;
             if (snapshotsEqual(await loadWealthData(undefined, profile), expected)) return true;
             if (!snapshotsEqual(dataRef.current, expected)) return false;
             await new Promise((resolve) => window.setTimeout(resolve, 60));
@@ -141,9 +156,9 @@ export function useCloudSync(
       load: () => loadCloudOutbox(profile),
       fail: (code) => recordCloudSyncFailure(profile, code),
       resume: (transientOnly) => resumeCloudSync(profile, transientOnly),
-      run: () => session.sync(),
+      run: () => withRestoreSideEffects(profile, () => session.sync()),
       online: () => navigator.onLine !== false,
-      active: () => !cancelled() && readyRef.current && isActiveDataProfile(profile) && sessionRef.current === session,
+      active: () => !cancelled() && readyRef.current && isActiveDataProfile(profile) && !areRestoreSideEffectsBlocked(profile) && sessionRef.current === session,
       setTimer: (callback, delay) => window.setTimeout(callback, delay),
       clearTimer: (id) => window.clearTimeout(id),
       onState: (next, reason, cause) => {
@@ -194,8 +209,14 @@ export function useCloudSync(
 
   // The account boundary selects a workspace before financial startup is allowed.
   useEffect(() => {
+    if (ready && profile.kind !== "locked") void loadRestoreHold(profile).catch(() => {
+      if (isActiveDataProfile(profile)) { setStatus("error"); setError("恢复保护状态无法读取，已暂停云同步，原资料已保留。"); }
+    });
+  }, [ready, profile]);
+
+  useEffect(() => {
     void initializeAccountBoundary();
-    if (!configured || !ready || profile.kind !== "cloud" || recovering || !accountVerified) return;
+    if (!configured || !ready || profile.kind !== "cloud" || recovering || !accountVerified || restoreBlocked) return;
     let cancelled = false;
     const u = getAccountUser();
     if (u?.id === profile.ownerId) void startSession(u, () => cancelled).catch(() => {
@@ -205,11 +226,11 @@ export function useCloudSync(
       cancelled = true;
       stopSession();
     };
-  }, [configured, ready, profile, recovering, accountVerified, startSession, stopSession]);
+  }, [configured, ready, profile, recovering, accountVerified, restoreBlocked, startSession, stopSession]);
 
   // 本地数据变化 → 防抖自动上传（合并来自云端的改动不重复上传）
   useEffect(() => {
-    if (!configured || !ready || !user) return;
+    if (!configured || !ready || !user || restoreBlocked) return;
     if (appliedDataRef.current && snapshotsEqual(appliedDataRef.current, data)) {
       appliedDataRef.current = null;
       return;
@@ -226,15 +247,15 @@ export function useCloudSync(
         pushTimerRef.current = null;
       }
     };
-  }, [data, configured, ready, user, syncNow]);
+  }, [data, configured, ready, user, syncNow, restoreBlocked, restoreRevision]);
 
   // 卸载时退订
   useEffect(() => () => stopSession(), [stopSession]);
 
   const accountError = getAccountError();
   return { user: profile.kind === "cloud" ? getAccountUser() ?? user : null,
-    status: isAccountBusy() ? "syncing" : accountError ? "error" : status,
-    lastSyncedAt, error: accountError ?? error, recovering,
+    status: isAccountBusy() ? "syncing" : accountError ? "error" : restorePaused ? "paused" : status,
+    lastSyncedAt, error: accountError ?? restorePauseReason ?? error, recovering,
     signIn: signInAccount, signUp: signUpAccount, signOut: signOutAccount,
     syncNow, resetPassword, completePasswordReset };
 }
