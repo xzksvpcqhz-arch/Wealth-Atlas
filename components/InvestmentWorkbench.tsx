@@ -1,15 +1,26 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createWorkbench } from "@/desktop/investment/workbench.cjs";
 import { cashReserve } from "@/desktop/investment/ledger-model.cjs";
 import { getDesktopBridge } from "@/lib/desktop";
 import { assertActiveDataProfile, getDataProfile } from "@/lib/data-profile";
 import { convert, getBudgetRemaining, getCashFlowForecast } from "@/lib/finance";
 import type { WealthData } from "@/lib/types";
+import { createLocalInvestmentSpace } from "@/desktop/investment/local-space.cjs";
+import InvestmentSpaceChooser from "./InvestmentSpaceChooser";
+import styles from "./InvestmentSpaceChooser.module.css";
 
 export default function InvestmentWorkbench({ data, onNavigate }: {data: WealthData; onNavigate: (page: string) => void}) {
+  const profile=getDataProfile();
+  return <ProfileInvestmentWorkbench key={profile.key+":"+profile.epoch} data={data} onNavigate={onNavigate}/>;
+}
+function ProfileInvestmentWorkbench({ data, onNavigate }: {data: WealthData; onNavigate: (page: string) => void}) {
   const target = useRef<HTMLDivElement>(null);
   const instance = useRef<ReturnType<typeof createWorkbench> | null>(null);
+  const accountTarget=useRef<HTMLDivElement>(null),accountInstance=useRef<ReturnType<typeof createWorkbench>|null>(null);
+  const [mode,setMode]=useState<"vault"|"account"|null>(null),[opened,setOpened]=useState(false),[vaultOpened,setVaultOpened]=useState(false);
+  const space=useMemo(()=>createLocalInvestmentSpace({getScope:getDataProfile,assertScope:assertActiveDataProfile}),[]);
+  const choose=useCallback((next:"vault"|"account")=>{if(next==="account")setOpened(true);else setVaultOpened(true);setMode(next);},[]);
   const profileKey = getDataProfile().key;
   const context = useMemo(() => {
     const forecast = getCashFlowForecast(data, 30);
@@ -38,7 +49,7 @@ export default function InvestmentWorkbench({ data, onNavigate }: {data: WealthD
   }, [data]);
   const contextRef = useRef(context); contextRef.current = context;
   useEffect(() => {
-    if (!target.current) return;
+    if (!vaultOpened || !target.current) return;
     const profile = getDataProfile(), bridge = getDesktopBridge();
     const ui = createWorkbench({context: contextRef.current,
       api: async (route, payload) => {
@@ -53,7 +64,15 @@ export default function InvestmentWorkbench({ data, onNavigate }: {data: WealthD
     });
     instance.current = ui; ui.mount(target.current);
     return () => { ui.destroy(); instance.current = null; };
-  }, [profileKey]);
+  }, [profileKey,vaultOpened]);
   useEffect(() => { instance.current?.updateContext(context); }, [context]);
-  return <main className="main-content module-page"><div className="page-header module-header"><div><h1>我的投资</h1><p className="page-description">统一持仓、逐笔核对，也留住当时的判断。</p></div><button className="secondary-button" type="button" onClick={() => onNavigate("obsidian")}>连接或查看 Obsidian</button></div><section className="panel" style={{padding:22,minWidth:0}}><div ref={target} /></section></main>;
+  useEffect(()=>{
+    if(!opened||!accountTarget.current)return;
+    const profile=getDataProfile();
+    const ui=createWorkbench({context:contextRef.current,storageTarget:"account",api:async(route,payload)=>{assertActiveDataProfile(profile);const result=route==="state"?await space.read():route==="save"?await space.save(payload):Promise.reject(new Error("不支持的投资空间操作。"));assertActiveDataProfile(profile);return result;},onResearch:async()=>{assertActiveDataProfile(profile);onNavigate("obsidian");}});
+    accountInstance.current=ui;ui.mount(accountTarget.current);return()=>{ui.destroy();accountInstance.current=null;};
+  },[opened,space]);
+  useEffect(()=>{accountInstance.current?.updateContext(context);},[context]);
+  useEffect(()=>()=>space.close(),[space]);
+  return <main className="main-content module-page"><div className="page-header module-header"><div><h1>我的投资</h1><p className="page-description">统一持仓、逐笔核对，也留住当时的判断。</p></div><button className="secondary-button" type="button" onClick={() => onNavigate("obsidian")}>连接或查看 Obsidian</button></div><InvestmentSpaceChooser space={space} mode={mode??"vault"} onChoose={choose} onLogin={()=>onNavigate("settings")}/>{vaultOpened&&<section className={`panel ${styles.workspace}`} hidden={mode!=="vault"} style={{padding:22,minWidth:0}}><div ref={target} /></section>}{opened&&<section className={`panel ${styles.workspace}`} hidden={mode!=="account"} style={{padding:22,minWidth:0}}><div ref={accountTarget}/></section>}</main>;
 }

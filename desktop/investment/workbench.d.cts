@@ -6,4 +6,5 @@ export function createWorkbench(options: {
   api: (route: string, payload?: unknown) => Promise<any>;
   onResearch?: (alias: string) => Promise<unknown>;
   context?: WorkbenchContext;
+  storageTarget?: "vault" | "account";
 }): { mount(target: HTMLElement): void; updateContext(value: WorkbenchContext): void; destroy(): void };

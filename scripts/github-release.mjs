@@ -113,6 +113,9 @@ export async function publishCheckedRelease(context, releasePath, version) {
 }
 
 export function buildReleaseBody(version, head, signature) {
+  if (version === "1.7.11") {
+    return `Wealth Atlas v${version} — 本机账号投资空间\n\n「我的投资」可使用现有登录账号，经明确确认后启用独立的本机投资空间。首次为空白，不自动读取或导入原 Vault；不同账号分别保存，重开后保留记录和保存位置。切换本页工作区保留尚未保存的表单，离开页面前仍应保存需要保留的输入。\n\n仅本机，不跨设备同步，不新增投资云端表，不自动写入 Obsidian。原财务 JSON/云端快照不包含这个独立空间，不要通过清缓存、清数据库或恢复原财务 JSON 来处理投资空间问题。原 Vault 工作台和现有财务同步保持原流程。\n\n提交使用版本及完整状态比较；并发、迟到请求、版本正文或索引损坏、保存失败时停止写入，不以空白空间替代原资料。保留现有财务数据结构、账户余额与汇率计算、历史交易、备份恢复保护、删除恢复、报表、DIY 和更新中心；不清空、迁移或自动恢复用户资料。\n\n发布前执行完整回归、本机投资对抗测试、四种宽度的实际组件检查及最终安装包的隔离 payload 启动、v1.7.10 升级与回退兼容验收。三项真实 Windows 文件符号链接用例因本机权限不足跳过，模拟拒绝分支和目录 junction 测试仍执行；不等同真实账号、macOS、NSIS 安装向导或所有设备验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n更新前建议自行导出 Excel 和 Obsidian ZIP 备份。无需卸载或清空资料；保存操作并正常退出后安装，重新打开确认 v${version}。`;
+  }
   if (version === "1.7.10") {
     return `Wealth Atlas v${version} — 备份恢复差异预览\n\n设置页可先只读比较备份与当前工作区：逐类查看新增、改变、相同和当前独有记录，再进行独立的二次确认。预览和取消不会恢复资料。\n\n实际恢复前创建独立、经过校验且不参与滚动清理的安全备份；本地快照成功提交后才提示恢复成功。备份损坏、版本不支持、资料变化、保存失败或账号切换时停止处理，不以空白资料替代。\n\n恢复仅作用于当前本机工作区，并持续暂停该工作区的云端上传、接收及 Vault 自动快照写入，重开后仍暂停。用户另行核对并明确确认后才能恢复自动写入；这不是云端回退，重新同步仍受合并、删除标记和冲突保护约束。当前 Obsidian 连接与同步日志保留，不自动改写 Vault。\n\n保留现有暗色星空设计、财务计算、账号隔离、投资、报表、DIY 和更新中心；不自动执行恢复，不迁移或清空个人资料。发布验证仅使用隔离虚构资料，不等同所有真实账号、硬件和 NSIS 安装向导验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n更新前建议自行导出 Excel 和 Obsidian ZIP 备份。无需卸载或清空资料；保存操作并正常退出后安装，重新打开确认 v${version}。`;
   }

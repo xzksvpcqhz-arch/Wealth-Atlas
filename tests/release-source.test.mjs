@@ -545,3 +545,9 @@ test("both manifest entries must match installer URL, version, size and checksum
   }
   assert.throws(() => validateUpdateAssets(make().slice(0, 2), "1.7.4"));
 });
+
+test("v1.7.11 release notes disclose local-only investment storage and preserve verification limits", () => {
+  const body=buildReleaseBody("1.7.11","synthetic-reviewed-commit","UNSIGNED");
+  for(const expected of ["v1.7.11","本机账号投资空间","仅本机，不跨设备同步","不自动读取或导入原 Vault","原财务 JSON/云端快照不包含","不同账号分别保存","v1.7.10 升级","符号链接","跳过","macOS","NSIS","synthetic-reviewed-commit","UNSIGNED","无需卸载或清空资料"]) assert.ok(body.includes(expected),expected);
+  assert.ok(!body.includes("投资资料自动跨设备同步"));
+});
