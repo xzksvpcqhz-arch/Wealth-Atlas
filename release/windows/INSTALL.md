@@ -3,7 +3,7 @@
 发布状态：**{{SIGNATURE_STATUS}}**  
 数字签名发布者：**{{PUBLISHER}}**
 
-1. 只从分享者指定的 Google Drive 文件夹下载 `Wealth-Atlas-Setup.exe` 或对应 ZIP。
+1. 只从 [Wealth Atlas 官方 GitHub Releases](https://github.com/xzksvpcqhz-arch/Wealth-Atlas/releases) 或分享者指定的 Google Drive 文件夹下载 `Wealth-Atlas-Setup.exe` 或对应 ZIP。
 2. 下载后先使用 Windows Defender 扫描文件。
 3. 按 `SECURITY.md` 核对 SHA-256，并查看数字签名发布者。
 4. 不要安装来自转发、陌生网盘或无法核对校验值的副本。

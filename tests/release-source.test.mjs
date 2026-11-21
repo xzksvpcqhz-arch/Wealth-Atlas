@@ -556,3 +556,10 @@ test("v1.7.12 describes separate named libraries without implying financial or M
   const body = buildReleaseBody("1.7.12", "synthetic-reviewed-commit", "UNSIGNED");
   for (const expected of ["多套命名显示方案", "user_ui_layout_libraries", "选中只预览", "本人访问权限", "旧版当前显示配置格式保持不变", "不包含财务资料", "仍不跨设备同步", "v1.7.11 升级", "Mac 跨设备", "NSIS", "synthetic-reviewed-commit", "UNSIGNED", "无需卸载或清空资料"]) assert.ok(body.includes(expected), expected);
 });
+
+test("v1.7.13 release notes describe CSV-only metadata persistence and do not claim investment cloud sync", () => {
+  const body = buildReleaseBody("1.7.13", "synthetic-reviewed-commit", "UNSIGNED");
+  for (const expected of ["v1.7.13", "券商 CSV 栏位映射模板", "最多 10 套", "2 MB", "20,000", "独立确认保存", "不同账号隔离", "不写入 Obsidian", "不包含投资跨设备同步", "不新增投资云端表", "不自动上传", "不清空或迁移", "v1.7.12 升级", "PGlite", "Mac", "NSIS", "synthetic-reviewed-commit", "UNSIGNED", "无需卸载或清空资料"]) assert.ok(body.includes(expected), expected);
+  assert.ok(!body.includes("投资资料自动跨设备同步"));
+  assert.ok(!body.includes("保证安全"));
+});

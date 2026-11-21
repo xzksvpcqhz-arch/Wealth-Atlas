@@ -7,6 +7,7 @@ import { assertActiveDataProfile, getDataProfile } from "@/lib/data-profile";
 import { convert, getBudgetRemaining, getCashFlowForecast } from "@/lib/finance";
 import type { WealthData } from "@/lib/types";
 import { createLocalInvestmentSpace } from "@/desktop/investment/local-space.cjs";
+import { createCsvTemplateStore } from "@/desktop/investment/csv-template-store.cjs";
 import InvestmentSpaceChooser from "./InvestmentSpaceChooser";
 import styles from "./InvestmentSpaceChooser.module.css";
 
@@ -20,6 +21,7 @@ function ProfileInvestmentWorkbench({ data, onNavigate }: {data: WealthData; onN
   const accountTarget=useRef<HTMLDivElement>(null),accountInstance=useRef<ReturnType<typeof createWorkbench>|null>(null);
   const [mode,setMode]=useState<"vault"|"account"|null>(null),[opened,setOpened]=useState(false),[vaultOpened,setVaultOpened]=useState(false);
   const space=useMemo(()=>createLocalInvestmentSpace({getScope:getDataProfile,assertScope:assertActiveDataProfile}),[]);
+  const templateStore=useMemo(()=>createCsvTemplateStore({getScope:getDataProfile,assertScope:assertActiveDataProfile}),[]);
   const choose=useCallback((next:"vault"|"account")=>{if(next==="account")setOpened(true);else setVaultOpened(true);setMode(next);},[]);
   const profileKey = getDataProfile().key;
   const context = useMemo(() => {
@@ -51,7 +53,7 @@ function ProfileInvestmentWorkbench({ data, onNavigate }: {data: WealthData; onN
   useEffect(() => {
     if (!vaultOpened || !target.current) return;
     const profile = getDataProfile(), bridge = getDesktopBridge();
-    const ui = createWorkbench({context: contextRef.current,
+    const ui = createWorkbench({context: contextRef.current,templateStore,
       api: async (route, payload) => {
         assertActiveDataProfile(profile);
         if (!bridge?.investmentRequest) throw new Error("请使用已更新的 Wealth Atlas 桌面版，并在「同步 Obsidian」连接自己的 Vault。");
@@ -64,15 +66,16 @@ function ProfileInvestmentWorkbench({ data, onNavigate }: {data: WealthData; onN
     });
     instance.current = ui; ui.mount(target.current);
     return () => { ui.destroy(); instance.current = null; };
-  }, [profileKey,vaultOpened]);
+  }, [profileKey,vaultOpened,templateStore]);
   useEffect(() => { instance.current?.updateContext(context); }, [context]);
   useEffect(()=>{
     if(!opened||!accountTarget.current)return;
     const profile=getDataProfile();
-    const ui=createWorkbench({context:contextRef.current,storageTarget:"account",api:async(route,payload)=>{assertActiveDataProfile(profile);const result=route==="state"?await space.read():route==="save"?await space.save(payload):Promise.reject(new Error("不支持的投资空间操作。"));assertActiveDataProfile(profile);return result;},onResearch:async()=>{assertActiveDataProfile(profile);onNavigate("obsidian");}});
+    const ui=createWorkbench({context:contextRef.current,storageTarget:"account",templateStore,api:async(route,payload)=>{assertActiveDataProfile(profile);const result=route==="state"?await space.read():route==="save"?await space.save(payload):Promise.reject(new Error("不支持的投资空间操作。"));assertActiveDataProfile(profile);return result;},onResearch:async()=>{assertActiveDataProfile(profile);onNavigate("obsidian");}});
     accountInstance.current=ui;ui.mount(accountTarget.current);return()=>{ui.destroy();accountInstance.current=null;};
-  },[opened,space]);
+  },[opened,space,templateStore]);
   useEffect(()=>{accountInstance.current?.updateContext(context);},[context]);
   useEffect(()=>()=>space.close(),[space]);
+  useEffect(()=>()=>templateStore.close(),[templateStore]);
   return <main className="main-content module-page"><div className="page-header module-header"><div><h1>我的投资</h1><p className="page-description">统一持仓、逐笔核对，也留住当时的判断。</p></div><button className="secondary-button" type="button" onClick={() => onNavigate("obsidian")}>连接或查看 Obsidian</button></div><InvestmentSpaceChooser space={space} mode={mode??"vault"} onChoose={choose} onLogin={()=>onNavigate("settings")}/>{vaultOpened&&<section className={`panel ${styles.workspace}`} hidden={mode!=="vault"} style={{padding:22,minWidth:0}}><div ref={target} /></section>}{opened&&<section className={`panel ${styles.workspace}`} hidden={mode!=="account"} style={{padding:22,minWidth:0}}><div ref={accountTarget}/></section>}</main>;
 }

@@ -113,6 +113,9 @@ export async function publishCheckedRelease(context, releasePath, version) {
 }
 
 export function buildReleaseBody(version, head, signature) {
+  if (version === "1.7.13") {
+    return `Wealth Atlas v${version} — 券商 CSV 栏位映射模板\n\n「我的投资 → 对账与导入」支持把券商 CSV 表头明确对应到快照或流水栏位，另存、重命名、删除并复用最多 10 套模板。选择模板后仍需明确应用，替换未保存映射和删除模板均需确认。模板只在当前本机工作区保存栏位规则，不保存 CSV 行、账户标签、金额或汇率数值；不同账号隔离，不写入 Obsidian。\n\n映射后的内容继续使用原有投资资料校验、成交去重、冲突暂停及独立确认保存流程。支持标准 CSV 引号、BOM 和换行；输入与映射输出均限 2 MB、最多 20,000 笔。不会猜测交易类型、日期、金额符号或历史汇率。更改 CSV、账户、栏位或类型会使旧检查结果失效，旧的检查成功或错误提示同时更新，真正的保存失败提示仍保留。模板读取失败不覆盖旧模板，也不妨碍手动核对导入。\n\n本次不包含投资跨设备同步，不新增投资云端表，不自动上传本机投资资料。保留原有日常财务同步、显示方案、暗色星空设计、财务计算、历史资料、删除恢复和 Obsidian 流程，不清空或迁移用户财务资料。\n\n发布前执行完整回归、格式与本机保存对抗测试、四种宽度及真实键盘组件验收，并验证最终安装包 payload 启动、v1.7.12 升级和回退兼容。Windows 文件符号链接权限及可选 PGlite 的环境限制详见验收记录；不等同所有真实券商文件、Mac、NSIS 安装向导或投资跨设备验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n更新前建议自行导出 Excel 和 Obsidian ZIP 备份。无需卸载或清空资料；保存操作并正常退出后安装，重新打开确认 v${version}。`;
+  }
   if (version === "1.7.12") {
     return `Wealth Atlas v${version} — 多套命名显示方案\n\n设置页新增“我的显示方案”：每套保存完整桌面、平板、手机布局，以及现有字体参数、动画和侧边栏隐藏设置。支持另存、复制、重命名、预览、确认应用和删除方案。选中只预览；当前使用方案不能直接删除，未保存草稿须先另存或取消切换。\n\n账号方案库使用独立的 user_ui_layout_libraries 表及本人访问权限，旧版当前显示配置格式保持不变。方案库同步不会自动应用方案；确认应用后，当前显示设置继续使用原有同步。离线保留本机方案；并发修改暂停并明确确认保留哪一整份方案库，不静默覆盖。\n\n不包含财务资料，不改变账户、交易、预算、计算、Obsidian 或投资空间；不自动绑定未登录时的本机方案，不自动恢复、清空或迁移资料。独立本机投资空间仍不跨设备同步。\n\n发布前运行完整回归、独立显示方案对抗测试、四种宽度的真实组件检查，以及最终安装包的隔离 payload 启动、v1.7.11 升级和回退兼容测试。三项真实 Windows 文件符号链接用例因本机权限限制跳过；不等同真实账号、Mac 跨设备或 NSIS 安装向导验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n更新前建议自行导出 Excel 和 Obsidian ZIP 备份。无需卸载或清空资料；保存操作并正常退出后安装，重新打开确认 v${version}。`;
   }
