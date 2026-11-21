@@ -551,3 +551,8 @@ test("v1.7.11 release notes disclose local-only investment storage and preserve 
   for(const expected of ["v1.7.11","本机账号投资空间","仅本机，不跨设备同步","不自动读取或导入原 Vault","原财务 JSON/云端快照不包含","不同账号分别保存","v1.7.10 升级","符号链接","跳过","macOS","NSIS","synthetic-reviewed-commit","UNSIGNED","无需卸载或清空资料"]) assert.ok(body.includes(expected),expected);
   assert.ok(!body.includes("投资资料自动跨设备同步"));
 });
+
+test("v1.7.12 describes separate named libraries without implying financial or Mac verification", () => {
+  const body = buildReleaseBody("1.7.12", "synthetic-reviewed-commit", "UNSIGNED");
+  for (const expected of ["多套命名显示方案", "user_ui_layout_libraries", "选中只预览", "本人访问权限", "旧版当前显示配置格式保持不变", "不包含财务资料", "仍不跨设备同步", "v1.7.11 升级", "Mac 跨设备", "NSIS", "synthetic-reviewed-commit", "UNSIGNED", "无需卸载或清空资料"]) assert.ok(body.includes(expected), expected);
+});

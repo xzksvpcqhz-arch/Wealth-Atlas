@@ -113,6 +113,9 @@ export async function publishCheckedRelease(context, releasePath, version) {
 }
 
 export function buildReleaseBody(version, head, signature) {
+  if (version === "1.7.12") {
+    return `Wealth Atlas v${version} — 多套命名显示方案\n\n设置页新增“我的显示方案”：每套保存完整桌面、平板、手机布局，以及现有字体参数、动画和侧边栏隐藏设置。支持另存、复制、重命名、预览、确认应用和删除方案。选中只预览；当前使用方案不能直接删除，未保存草稿须先另存或取消切换。\n\n账号方案库使用独立的 user_ui_layout_libraries 表及本人访问权限，旧版当前显示配置格式保持不变。方案库同步不会自动应用方案；确认应用后，当前显示设置继续使用原有同步。离线保留本机方案；并发修改暂停并明确确认保留哪一整份方案库，不静默覆盖。\n\n不包含财务资料，不改变账户、交易、预算、计算、Obsidian 或投资空间；不自动绑定未登录时的本机方案，不自动恢复、清空或迁移资料。独立本机投资空间仍不跨设备同步。\n\n发布前运行完整回归、独立显示方案对抗测试、四种宽度的真实组件检查，以及最终安装包的隔离 payload 启动、v1.7.11 升级和回退兼容测试。三项真实 Windows 文件符号链接用例因本机权限限制跳过；不等同真实账号、Mac 跨设备或 NSIS 安装向导验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n更新前建议自行导出 Excel 和 Obsidian ZIP 备份。无需卸载或清空资料；保存操作并正常退出后安装，重新打开确认 v${version}。`;
+  }
   if (version === "1.7.11") {
     return `Wealth Atlas v${version} — 本机账号投资空间\n\n「我的投资」可使用现有登录账号，经明确确认后启用独立的本机投资空间。首次为空白，不自动读取或导入原 Vault；不同账号分别保存，重开后保留记录和保存位置。切换本页工作区保留尚未保存的表单，离开页面前仍应保存需要保留的输入。\n\n仅本机，不跨设备同步，不新增投资云端表，不自动写入 Obsidian。原财务 JSON/云端快照不包含这个独立空间，不要通过清缓存、清数据库或恢复原财务 JSON 来处理投资空间问题。原 Vault 工作台和现有财务同步保持原流程。\n\n提交使用版本及完整状态比较；并发、迟到请求、版本正文或索引损坏、保存失败时停止写入，不以空白空间替代原资料。保留现有财务数据结构、账户余额与汇率计算、历史交易、备份恢复保护、删除恢复、报表、DIY 和更新中心；不清空、迁移或自动恢复用户资料。\n\n发布前执行完整回归、本机投资对抗测试、四种宽度的实际组件检查及最终安装包的隔离 payload 启动、v1.7.10 升级与回退兼容验收。三项真实 Windows 文件符号链接用例因本机权限不足跳过，模拟拒绝分支和目录 junction 测试仍执行；不等同真实账号、macOS、NSIS 安装向导或所有设备验收。\n\nSource commit: ${head}\nSignature: ${signature} (UNSIGNED builds have no verified Authenticode publisher and Windows may warn).\n\n更新前建议自行导出 Excel 和 Obsidian ZIP 备份。无需卸载或清空资料；保存操作并正常退出后安装，重新打开确认 v${version}。`;
   }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { isActiveDataProfile, type DataProfile } from "@/lib/data-profile";
-import { createDisplayPreferences, displayStorageKey, readDisplayPreferences, writeDisplayPreferences, type DisplayPreferences } from "@/lib/display-preferences";
+import { createDisplayPreferences, displayStorageKey, parseDisplayPreferences, readDisplayPreferences, writeDisplayPreferences, type DisplayPreferences } from "@/lib/display-preferences";
 import { getAccountRevision, getAccountUser, isAccountVerified, subscribeAccountBoundary } from "@/lib/account-boundary";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import { createDisplayPreferenceSync, type DisplaySyncStatus } from "@/lib/display-preference-sync";
@@ -133,13 +133,30 @@ export function useDisplayPreferences(profile: DataProfile) {
     if (!isActiveDataProfile(profile) || !history.length) return;
     dispatch({ type: "undo" });
   };
+
+  // A named snapshot is committed before it becomes visible. Failed writes or
+  // another window's save must never replace a live draft or applied layout.
+  const applySnapshot = useCallback((input: DisplayPreferences) => {
+    if (!isActiveDataProfile(profile) || !ready || !readable || hasDraft()) return false;
+    const value = parseDisplayPreferences(input);
+    if (!value) return false;
+    const result = writeDisplayPreferences({ kind: profile.kind, ownerId: profile.ownerId }, value, raw.current);
+    if (!result.ok) {
+      setMessage("方案未应用：本机保存失败或其他窗口已更新设置。原排版已保留，请重新读取后重试。");
+      return false;
+    }
+    raw.current = result.raw;
+    dispatch({ type: "load", value });
+    setMessage("已应用显示方案；财务资料没有改变。");
+    return true;
+  }, [profile, ready, readable, hasDraft, dispatch]);
   const redo = () => {
     if (!isActiveDataProfile(profile) || !future.length) return;
     dispatch({ type: "redo" });
   };
 
   const syncMessage = ({ local: "仅本机工作区保存", waiting: "显示方案同步等待账号验证、联网或草稿处理；本机设置已保留", syncing: "正在同步账号显示方案…", ready: "账号显示方案已是最新", conflict: "其他设备也修改了显示方案，已暂停同步；没有覆盖任何方案", error: "账号显示方案暂时同步失败，本机设置已保留，可重试" } satisfies Record<DisplaySyncStatus, string>)[syncStatus];
-  return { draft, ready, readable, dirty, message, syncStatus, syncMessage, retrySync: () => sync.current?.sync(), resolveSync: (choice: "local" | "remote") => sync.current?.resolve(choice), update, save, cancel: reload, reload, undo, redo, canUndo: !!history.length, canRedo: !!future.length };
+  return { draft, saved, ready, readable, dirty, message, syncStatus, syncMessage, retrySync: () => sync.current?.sync(), resolveSync: (choice: "local" | "remote") => sync.current?.resolve(choice), update, save, applySnapshot, cancel: reload, reload, undo, redo, canUndo: !!history.length, canRedo: !!future.length };
 }
 
 export type DisplayPreferenceController = ReturnType<typeof useDisplayPreferences>;
